@@ -1,3 +1,19 @@
+# [0.4.0](https://github.com/siddharthksah/Stirling-Image/compare/v0.3.1...v0.4.0) (2026-03-23)
+
+
+### Bug Fixes
+
+* streamline CI/CD — remove broken AI docs updater, fix Docker publish ([ad2c96d](https://github.com/siddharthksah/Stirling-Image/commit/ad2c96d7b86b55b602e973f5da30d517605ed5cd))
+
+
+### Features
+
+* add CSS transform props to ImageViewer for live rotate/flip preview ([de3340f](https://github.com/siddharthksah/Stirling-Image/commit/de3340fc5b201cc5c046cbb38a274e7dfa026b41))
+* add live preview callback to RotateSettings, rename button to Apply ([17be50b](https://github.com/siddharthksah/Stirling-Image/commit/17be50b213e1ca6d1d6e8d949b65de70c68d108d))
+* add SideBySideComparison component for resize results ([d037305](https://github.com/siddharthksah/Stirling-Image/commit/d037305f29a32ead0addf6d79ace4823c9ba0e2b))
+* conditional result views — side-by-side for resize, live preview for rotate ([f0d18be](https://github.com/siddharthksah/Stirling-Image/commit/f0d18bee5ebc110e63bb3cf9fd829d80900759ce))
+* rewrite resize settings with tab-based UI (presets, custom, scale) ([b9f3ac0](https://github.com/siddharthksah/Stirling-Image/commit/b9f3ac0d222f3712d35becd6c831dc62f728a16a))
+
 ## [0.3.1](https://github.com/siddharthksah/Stirling-Image/compare/v0.3.0...v0.3.1) (2026-03-23)
 
 
