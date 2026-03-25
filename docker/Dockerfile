@@ -93,7 +93,9 @@ COPY packages/image-engine/package.json packages/image-engine/tsconfig.json ./pa
 COPY packages/ai/package.json packages/ai/tsconfig.json ./packages/ai/
 
 # Install production dependencies (tsx is now in prod deps)
-RUN pnpm install --frozen-lockfile --prod
+# Skip the root prepare script (husky is a devDep, not available in prod)
+RUN npm pkg delete scripts.prepare && \
+    pnpm install --frozen-lockfile --prod
 
 # Remove build tools no longer needed in production
 RUN apt-get purge -y --auto-remove build-essential python3-dev && \
