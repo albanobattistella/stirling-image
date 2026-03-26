@@ -25,6 +25,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut, clearToken } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { GemLogo } from "../common/gem-logo";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -1729,6 +1730,7 @@ function AboutSection() {
 
       <div className="p-4 rounded-lg border border-border bg-muted/20 space-y-3">
         <div className="flex items-center gap-3">
+          <GemLogo className="h-8 w-8 text-primary" />
           <div className="text-2xl font-bold text-foreground">
             Stirling <span className="text-primary">Image</span>
           </div>
