@@ -1,3 +1,15 @@
+# [0.12.0](https://github.com/siddharthksah/Stirling-Image/compare/v0.11.1...v0.12.0) (2026-03-27)
+
+
+### Bug Fixes
+
+* **api:** resolve team name lookup and show server error messages ([609fc8b](https://github.com/siddharthksah/Stirling-Image/commit/609fc8b6cc2d2408226e2576c35d7715bdf1498c))
+
+
+### Features
+
+* **docs:** add llms.txt links to GitHub Pages footer ([b874445](https://github.com/siddharthksah/Stirling-Image/commit/b874445dc6d31c54a095d7471390e664b233d491))
+
 ## [0.11.1](https://github.com/siddharthksah/Stirling-Image/compare/v0.11.0...v0.11.1) (2026-03-27)
 
 
