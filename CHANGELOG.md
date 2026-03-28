@@ -1,3 +1,10 @@
+# [0.14.0](https://github.com/siddharthksah/Stirling-Image/compare/v0.13.1...v0.14.0) (2026-03-28)
+
+
+### Features
+
+* multi-arch Docker support, security hardening, and test improvements ([748d2b7](https://github.com/siddharthksah/Stirling-Image/commit/748d2b70460b3975a9c61edec0b121d788d0ee06))
+
 ## [0.13.1](https://github.com/siddharthksah/Stirling-Image/compare/v0.13.0...v0.13.1) (2026-03-27)
 
 
