@@ -1,11 +1,40 @@
 import { type FormEvent, useState } from "react";
 
+function generatePassword(): string {
+  const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lower = "abcdefghijklmnopqrstuvwxyz";
+  const digits = "0123456789";
+  const all = upper + lower + digits;
+  // Guarantee at least one of each required character class
+  const required = [
+    upper[Math.floor(Math.random() * upper.length)],
+    lower[Math.floor(Math.random() * lower.length)],
+    digits[Math.floor(Math.random() * digits.length)],
+  ];
+  const rest = Array.from({ length: 13 }, () => all[Math.floor(Math.random() * all.length)]);
+  // Shuffle so the required chars aren't always at the start
+  const chars = [...required, ...rest];
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join("");
+}
+
 export function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showGenerated, setShowGenerated] = useState(false);
+
+  const handleGenerate = () => {
+    const pw = generatePassword();
+    setNewPassword(pw);
+    setConfirmPassword(pw);
+    setShowGenerated(true);
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -58,6 +87,13 @@ export function ChangePasswordPage() {
             </p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Hidden username so the browser associates saved credentials correctly */}
+            <input
+              type="hidden"
+              name="username"
+              autoComplete="username"
+              value={localStorage.getItem("stirling-username") || "admin"}
+            />
             <div>
               <label
                 htmlFor="current-password"
@@ -68,6 +104,7 @@ export function ChangePasswordPage() {
               <input
                 id="current-password"
                 type="password"
+                autoComplete="current-password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Enter current password"
@@ -76,19 +113,29 @@ export function ChangePasswordPage() {
               />
             </div>
             <div>
-              <label
-                htmlFor="new-password"
-                className="block text-sm font-medium mb-1 text-foreground"
-              >
-                New password
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="new-password" className="text-sm font-medium text-foreground">
+                  New password
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  className="text-xs text-primary hover:text-primary/80 font-medium"
+                >
+                  Generate strong password
+                </button>
+              </div>
               <input
                 id="new-password"
-                type="password"
+                type={showGenerated ? "text" : "password"}
+                autoComplete="new-password"
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  setShowGenerated(false);
+                }}
                 placeholder="At least 8 characters"
-                className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className={`w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 ${showGenerated ? "font-mono text-sm" : ""}`}
                 required
                 minLength={8}
               />
@@ -102,11 +149,15 @@ export function ChangePasswordPage() {
               </label>
               <input
                 id="confirm-password"
-                type="password"
+                type={showGenerated ? "text" : "password"}
+                autoComplete="new-password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setShowGenerated(false);
+                }}
                 placeholder="Repeat new password"
-                className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className={`w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 ${showGenerated ? "font-mono text-sm" : ""}`}
                 required
                 minLength={8}
               />
