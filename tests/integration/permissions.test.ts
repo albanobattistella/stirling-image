@@ -301,3 +301,105 @@ describe("tool and pipeline permission enforcement", () => {
     expect(res.statusCode).toBe(200);
   });
 });
+
+describe("API key ownership scoping", () => {
+  let userAToken: string;
+  let userBToken: string;
+
+  beforeAll(async () => {
+    // Create user A
+    await testApp.app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { username: "keyuserA", password: "TestPass1", role: "user" },
+    });
+    db.update(schema.users)
+      .set({ mustChangePassword: false })
+      .where(eq(schema.users.username, "keyuserA"))
+      .run();
+    const loginA = await testApp.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { username: "keyuserA", password: "TestPass1" },
+    });
+    userAToken = JSON.parse(loginA.body).token;
+
+    // Create user B
+    await testApp.app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { username: "keyuserB", password: "TestPass1", role: "user" },
+    });
+    db.update(schema.users)
+      .set({ mustChangePassword: false })
+      .where(eq(schema.users.username, "keyuserB"))
+      .run();
+    const loginB = await testApp.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { username: "keyuserB", password: "TestPass1" },
+    });
+    userBToken = JSON.parse(loginB.body).token;
+  });
+
+  it("user A cannot see user B's API keys", async () => {
+    // User A creates a key
+    await testApp.app.inject({
+      method: "POST",
+      url: "/api/v1/api-keys",
+      headers: { authorization: `Bearer ${userAToken}` },
+      payload: { name: "A-key" },
+    });
+
+    // User B creates a key
+    await testApp.app.inject({
+      method: "POST",
+      url: "/api/v1/api-keys",
+      headers: { authorization: `Bearer ${userBToken}` },
+      payload: { name: "B-key" },
+    });
+
+    // User A lists keys - should only see their own
+    const res = await testApp.app.inject({
+      method: "GET",
+      url: "/api/v1/api-keys",
+      headers: { authorization: `Bearer ${userAToken}` },
+    });
+    const body = JSON.parse(res.body);
+    expect(body.apiKeys.every((k: any) => k.name === "A-key")).toBe(true);
+    expect(body.apiKeys.some((k: any) => k.name === "B-key")).toBe(false);
+  });
+
+  it("admin can see all API keys", async () => {
+    const res = await testApp.app.inject({
+      method: "GET",
+      url: "/api/v1/api-keys",
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    const body = JSON.parse(res.body);
+    // Admin should see keys from both users
+    expect(body.apiKeys.some((k: any) => k.name === "A-key")).toBe(true);
+    expect(body.apiKeys.some((k: any) => k.name === "B-key")).toBe(true);
+  });
+
+  it("user A cannot delete user B's API key", async () => {
+    // Get user B's keys
+    const listRes = await testApp.app.inject({
+      method: "GET",
+      url: "/api/v1/api-keys",
+      headers: { authorization: `Bearer ${userBToken}` },
+    });
+    const bKeys = JSON.parse(listRes.body).apiKeys;
+    if (bKeys.length === 0) throw new Error("Expected user B to have keys");
+
+    // User A tries to delete user B's key
+    const res = await testApp.app.inject({
+      method: "DELETE",
+      url: `/api/v1/api-keys/${bKeys[0].id}`,
+      headers: { authorization: `Bearer ${userAToken}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});
