@@ -1,7 +1,26 @@
-"""Pre-download all rembg models offered in the UI."""
-import sys
+"""Pre-download and verify all ML models for the Docker image.
 
-MODELS = [
+This script runs at Docker build time. Any failure exits non-zero,
+failing the build. No silent fallbacks.
+"""
+import os
+import sys
+import urllib.request
+
+# Force CPU mode during build - no GPU driver available at build time.
+# Must be set before any ML library import.
+os.environ["PADDLE_DEVICE"] = "cpu"
+os.environ["FLAGS_use_cuda"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
+REALESRGAN_MODEL_DIR = "/opt/models/realesrgan"
+REALESRGAN_MODEL_URL = (
+    "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth"
+)
+REALESRGAN_MODEL_PATH = os.path.join(REALESRGAN_MODEL_DIR, "RealESRGAN_x4plus.pth")
+REALESRGAN_MIN_SIZE = 60_000_000  # ~67 MB
+
+REMBG_MODELS = [
     "u2net",
     "isnet-general-use",
     "bria-rmbg",
@@ -10,18 +29,116 @@ MODELS = [
     "birefnet-general",
 ]
 
-try:
-    from rembg import new_session
-except ImportError:
-    print("WARNING: rembg not installed, skipping model pre-download")
-    sys.exit(0)
+# PaddleOCR language codes (not ISO). German/French/Spanish use "latin" model.
+# Valid keys: ch, en, korean, japan, chinese_cht, ta, te, ka, latin, arabic, cyrillic, devanagari
+PADDLEOCR_LANGUAGES = ["en", "ch", "japan", "korean", "latin"]
 
-for model in MODELS:
-    print(f"Downloading {model}...")
-    try:
+
+def download_rembg_models():
+    """Download all rembg ONNX models."""
+    print("=== Downloading rembg models ===")
+    from rembg import new_session
+
+    for model in REMBG_MODELS:
+        print(f"  Downloading {model}...")
         new_session(model)
         print(f"  {model} ready")
-    except Exception as e:
-        print(f"  WARNING: {model} failed: {e}")
+    print(f"All {len(REMBG_MODELS)} rembg models downloaded.\n")
 
-print("Model pre-download complete")
+
+def download_realesrgan_model():
+    """Download RealESRGAN_x4plus.pth pretrained weights."""
+    print("=== Downloading RealESRGAN model ===")
+    os.makedirs(REALESRGAN_MODEL_DIR, exist_ok=True)
+    print(f"  Downloading from {REALESRGAN_MODEL_URL}...")
+    urllib.request.urlretrieve(REALESRGAN_MODEL_URL, REALESRGAN_MODEL_PATH)
+
+    size = os.path.getsize(REALESRGAN_MODEL_PATH)
+    assert size > REALESRGAN_MIN_SIZE, (
+        f"RealESRGAN model too small: {size} bytes (expected > {REALESRGAN_MIN_SIZE})"
+    )
+    print(f"  RealESRGAN_x4plus.pth downloaded ({size / 1_000_000:.1f} MB)\n")
+
+
+def download_paddleocr_models():
+    """Pre-download PaddleOCR models for all supported languages."""
+    print("=== Downloading PaddleOCR models ===")
+    try:
+        from paddleocr import PaddleOCR
+    except ImportError as e:
+        if "libcuda" in str(e):
+            # paddlepaddle-gpu can't import without CUDA driver at build time.
+            # Models will be downloaded on first use at runtime instead.
+            print(f"  Skipping PaddleOCR model pre-download (no CUDA driver at build time)")
+            print(f"  Models will download on first use at runtime.\n")
+            return
+        raise
+
+    for lang in PADDLEOCR_LANGUAGES:
+        print(f"  Downloading models for lang={lang}...")
+        PaddleOCR(lang=lang, use_gpu=False, show_log=False)
+        print(f"  {lang} ready")
+    print(f"All {len(PADDLEOCR_LANGUAGES)} PaddleOCR languages downloaded.\n")
+
+
+def verify_mediapipe():
+    """Verify MediaPipe face detection models are bundled in the wheel."""
+    print("=== Verifying MediaPipe models ===")
+    import mediapipe as mp
+
+    for selection in [0, 1]:
+        label = "short-range" if selection == 0 else "full-range"
+        print(f"  Verifying {label} model (selection={selection})...")
+        detector = mp.solutions.face_detection.FaceDetection(
+            model_selection=selection, min_detection_confidence=0.5
+        )
+        detector.close()
+        print(f"  {label} model OK")
+    print("MediaPipe models verified.\n")
+
+
+def smoke_test():
+    """Final verification that all ML libraries and models are loadable.
+
+    GPU-dependent libraries (paddlepaddle-gpu, torch CUDA) cannot be imported
+    at build time because the CUDA driver is only available at runtime. We verify
+    CPU-only imports and check that model files exist on disk.
+    """
+    print("=== Running smoke test ===")
+
+    # CPU-only imports that work on all platforms at build time
+    from PIL import Image
+    import cv2
+    import numpy
+    import seam_carving
+    from rembg import new_session
+    print("  CPU imports OK (Pillow, cv2, numpy, seam_carving, rembg)")
+
+    # MediaPipe is CPU-only, should always import
+    import mediapipe as mp
+    print("  MediaPipe import OK")
+
+    # RealESRGAN model file must exist
+    assert os.path.exists(REALESRGAN_MODEL_PATH), (
+        f"RealESRGAN model missing: {REALESRGAN_MODEL_PATH}"
+    )
+    assert os.path.getsize(REALESRGAN_MODEL_PATH) > REALESRGAN_MIN_SIZE, (
+        "RealESRGAN model file is too small"
+    )
+    print("  RealESRGAN model file verified")
+
+    print("Smoke test passed.\n")
+
+
+def main():
+    print("Pre-downloading all ML models...\n")
+    download_rembg_models()
+    download_realesrgan_model()
+    download_paddleocr_models()
+    verify_mediapipe()
+    smoke_test()
+    print("All models downloaded and verified.")
+
+
+if __name__ == "__main__":
+    main()

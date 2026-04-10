@@ -23,6 +23,14 @@ import { teamsRoutes } from "./routes/teams.js";
 import { registerToolRoutes } from "./routes/tools/index.js";
 import { userFileRoutes } from "./routes/user-files.js";
 
+// Warn about deprecated STIRLING_VARIANT env var
+if (process.env.STIRLING_VARIANT) {
+  console.warn(
+    `WARNING: STIRLING_VARIANT="${process.env.STIRLING_VARIANT}" is set but ignored. ` +
+      "There is now a single unified image with all features. Remove STIRLING_VARIANT from your environment.",
+  );
+}
+
 // Run before anything else
 runMigrations();
 console.log("Database initialized");
@@ -108,12 +116,23 @@ await teamsRoutes(app);
 // API docs (Scalar)
 await docsRoutes(app);
 
-// Public health check (minimal - no internal details)
-app.get("/api/v1/health", async () => ({
-  status: "healthy",
-  version: APP_VERSION,
-  variant: process.env.STIRLING_VARIANT === "lite" ? "lite" : "full",
-}));
+// Public health check (checks core dependencies)
+app.get("/api/v1/health", async (_request, reply) => {
+  let dbOk = false;
+  try {
+    db.select().from(schema.settings).limit(1).get();
+    dbOk = true;
+  } catch {
+    /* db unreachable */
+  }
+
+  const status = dbOk ? "healthy" : "unhealthy";
+  const code = dbOk ? 200 : 503;
+  return reply.code(code).send({
+    status,
+    version: APP_VERSION,
+  });
+});
 
 // Admin health check (full diagnostics)
 app.get("/api/v1/admin/health", async (request, reply) => {
@@ -161,11 +180,18 @@ try {
 }
 
 // Graceful shutdown
+const SHUTDOWN_TIMEOUT_MS = 8000;
 let shuttingDown = false;
 async function shutdown(signal: string) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`\n${signal} received, shutting down gracefully...`);
+
+  const forceExit = setTimeout(() => {
+    console.error("Shutdown timed out, forcing exit");
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExit.unref();
 
   cleanupCron.stop();
 
@@ -199,6 +225,7 @@ async function shutdown(signal: string) {
     console.error("Error closing database:", err);
   }
 
+  clearTimeout(forceExit);
   process.exit(0);
 }
 
