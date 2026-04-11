@@ -28,6 +28,7 @@ const envSchema = z.object({
   APP_NAME: z.string().default("Stirling Image"),
   CORS_ORIGIN: z.string().default(""),
   MAX_USERS: z.coerce.number().default(5),
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -306,7 +306,7 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
         request.log.error({ err, toolId: config.toolId }, "Tool processing failed");
         return reply.status(422).send({
           error: "Processing failed",
-          details: process.env.NODE_ENV === "production" ? undefined : message,
+          details: message,
         });
       }
     },

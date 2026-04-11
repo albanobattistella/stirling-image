@@ -186,7 +186,10 @@ export function useToolProcessor(toolId: string) {
         } else {
           try {
             const body = JSON.parse(xhr.responseText);
-            setError(body.error || body.details || `Processing failed: ${xhr.status}`);
+            const msg = body.details
+              ? `${body.error}: ${body.details}`
+              : body.error || `Processing failed: ${xhr.status}`;
+            setError(msg);
           } catch {
             setError(`Processing failed: ${xhr.status}`);
           }
@@ -305,7 +308,9 @@ export function useToolProcessor(toolId: string) {
           let errorMsg: string;
           try {
             const body = JSON.parse(text);
-            errorMsg = body.error || body.details || `Batch processing failed: ${response.status}`;
+            errorMsg = body.details
+              ? `${body.error}: ${body.details}`
+              : body.error || `Batch processing failed: ${response.status}`;
           } catch {
             errorMsg = `Batch processing failed: ${response.status}`;
           }

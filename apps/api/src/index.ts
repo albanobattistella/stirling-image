@@ -34,7 +34,7 @@ await ensureDefaultAdmin();
 recoverStaleJobs();
 
 const app = Fastify({
-  logger: true,
+  logger: { level: env.LOG_LEVEL },
   bodyLimit: env.MAX_UPLOAD_SIZE_MB * 1024 * 1024,
 });
 

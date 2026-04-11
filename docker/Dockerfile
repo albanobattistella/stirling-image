@@ -182,7 +182,8 @@ ENV PORT=1349 \
     MAX_BATCH_SIZE=200 \
     CONCURRENT_JOBS=3 \
     MAX_MEGAPIXELS=100 \
-    RATE_LIMIT_PER_MIN=100
+    RATE_LIMIT_PER_MIN=100 \
+    LOG_LEVEL=info
 
 # NVIDIA Container Toolkit env vars (harmless on non-GPU systems)
 ENV NVIDIA_VISIBLE_DEVICES=all \
