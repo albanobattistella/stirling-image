@@ -15,7 +15,6 @@ def main():
     settings = json.loads(sys.argv[3]) if len(sys.argv) > 3 else {}
 
     model = settings.get("model", "birefnet-general-lite")
-    bg_color = settings.get("backgroundColor", "")
 
     # Redirect stdout to stderr so library download/progress output
     # cannot contaminate our JSON result on stdout.
@@ -25,7 +24,6 @@ def main():
     try:
         from rembg import remove, new_session
         from gpu import onnx_providers
-        import io
 
         emit_progress(10, "Loading model")
 
@@ -51,21 +49,8 @@ def main():
 
         emit_progress(80, "Background removed")
 
-        # If a background color is specified, composite onto it
-        if bg_color and bg_color.startswith("#"):
-            emit_progress(85, "Compositing background")
-            from PIL import Image
-
-            img = Image.open(io.BytesIO(output_data)).convert("RGBA")
-            hex_color = bg_color.lstrip("#")
-            r = int(hex_color[0:2], 16)
-            g = int(hex_color[2:4], 16)
-            b = int(hex_color[4:6], 16)
-            bg = Image.new("RGBA", img.size, (r, g, b, 255))
-            bg.paste(img, mask=img.split()[3])
-            buf = io.BytesIO()
-            bg.save(buf, format="PNG")
-            output_data = buf.getvalue()
+        # Always return transparent PNG. All background compositing
+        # (solid color, gradient, blur, shadow) is handled by Node.js/Sharp.
 
         emit_progress(95, "Saving result")
         with open(output_path, "wb") as f:
