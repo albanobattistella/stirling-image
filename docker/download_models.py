@@ -91,24 +91,43 @@ def download_realesrgan_model():
 
 
 def download_paddleocr_models():
-    """Pre-download PaddleOCR models for all supported languages."""
-    print("=== Downloading PaddleOCR models ===")
+    """Pre-download PaddleOCR PP-OCRv5 models for all supported languages."""
+    print("=== Downloading PaddleOCR PP-OCRv5 models ===")
     try:
         from paddleocr import PaddleOCR
     except ImportError as e:
         if "libcuda" in str(e):
-            # paddlepaddle-gpu can't import without CUDA driver at build time.
-            # Models will be downloaded on first use at runtime instead.
             print(f"  Skipping PaddleOCR model pre-download (no CUDA driver at build time)")
             print(f"  Models will download on first use at runtime.\n")
             return
         raise
 
     for lang in PADDLEOCR_LANGUAGES:
-        print(f"  Downloading models for lang={lang}...")
-        PaddleOCR(lang=lang, use_gpu=False, show_log=False)
+        print(f"  Downloading PP-OCRv5 models for lang={lang}...")
+        PaddleOCR(lang=lang, use_gpu=False, show_log=False, ocr_version="PP-OCRv5")
         print(f"  {lang} ready")
-    print(f"All {len(PADDLEOCR_LANGUAGES)} PaddleOCR languages downloaded.\n")
+    print(f"All {len(PADDLEOCR_LANGUAGES)} PaddleOCR PP-OCRv5 languages downloaded.\n")
+
+
+def download_paddleocr_vl_model():
+    """Pre-download PaddleOCR-VL 1.5 model weights."""
+    print("=== Downloading PaddleOCR-VL 1.5 model ===")
+    try:
+        from paddleocr import PaddleOCRVL
+    except ImportError as e:
+        if "libcuda" in str(e):
+            print(f"  Skipping PaddleOCR-VL pre-download (no CUDA driver at build time)")
+            print(f"  Model will download on first use at runtime.\n")
+            return
+        raise
+
+    print("  Downloading PaddleOCR-VL 1.5 weights (~1.93 GB)...")
+    try:
+        PaddleOCRVL(device="cpu")
+        print("  PaddleOCR-VL 1.5 ready\n")
+    except Exception as e:
+        print(f"  Warning: PaddleOCR-VL pre-download failed: {e}")
+        print(f"  Model will download on first use at runtime.\n")
 
 
 def verify_mediapipe():
@@ -164,6 +183,7 @@ def main():
     download_rembg_models()
     download_realesrgan_model()
     download_paddleocr_models()
+    download_paddleocr_vl_model()
     verify_mediapipe()
     smoke_test()
     print("All models downloaded and verified.")
