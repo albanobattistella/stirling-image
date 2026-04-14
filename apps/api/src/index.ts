@@ -1,7 +1,7 @@
-import cors from "@fastify/cors";
-import rateLimit from "@fastify/rate-limit";
 import { isGpuAvailable } from "@ashim/ai";
 import { APP_VERSION } from "@ashim/shared";
+import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 import { env } from "./config.js";
 import { db, schema } from "./db/index.js";
