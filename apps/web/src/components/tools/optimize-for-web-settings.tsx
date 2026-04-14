@@ -52,7 +52,20 @@ export function OptimizeForWebSettings() {
   const prevPreviewUrlRef = useRef<string | null>(null);
 
   const hasFile = files.length > 0;
-  const currentEntry = entries[selectedIndex];
+
+  // Use a ref for the current file so fetchPreview doesn't depend on the
+  // reactive entry (which changes when we write processedUrl back to the store).
+  const fileRef = useRef<File | null>(null);
+  const fileSizeRef = useRef(0);
+  const selectedIndexRef = useRef(selectedIndex);
+  useEffect(() => {
+    const entry = entries[selectedIndex];
+    if (entry) {
+      fileRef.current = entry.file;
+      fileSizeRef.current = entry.file.size;
+    }
+    selectedIndexRef.current = selectedIndex;
+  }, [entries, selectedIndex]);
 
   // Build settings object
   const buildSettings = useCallback(() => {
@@ -69,9 +82,10 @@ export function OptimizeForWebSettings() {
     return settings;
   }, [format, quality, maxWidth, maxHeight, stripMetadata]);
 
-  // Live preview - debounced request on parameter change
+  // Live preview - reads file from ref to avoid re-trigger loop
   const fetchPreview = useCallback(() => {
-    if (!hasFile || !currentEntry) return;
+    const file = fileRef.current;
+    if (!file) return;
 
     // Cancel any in-flight request
     if (abortRef.current) abortRef.current.abort();
@@ -80,8 +94,9 @@ export function OptimizeForWebSettings() {
     abortRef.current = controller;
     setPreview((prev) => ({ ...prev, loading: true }));
 
+    const idx = selectedIndexRef.current;
     const formData = new FormData();
-    formData.append("file", currentEntry.file);
+    formData.append("file", file);
     formData.append("settings", JSON.stringify(buildSettings()));
 
     fetch("/api/v1/tools/optimize-for-web/preview", {
@@ -105,7 +120,7 @@ export function OptimizeForWebSettings() {
         prevPreviewUrlRef.current = previewUrl;
 
         // Write the preview into the file store so BeforeAfterSlider picks it up
-        useFileStore.getState().updateEntry(selectedIndex, {
+        useFileStore.getState().updateEntry(idx, {
           processedUrl: previewUrl,
           processedPreviewUrl: null,
           processedFilename: null,
@@ -125,20 +140,31 @@ export function OptimizeForWebSettings() {
         if (err instanceof Error && err.name === "AbortError") return;
         setPreview((prev) => ({ ...prev, loading: false }));
       });
-  }, [hasFile, currentEntry, selectedIndex, buildSettings]);
+  }, [buildSettings]);
 
-  // Debounce preview on settings change
+  // Debounce preview on settings change only.
+  // fetchPreview changes when buildSettings changes (format/quality/dimensions/stripMetadata).
+  // hasFile triggers the initial preview on first upload.
   useEffect(() => {
     if (!hasFile) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    const debounceMs = currentEntry && currentEntry.file.size > 20 * 1024 * 1024 ? 800 : 300;
+    const debounceMs = fileSizeRef.current > 20 * 1024 * 1024 ? 800 : 300;
     debounceRef.current = setTimeout(fetchPreview, debounceMs);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [hasFile, currentEntry, fetchPreview]);
+  }, [hasFile, fetchPreview]);
+
+  // Re-preview when the user switches between files in batch mode
+  const prevSelectedIndex = useRef(selectedIndex);
+  useEffect(() => {
+    if (prevSelectedIndex.current !== selectedIndex && hasFile) {
+      prevSelectedIndex.current = selectedIndex;
+      fetchPreview();
+    }
+  }, [selectedIndex, hasFile, fetchPreview]);
 
   // Cleanup on unmount
   useEffect(() => {
