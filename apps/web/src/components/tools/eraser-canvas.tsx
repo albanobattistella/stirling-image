@@ -5,6 +5,7 @@ type Stroke = { points: Point[]; size: number };
 
 export interface EraserCanvasRef {
   exportMask: () => Promise<Blob | null>;
+  getMaskCenter: () => number | null;
   clear: () => void;
   undo: () => void;
 }
@@ -237,6 +238,20 @@ export const EraserCanvas = forwardRef<EraserCanvasRef, EraserCanvasProps>(funct
         return new Promise<Blob | null>((resolve) => {
           mask.toBlob((b) => resolve(b), "image/png");
         });
+      },
+      getMaskCenter: () => {
+        if (strokesRef.current.length === 0 || !canvasSize) return null;
+        let minX = Infinity;
+        let maxX = -Infinity;
+        for (const stroke of strokesRef.current) {
+          for (const pt of stroke.points) {
+            minX = Math.min(minX, pt.x - stroke.size / 2);
+            maxX = Math.max(maxX, pt.x + stroke.size / 2);
+          }
+        }
+        if (minX === Infinity) return null;
+        const centerX = (minX + maxX) / 2;
+        return Math.max(0, Math.min(100, (centerX / canvasSize.w) * 100));
       },
       clear: () => {
         strokesRef.current = [];

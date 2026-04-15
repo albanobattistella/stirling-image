@@ -179,6 +179,8 @@ export function ToolPage() {
   const eraserRef = useRef<EraserCanvasRef | null>(null);
   const [eraserHasStrokes, setEraserHasStrokes] = useState(false);
   const [eraserBrushSize, setEraserBrushSize] = useState(30);
+  // Center of the painted mask as a 0-100 percentage — used to init the slider at the right spot
+  const [eraserSliderInitPos, setEraserSliderInitPos] = useState<number | null>(null);
 
   // Reset crop state when the image changes
   useEffect(() => {
@@ -188,6 +190,7 @@ export function ToolPage() {
 
   const handleFiles = useCallback(
     (newFiles: File[]) => {
+      setEraserSliderInitPos(null);
       reset();
       setFiles(newFiles);
     },
@@ -196,6 +199,7 @@ export function ToolPage() {
 
   const handleUndo = useCallback(() => {
     undoProcessing();
+    setEraserSliderInitPos(null);
   }, [undoProcessing]);
 
   const handleAddMore = useCallback(() => {
@@ -276,6 +280,7 @@ export function ToolPage() {
             hasStrokes: eraserHasStrokes,
             brushSize: eraserBrushSize,
             onBrushSizeChange: setEraserBrushSize,
+            onMaskCenter: setEraserSliderInitPos,
           }
         : undefined,
   };
@@ -345,6 +350,21 @@ export function ToolPage() {
           imageSrc={originalBlobUrl}
           brushSize={eraserBrushSize}
           onStrokeChange={setEraserHasStrokes}
+        />
+      );
+    }
+
+    // After erasing: compare clean original vs inpainted result.
+    // Initialise the divider at the center of the painted area so the comparison
+    // lands right where the object was removed.
+    if (displayMode === "interactive-eraser" && hasProcessed && originalBlobUrl) {
+      return (
+        <BeforeAfterSlider
+          beforeSrc={originalBlobUrl}
+          afterSrc={displayUrl}
+          beforeSize={originalSize ?? undefined}
+          afterSize={processedSize ?? undefined}
+          initialPosition={eraserSliderInitPos ?? 50}
         />
       );
     }

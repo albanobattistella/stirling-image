@@ -43,6 +43,7 @@ export interface EraserProps {
   hasStrokes: boolean;
   brushSize: number;
   onBrushSizeChange: (size: number) => void;
+  onMaskCenter?: (centerPct: number) => void;
 }
 
 // ── Registry entry ─────────────────────────────────────────────────
@@ -433,7 +434,7 @@ export const toolRegistry = new Map<string, ToolRegistryEntry>([
   [
     "image-enhancement",
     {
-      displayMode: "live-preview" as DisplayMode,
+      displayMode: "before-after" as DisplayMode,
       livePreview: true,
       Settings: ImageEnhancementSettings as never,
     },

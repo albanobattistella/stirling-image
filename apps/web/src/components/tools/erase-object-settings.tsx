@@ -14,6 +14,7 @@ interface EraseObjectSettingsProps {
   hasStrokes: boolean;
   brushSize: number;
   onBrushSizeChange: (size: number) => void;
+  onMaskCenter?: (centerPct: number) => void;
 }
 
 export function EraseObjectSettings({
@@ -21,6 +22,7 @@ export function EraseObjectSettings({
   hasStrokes,
   brushSize,
   onBrushSizeChange: setBrushSize,
+  onMaskCenter,
 }: EraseObjectSettingsProps) {
   const { files, processing, error, setProcessing, setError, setProcessedUrl, setSizes } =
     useFileStore();
@@ -40,6 +42,12 @@ export function EraseObjectSettings({
 
     const maskBlob = await eraserRef.current.exportMask();
     if (!maskBlob) return;
+
+    // Record where the user painted so the comparison slider starts at that location
+    const maskCenter = eraserRef.current.getMaskCenter();
+    if (maskCenter !== null && onMaskCenter) {
+      onMaskCenter(maskCenter);
+    }
 
     setError(null);
     setDownloadUrl(null);
