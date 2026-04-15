@@ -1,10 +1,3 @@
-<blockquote>
-<p align="center">
-  <strong>We've renamed!</strong> Formerly Stirling Image, now <strong>ashim</strong>.<br>
-  <a href="https://github.com/ashim-hq/ashim">github.com/ashim-hq/ashim</a>
-</p>
-</blockquote>
-
 <p align="center">
   <img src="apps/web/public/logo-192.png" width="80" alt="ashim logo">
 </p>
@@ -14,7 +7,8 @@
 <p align="center">ashim but for images. 30+ tools and local AI in a single Docker container.</p>
 
 <p align="center">
-  <a href="https://hub.docker.com/r/ashimhq/ashim"><img src="https://img.shields.io/badge/Docker-Hub-blue?logo=docker" alt="Docker"></a>
+  <a href="https://hub.docker.com/r/ashimhq/ashim"><img src="https://img.shields.io/docker/v/ashimhq/ashim?label=Docker%20Hub&logo=docker" alt="Docker Hub"></a>
+  <a href="https://github.com/ashim-hq/ashim/pkgs/container/ashim"><img src="https://img.shields.io/badge/GHCR-ghcr.io%2Fashim--hq%2Fashim-blue?logo=github" alt="GHCR"></a>
   <a href="https://github.com/ashim-hq/ashim/actions"><img src="https://img.shields.io/github/actions/workflow/status/ashim-hq/ashim/ci.yml?label=CI" alt="CI"></a>
   <a href="https://github.com/ashim-hq/ashim/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPLv3-blue" alt="License"></a>
   <a href="https://github.com/ashim-hq/ashim/stargazers"><img src="https://img.shields.io/github/stars/ashim-hq/ashim?style=social" alt="Stars"></a>
@@ -35,7 +29,7 @@
 ## Quick Start
 
 ```bash
-docker run -d -p 1349:1349 -v ashim-data:/data stirlingimage/stirling-image:latest
+docker run -d -p 1349:1349 -v ashim-data:/data ashimhq/ashim:latest
 ```
 
 Open http://localhost:1349 in your browser.
@@ -47,7 +41,7 @@ Open http://localhost:1349 in your browser.
 Add `--gpus all` for GPU-accelerated background removal, upscaling, and OCR:
 
 ```bash
-docker run -d -p 1349:1349 --gpus all -v ashim-data:/data stirlingimage/stirling-image:latest 
+docker run -d -p 1349:1349 --gpus all -v ashim-data:/data ashimhq/ashim:latest
 ```
 
 > Requires an NVIDIA GPU and [Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html). Falls back to CPU if no GPU is found. See [Docker Tags](https://ashim-hq.github.io/ashim/guide/docker-tags) for benchmarks and Docker Compose examples.
@@ -64,6 +58,30 @@ docker run -d -p 1349:1349 --gpus all -v ashim-data:/data stirlingimage/stirling
 You will be asked to change your password on first login. This is enforced for all new accounts and cannot be skipped in production.
 
 For Docker Compose, persistent storage, and other setup options, see the [Getting Started Guide](https://ashim-hq.github.io/ashim/guide/getting-started). For GPU acceleration and tag details, see [Docker Tags](https://ashim-hq.github.io/ashim/guide/docker-tags).
+
+## Docker Images
+
+Images are published to both Docker Hub and the GitHub Container Registry on every release and support `linux/amd64` and `linux/arm64`.
+
+**Docker Hub**
+
+```bash
+docker pull ashimhq/ashim:latest          # latest release
+docker pull ashimhq/ashim:1.15.0          # exact version
+docker pull ashimhq/ashim:1.15            # latest patch in 1.15
+docker pull ashimhq/ashim:1              # latest minor in 1.x
+```
+
+**GitHub Container Registry**
+
+```bash
+docker pull ghcr.io/ashim-hq/ashim:latest
+docker pull ghcr.io/ashim-hq/ashim:1.15.0
+docker pull ghcr.io/ashim-hq/ashim:1.15
+docker pull ghcr.io/ashim-hq/ashim:1
+```
+
+All tags are identical — use whichever registry is closer to your deployment environment. The images are multi-arch manifests; Docker automatically selects the right layer for your platform.
 
 ## Documentation
 
