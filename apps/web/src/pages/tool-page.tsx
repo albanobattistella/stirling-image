@@ -1,6 +1,12 @@
 import { TOOLS } from "@ashim/shared";
-import * as icons from "lucide-react";
-import { CheckCircle2, ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileImage,
+  Loader2,
+} from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Crop } from "react-image-crop";
 import { useParams } from "react-router-dom";
@@ -17,6 +23,7 @@ import { EraserCanvas } from "@/components/tools/eraser-canvas";
 import type { PreviewTransform } from "@/components/tools/rotate-settings";
 import { useMobile } from "@/hooks/use-mobile";
 import { formatFileSize } from "@/lib/download";
+import { ICON_MAP } from "@/lib/icon-map";
 import { getToolRegistryEntry } from "@/lib/tool-registry";
 import { useFileStore } from "@/stores/file-store";
 
@@ -222,8 +229,7 @@ export function ToolPage() {
   }
 
   const IconComponent =
-    (icons as unknown as Record<string, React.ComponentType<{ className?: string }>>)[tool.icon] ||
-    icons.FileImage;
+    (ICON_MAP[tool.icon] as React.ComponentType<{ className?: string }>) ?? FileImage;
 
   const hasFile = files.length > 0;
   const hasProcessed = !!processedUrl;

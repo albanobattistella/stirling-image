@@ -15,11 +15,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import * as icons from "lucide-react";
-import { GripVertical, Plus, X } from "lucide-react";
+import { FileImage, GripVertical, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SearchBar } from "@/components/common/search-bar";
 import { apiGet } from "@/lib/api";
+import { ICON_MAP } from "@/lib/icon-map";
 import { cn } from "@/lib/utils";
 import type { PipelineStep } from "@/stores/pipeline-store";
 import { PipelineStepSettings } from "./pipeline-step-settings";
@@ -29,8 +29,6 @@ import { getSettingsSummary } from "./pipeline-step-summary";
 const PIPELINE_TOOLS_BASE = TOOLS.filter(
   (t) => !["pipeline", "batch", "compare", "find-duplicates", "collage", "compose"].includes(t.id),
 );
-
-const iconsMap = icons as unknown as Record<string, React.ComponentType<{ className?: string }>>;
 
 interface PipelineBuilderProps {
   steps: PipelineStep[];
@@ -75,7 +73,7 @@ function SortableStep({
   const tool = TOOLS.find((t) => t.id === step.toolId);
   if (!tool) return null;
 
-  const Icon = iconsMap[tool.icon] || icons.FileImage;
+  const Icon = (ICON_MAP[tool.icon] as React.ComponentType<{ className?: string }>) ?? FileImage;
   const summary = getSettingsSummary(step.toolId, step.settings);
 
   return (
@@ -264,7 +262,8 @@ export function PipelineBuilder({
             <p className="text-sm text-muted-foreground text-center py-4">No tools found</p>
           ) : (
             PIPELINE_TOOLS.map((tool) => {
-              const Icon = iconsMap[tool.icon] || icons.FileImage;
+              const Icon =
+                (ICON_MAP[tool.icon] as React.ComponentType<{ className?: string }>) ?? FileImage;
               return (
                 <button
                   key={tool.id}

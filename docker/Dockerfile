@@ -66,6 +66,10 @@ ARG TARGETARCH
 # Set to "true" to skip model downloads (for CI builds that just test the image structure)
 ARG SKIP_MODEL_DOWNLOADS=false
 
+# Pin corepack's cache to a system-wide path so all users share the same pnpm
+# binary without downloading it on each container start.
+ENV COREPACK_HOME=/usr/local/share/corepack
+
 # Install Node.js on amd64 (CUDA base has no Node; arm64 base already has it)
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -79,7 +83,8 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     rm -rf /var/lib/apt/lists/* \
 ; fi
 
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate && \
+    chmod -R a+rX /usr/local/share/corepack
 
 # System dependencies (all platforms)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -203,9 +208,6 @@ RUN mkdir -p /app/gfpgan/weights/CodeFormer && \
 # Environment defaults
 ENV PORT=1349 \
     NODE_ENV=production \
-    AUTH_ENABLED=true \
-    DEFAULT_USERNAME=admin \
-    DEFAULT_PASSWORD=admin \
     STORAGE_MODE=local \
     DB_PATH=/data/ashim.db \
     WORKSPACE_PATH=/tmp/workspace \
@@ -247,4 +249,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
 
 # tini as PID 1 for zombie reaping + signal forwarding
 ENTRYPOINT ["tini", "--", "entrypoint.sh"]
-CMD ["pnpm", "exec", "tsx", "apps/api/src/index.ts"]
+CMD ["pnpm", "--filter", "@ashim/api", "run", "start"]

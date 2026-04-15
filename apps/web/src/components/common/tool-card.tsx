@@ -1,7 +1,7 @@
 import type { Tool } from "@ashim/shared";
-import * as icons from "lucide-react";
 import { FileImage, Star } from "lucide-react";
 import { Link } from "react-router-dom";
+import { ICON_MAP } from "@/lib/icon-map";
 import { cn } from "@/lib/utils";
 
 interface ToolCardProps {
@@ -9,8 +9,8 @@ interface ToolCardProps {
 }
 
 export function ToolCard({ tool }: ToolCardProps) {
-  const iconsMap = icons as unknown as Record<string, React.ComponentType<{ className?: string }>>;
-  const IconComponent = iconsMap[tool.icon] || FileImage;
+  const IconComponent =
+    (ICON_MAP[tool.icon] as React.ComponentType<{ className?: string }>) ?? FileImage;
 
   return (
     <div className="group flex items-center gap-3 relative">

@@ -64,6 +64,8 @@ app.addHook("onSend", async (_request, reply) => {
 await app.register(rateLimit, {
   max: env.RATE_LIMIT_PER_MIN,
   timeWindow: "1 minute",
+  // Only rate-limit API endpoints — static files and the SPA fallback must never be throttled
+  allowList: (request) => !request.url.startsWith("/api/"),
 });
 
 // Multipart upload support

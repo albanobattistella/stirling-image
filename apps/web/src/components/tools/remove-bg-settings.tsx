@@ -10,6 +10,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { ProgressCard } from "@/components/common/progress-card";
 import { useToolProcessor } from "@/hooks/use-tool-processor";
+import { formatHeaders } from "@/lib/api";
 import { useFileStore } from "@/stores/file-store";
 
 type SubjectType = "people" | "products" | "general";
@@ -565,22 +566,20 @@ export function RemoveBgSettings({ onBgPreview }: RemoveBgSettingsProps = {}) {
         // Decode HEIC via server preview endpoint
         const formData = new FormData();
         formData.append("file", file);
-        import("@/lib/api").then(({ formatHeaders }) => {
-          fetch("/api/v1/preview", {
-            method: "POST",
-            headers: formatHeaders(),
-            body: formData,
+        fetch("/api/v1/preview", {
+          method: "POST",
+          headers: formatHeaders(),
+          body: formData,
+        })
+          .then((res) => (res.ok ? res.blob() : null))
+          .then((blob) => {
+            if (blob && bgImageFileRef.current === file) {
+              const url = URL.createObjectURL(blob);
+              revoke = () => URL.revokeObjectURL(url);
+              setBgImageBlobUrl(url);
+            }
           })
-            .then((res) => (res.ok ? res.blob() : null))
-            .then((blob) => {
-              if (blob && bgImageFileRef.current === file) {
-                const url = URL.createObjectURL(blob);
-                revoke = () => URL.revokeObjectURL(url);
-                setBgImageBlobUrl(url);
-              }
-            })
-            .catch(() => {});
-        });
+          .catch(() => {});
       } else {
         const url = URL.createObjectURL(file);
         revoke = () => URL.revokeObjectURL(url);
@@ -744,7 +743,7 @@ export function RemoveBgSettings({ onBgPreview }: RemoveBgSettingsProps = {}) {
         formData.append("backgroundImage", bgImageFile);
       }
 
-      const headers = (await import("@/lib/api")).formatHeaders();
+      const headers = formatHeaders();
       const response = await fetch("/api/v1/tools/remove-background/effects", {
         method: "POST",
         headers,

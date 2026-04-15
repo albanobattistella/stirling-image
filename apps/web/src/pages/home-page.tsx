@@ -1,11 +1,11 @@
 import { CATEGORIES, TOOLS } from "@ashim/shared";
-import * as icons from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ImageViewer } from "@/components/common/image-viewer";
 import { MultiImageViewer } from "@/components/common/multi-image-viewer";
 import { AppLayout } from "@/components/layout/app-layout";
+import { ICON_MAP } from "@/lib/icon-map";
 import { useFileStore } from "@/stores/file-store";
 import { useSettingsStore } from "@/stores/settings-store";
 
@@ -53,7 +53,7 @@ export function HomePage() {
           {/* File info */}
           <div className="p-4 border-b border-border">
             <div className="flex items-center gap-2 text-sm">
-              <icons.CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+              <ICON_MAP.CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
               <span className="truncate font-medium text-foreground">
                 {selectedFileName ?? files[0].name}
               </span>
@@ -81,9 +81,8 @@ export function HomePage() {
                 const tool = TOOLS.find((t) => t.id === id);
                 if (!tool) return null;
                 const Icon =
-                  (icons as unknown as Record<string, React.ComponentType<{ className?: string }>>)[
-                    tool.icon
-                  ] || icons.FileImage;
+                  (ICON_MAP[tool.icon] as React.ComponentType<{ className?: string }>) ??
+                  ICON_MAP.FileImage;
                 return (
                   <button
                     key={id}
@@ -120,12 +119,8 @@ export function HomePage() {
                   <div className="space-y-0.5">
                     {categoryTools.map((tool) => {
                       const Icon =
-                        (
-                          icons as unknown as Record<
-                            string,
-                            React.ComponentType<{ className?: string }>
-                          >
-                        )[tool.icon] || icons.FileImage;
+                        (ICON_MAP[tool.icon] as React.ComponentType<{ className?: string }>) ??
+                        ICON_MAP.FileImage;
                       return (
                         <button
                           key={tool.id}
