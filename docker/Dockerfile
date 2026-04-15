@@ -40,14 +40,17 @@ RUN --mount=type=cache,id=turbo-cache,target=/app/.turbo \
 # ============================================
 # Run the Go toolchain on the native build platform to avoid QEMU crashes
 # on Apple Silicon when cross-compiling for linux/amd64.
+# caire imports gioui.org/app which requires CGO on Linux, so we use a
+# proper C cross-compiler instead of CGO_ENABLED=0.
 FROM --platform=$BUILDPLATFORM golang:1.23-bookworm AS caire-builder
 
 ARG TARGETOS=linux
 ARG TARGETARCH
 
-# Graphics libs are only needed for native-arch CGO builds (the display window).
-# For cross-arch builds we use CGO_ENABLED=0 — the server never shows a display.
-RUN NATIVE=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+# Install graphics libs and (for cross-arch builds) the appropriate C cross-compiler.
+# Debian multi-arch lets us install target-arch headers alongside the native toolchain.
+RUN set -e; \
+    NATIVE=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/'); \
     if [ "$TARGETARCH" = "$NATIVE" ]; then \
         apt-get update && apt-get install -y --no-install-recommends \
             libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev \
@@ -55,15 +58,45 @@ RUN NATIVE=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
             libxrandr-dev libxinerama-dev libxi-dev libxxf86vm-dev \
             libvulkan-dev libxfixes-dev pkg-config \
         && rm -rf /var/lib/apt/lists/*; \
+    elif [ "$TARGETARCH" = "amd64" ]; then \
+        dpkg --add-architecture amd64 && \
+        apt-get update && apt-get install -y --no-install-recommends \
+            crossbuild-essential-amd64 \
+            libwayland-dev:amd64 libx11-dev:amd64 libx11-xcb-dev:amd64 \
+            libxkbcommon-x11-dev:amd64 libgles2-mesa-dev:amd64 libegl1-mesa-dev:amd64 \
+            libffi-dev:amd64 libxcursor-dev:amd64 libxrandr-dev:amd64 \
+            libxinerama-dev:amd64 libxi-dev:amd64 libxxf86vm-dev:amd64 \
+            libvulkan-dev:amd64 libxfixes-dev:amd64 pkg-config \
+        && rm -rf /var/lib/apt/lists/*; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+        dpkg --add-architecture arm64 && \
+        apt-get update && apt-get install -y --no-install-recommends \
+            crossbuild-essential-arm64 \
+            libwayland-dev:arm64 libx11-dev:arm64 libx11-xcb-dev:arm64 \
+            libxkbcommon-x11-dev:arm64 libgles2-mesa-dev:arm64 libegl1-mesa-dev:arm64 \
+            libffi-dev:arm64 libxcursor-dev:arm64 libxrandr-dev:arm64 \
+            libxinerama-dev:arm64 libxi-dev:arm64 libxxf86vm-dev:arm64 \
+            libvulkan-dev:arm64 libxfixes-dev:arm64 pkg-config \
+        && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Build and copy to a fixed path so the COPY step below is always the same.
-RUN NATIVE=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && \
+# Build caire and stage to /tmp/caire (stable path for the COPY below).
+# Cross-compiled CGO binaries land in $GOPATH/bin/${GOOS}_${GOARCH}/ not $GOPATH/bin/.
+RUN set -e; \
+    NATIVE=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/'); \
     if [ "$TARGETARCH" = "$NATIVE" ]; then \
         go install github.com/esimov/caire/cmd/caire@v1.5.0 && \
         cp /go/bin/caire /tmp/caire; \
-    else \
-        CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    elif [ "$TARGETARCH" = "amd64" ]; then \
+        CC=x86_64-linux-gnu-gcc \
+        PKG_CONFIG_LIBDIR=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
+        CGO_ENABLED=1 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+            go install github.com/esimov/caire/cmd/caire@v1.5.0 && \
+        cp /go/bin/${TARGETOS}_${TARGETARCH}/caire /tmp/caire; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+        CC=aarch64-linux-gnu-gcc \
+        PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
+        CGO_ENABLED=1 GOOS=$TARGETOS GOARCH=$TARGETARCH \
             go install github.com/esimov/caire/cmd/caire@v1.5.0 && \
         cp /go/bin/${TARGETOS}_${TARGETARCH}/caire /tmp/caire; \
     fi
