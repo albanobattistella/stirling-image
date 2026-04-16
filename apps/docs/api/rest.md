@@ -3,9 +3,9 @@
 Interactive API docs with request/response examples are available at [http://localhost:1349/api/docs](http://localhost:1349/api/docs).
 
 Machine-readable specs:
-- `/api/v1/openapi.yaml` — OpenAPI 3.1 spec
-- `/llms.txt` — LLM-friendly summary
-- `/llms-full.txt` — Complete LLM-friendly docs
+- `/api/v1/openapi.yaml` - OpenAPI 3.1 spec
+- `/llms.txt` - LLM-friendly summary
+- `/llms-full.txt` - Complete LLM-friendly docs
 
 ## Authentication
 
@@ -30,7 +30,7 @@ Sessions expire after 24 hours.
 ### API Keys
 
 ```bash
-# Create a key (returns key once — store it)
+# Create a key (returns key once - store it)
 curl -X POST http://localhost:1349/api/v1/api-keys \
   -H "Authorization: Bearer <session-token>" \
   -H "Content-Type: application/json" \
@@ -42,7 +42,7 @@ curl http://localhost:1349/api/v1/tools/resize \
   -H "Authorization: Bearer si_<your-key>"
 ```
 
-Keys are prefixed `si_` and stored as SHA-256 hashes — the raw key is shown once and never retrievable again.
+Keys are prefixed `si_` and stored as SHA-256 hashes - the raw key is shown once and never retrievable again.
 
 ### Auth Endpoints
 
@@ -64,10 +64,10 @@ Keys are prefixed `si_` and stored as SHA-256 hashes — the raw key is shown on
 |-----------|:-----:|:----:|
 | Use tools | ✓ | ✓ |
 | Own files/pipelines/API keys | ✓ | ✓ |
-| See all users' files/pipelines/keys | ✓ | — |
-| Write settings | ✓ | — |
-| Manage users & teams | ✓ | — |
-| Manage branding | ✓ | — |
+| See all users' files/pipelines/keys | ✓ | - |
+| Write settings | ✓ | - |
+| Manage users & teams | ✓ | - |
+| Manage branding | ✓ | - |
 
 ## Using Tools
 
@@ -110,11 +110,11 @@ curl -X POST http://localhost:1349/api/v1/tools/<toolId>/batch \
 | Tool ID | Name | Key settings |
 |---------|------|-------------|
 | `optimize-for-web` | Optimize for Web | `format` (auto/jpeg/webp/avif), `quality`, `maxWidthPx`, `stripMetadata` |
-| `strip-metadata` | Strip Metadata | — |
+| `strip-metadata` | Strip Metadata | - |
 | `edit-metadata` | Edit Metadata | `title`, `description`, `author`, `copyright`, `keywords`, `gps` (lat/lon), `dateTime` |
 | `bulk-rename` | Bulk Rename | `pattern` (supports `{n}`, `{date}`, `{original}`), `startIndex`, `padding` |
 | `image-to-pdf` | Image to PDF | `pageSize` (A4/Letter/…), `orientation`, `margin`, `fitMode` |
-| `favicon` | Favicon Generator | `padding`, `backgroundColor`, `borderRadius` — generates all standard sizes |
+| `favicon` | Favicon Generator | `padding`, `backgroundColor`, `borderRadius` - generates all standard sizes |
 
 ### Adjustments
 
@@ -150,28 +150,28 @@ All AI tools run on your hardware (CPU or NVIDIA GPU). No internet required.
 | Tool ID | Name | Key settings |
 |---------|------|-------------|
 | `watermark-text` | Text Watermark | `text`, `font`, `fontSize`, `color`, `opacity`, `position`, `rotation`, `tile` |
-| `watermark-image` | Image Watermark | `opacity`, `position`, `scale` — second file is the watermark |
+| `watermark-image` | Image Watermark | `opacity`, `position`, `scale` - second file is the watermark |
 | `text-overlay` | Text Overlay | `text`, `font`, `fontSize`, `color`, `x`, `y`, `background`, `padding`, `borderRadius` |
-| `compose` | Image Composition | `x`, `y`, `opacity`, `blend` — second file is layered on top |
+| `compose` | Image Composition | `x`, `y`, `opacity`, `blend` - second file is layered on top |
 
 ### Utilities
 
 | Tool ID | Name | Key settings |
 |---------|------|-------------|
-| `info` | Image Info | — (returns width, height, format, size, channels, hasAlpha, DPI, EXIF) |
-| `compare` | Image Compare | `mode` (side-by-side/overlay/diff), `diffThreshold` — second file is the comparison target |
-| `find-duplicates` | Find Duplicates | `threshold` (perceptual hash distance, default 8) — multi-file |
+| `info` | Image Info | - (returns width, height, format, size, channels, hasAlpha, DPI, EXIF) |
+| `compare` | Image Compare | `mode` (side-by-side/overlay/diff), `diffThreshold` - second file is the comparison target |
+| `find-duplicates` | Find Duplicates | `threshold` (perceptual hash distance, default 8) - multi-file |
 | `color-palette` | Color Palette | `count` (dominant color count), `format` (hex/rgb) |
 | `qr-generate` | QR Code Generator | `data`, `size`, `margin`, `colorDark`, `colorLight`, `errorCorrectionLevel`, `dotStyle`, `cornerStyle`, `logo` (optional file) |
-| `barcode-read` | Barcode Reader | — (auto-detects QR, EAN, Code128, DataMatrix, etc.) |
+| `barcode-read` | Barcode Reader | - (auto-detects QR, EAN, Code128, DataMatrix, etc.) |
 | `image-to-base64` | Image to Base64 | `format` (data-uri/plain), `mimeType` |
 
 ### Layout & Composition
 
 | Tool ID | Name | Key settings |
 |---------|------|-------------|
-| `collage` | Collage / Grid | `template` (25+ layouts), `gap`, `backgroundColor`, `borderRadius` — multi-file |
-| `stitch` | Stitch / Combine | `direction` (horizontal/vertical/grid), `gap`, `backgroundColor`, `alignment` — multi-file |
+| `collage` | Collage / Grid | `template` (25+ layouts), `gap`, `backgroundColor`, `borderRadius` - multi-file |
+| `stitch` | Stitch / Combine | `direction` (horizontal/vertical/grid), `gap`, `backgroundColor`, `alignment` - multi-file |
 | `split` | Image Splitting | `mode` (grid/rows/cols), `rows`, `cols`, `tileWidth`, `tileHeight` |
 | `border` | Border & Frame | `width`, `color`, `style` (solid/gradient/pattern), `borderRadius`, `padding`, `shadow` |
 
@@ -268,8 +268,8 @@ To auto-save a tool result to the library, include `fileId` in the settings payl
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
-| `POST` | `/api/v1/api-keys` | Auth | Generate new key — shown once |
-| `GET` | `/api/v1/api-keys` | Auth | List keys (name, id, lastUsedAt — not raw key) |
+| `POST` | `/api/v1/api-keys` | Auth | Generate new key - shown once |
+| `GET` | `/api/v1/api-keys` | Auth | List keys (name, id, lastUsedAt - not raw key) |
 | `DELETE` | `/api/v1/api-keys/:id` | Auth | Delete key |
 
 ## Teams

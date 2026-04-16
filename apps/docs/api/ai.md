@@ -2,7 +2,7 @@
 
 The `@ashim/ai` package bridges Node.js to a **persistent Python sidecar** for all ML operations. The dispatcher process stays alive between requests for fast warm-start performance. GPU is auto-detected at startup and used when available.
 
-13 AI tool routes. All models run locally — no internet required after initial model download.
+13 AI tool routes. All models run locally - no internet required after initial model download.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ Node.js Tool Route
       ├─ noise_removal.py    (tiered denoising)
       ├─ red_eye_removal.py  (landmark + color analysis)
       ├─ restore.py          (scratch repair + enhancement + denoising)
-      └─ seam_carving        (Go caire binary — not Python)
+      └─ seam_carving        (Go caire binary - not Python)
 ```
 
 **Timeouts:** 300 s default; OCR and BiRefNet background removal get 600 s.
@@ -39,11 +39,11 @@ Node.js Tool Route
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `model` | string | `birefnet-general` | Model variant — see table below |
+| `model` | string | `birefnet-general` | Model variant - see table below |
 | `alphaMattingForeground` | number (1–255) | 240 | Foreground threshold for alpha matting |
 | `alphaMattingBackground` | number (1–255) | 10 | Background threshold for alpha matting |
 | `returnMask` | boolean | false | Return the mask instead of the cutout |
-| `backgroundColor` | string | — | Fill removed area (hex color or "transparent") |
+| `backgroundColor` | string | - | Fill removed area (hex color or "transparent") |
 
 **Available models:**
 
@@ -70,7 +70,7 @@ Node.js Tool Route
 | `model` | string | `realesrgan-x4plus` | Model variant |
 | `faceEnhance` | boolean | false | Apply GFPGAN face enhancement pass |
 | `denoise` | number (0–1) | 0.5 | Denoising strength |
-| `format` | string | — | Output format override |
+| `format` | string | - | Output format override |
 | `quality` | number | 95 | Output quality (for JPEG/WebP) |
 
 ## OCR / Text Extraction
@@ -203,9 +203,9 @@ GPU-accelerated when an NVIDIA GPU is available.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `mode` | `subject` \| `face` \| `trim` | `subject` | Crop strategy |
-| `width` | number | — | Output width |
-| `height` | number | — | Output height |
-| `facePreset` | string | — | Preset framing when `mode=face` |
+| `width` | number | - | Output width |
+| `height` | number | - | Output height |
+| `facePreset` | string | - | Preset framing when `mode=face` |
 
 **Face presets:**
 
@@ -220,14 +220,14 @@ GPU-accelerated when an NVIDIA GPU is available.
 
 **Function:** `seamCarve`  
 **Tool route:** `content-aware-resize`  
-**Engine:** Go `caire` binary (not Python — no GPU benefit)
+**Engine:** Go `caire` binary (not Python - no GPU benefit)
 
 Intelligently resizes images by removing or adding low-energy seams, preserving important content.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `width` | number | — | Target width |
-| `height` | number | — | Target height |
+| `width` | number | - | Target width |
+| `height` | number | - | Target height |
 | `protectFaces` | boolean | true | Protect detected face regions from seam removal |
 | `blurRadius` | number | 0 | Pre-blur to reduce noise sensitivity |
 | `sobelThreshold` | number | 10 | Edge sensitivity threshold |
