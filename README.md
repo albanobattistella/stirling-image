@@ -59,30 +59,6 @@ You will be asked to change your password on first login. This is enforced for a
 
 For Docker Compose, persistent storage, and other setup options, see the [Getting Started Guide](https://ashim-hq.github.io/ashim/guide/getting-started). For GPU acceleration and tag details, see [Docker Tags](https://ashim-hq.github.io/ashim/guide/docker-tags).
 
-## Docker Images
-
-Images are published to both Docker Hub and the GitHub Container Registry on every release and support `linux/amd64` and `linux/arm64`.
-
-**Docker Hub**
-
-```bash
-docker pull ashimhq/ashim:latest          # latest release
-docker pull ashimhq/ashim:1.15.0          # exact version
-docker pull ashimhq/ashim:1.15            # latest patch in 1.15
-docker pull ashimhq/ashim:1              # latest minor in 1.x
-```
-
-**GitHub Container Registry**
-
-```bash
-docker pull ghcr.io/ashim-hq/ashim:latest
-docker pull ghcr.io/ashim-hq/ashim:1.15.0
-docker pull ghcr.io/ashim-hq/ashim:1.15
-docker pull ghcr.io/ashim-hq/ashim:1
-```
-
-All tags are identical — use whichever registry is closer to your deployment environment. The images are multi-arch manifests; Docker automatically selects the right layer for your platform.
-
 ## Documentation
 
 - [Getting Started](https://ashim-hq.github.io/ashim/guide/getting-started)
