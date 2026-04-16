@@ -33,6 +33,8 @@ docker compose up -d
 
 The app is then available at `http://localhost:1349`.
 
+> **Docker Hub rate limits?** Replace `ashimhq/ashim:latest` with `ghcr.io/ashim-hq/ashim:latest` to pull from GitHub Container Registry instead. Both registries receive the same image on every release.
+
 ## What's inside the container
 
 The Docker image uses a multi-stage build:
