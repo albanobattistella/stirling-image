@@ -40,7 +40,6 @@ Groups for organizing users. Admins can assign users to teams.
 | `id` | text UUID | Primary key |
 | `name` | text (unique, max 50 chars) | Team name |
 | `createdAt` | integer | Unix timestamp |
-| `updatedAt` | integer | Unix timestamp |
 
 ### api_keys
 
@@ -87,7 +86,6 @@ Persistent file library with version chain tracking. Each processing step that s
 | `parentId` | text UUID \| null | FK → user_files (parent version) |
 | `toolChain` | text (JSON array) | Tool IDs applied in order to produce this version |
 | `createdAt` | integer | Unix timestamp |
-| `updatedAt` | integer | Unix timestamp |
 
 ### jobs
 
