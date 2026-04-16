@@ -31,9 +31,6 @@
 ```bash
 docker run -d -p 1349:1349 -v ashim-data:/data ashimhq/ashim:latest
 ```
-
-> **Prefer GHCR?** `docker run -d -p 1349:1349 -v ashim-data:/data ghcr.io/ashim-hq/ashim:latest`
-
 Open http://localhost:1349 in your browser.
 
 <details>
