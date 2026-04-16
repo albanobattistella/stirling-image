@@ -1,3 +1,10 @@
+## [1.15.3](https://github.com/ashim-hq/ashim/compare/v1.15.2...v1.15.3) (2026-04-16)
+
+
+### Bug Fixes
+
+* retry apt-get update on transient mirror sync errors (Acquire::Retries=3) ([cec7163](https://github.com/ashim-hq/ashim/commit/cec71632d0c868c3a413b813ff15baccc8fa8cdd))
+
 ## [1.15.2](https://github.com/ashim-hq/ashim/compare/v1.15.1...v1.15.2) (2026-04-16)
 
 
