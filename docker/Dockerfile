@@ -252,8 +252,9 @@ COPY packages/ai/python ./packages/ai/python
 # Copy built frontend from builder stage
 COPY --from=builder /app/apps/web/dist ./apps/web/dist
 
-# Create required directories
-RUN mkdir -p /data /data/files /tmp/workspace
+# Create required directories (including /opt/models so chown works even when
+# SKIP_MODEL_DOWNLOADS=true skips the download script that would create it)
+RUN mkdir -p /data /data/files /tmp/workspace /opt/models
 
 # Symlink facexlib models for codeformer-pip (expects gfpgan/weights/ relative to CWD)
 RUN mkdir -p /app/gfpgan/weights/CodeFormer && \
