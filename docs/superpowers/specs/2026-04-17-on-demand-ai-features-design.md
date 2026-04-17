@@ -35,54 +35,37 @@ The base image includes everything needed for non-AI tools plus the prerequisite
 
 ### Feature Bundles
 
-Six user-facing bundles, named by what they enable (not by model names):
+Six user-facing bundles, named by what they enable (not by model names). **Each tool belongs to exactly one bundle — no partial functionality.** When a bundle is installed, all its tools work fully. When it's not installed, those tools are locked entirely.
 
-| Feature Name | Python Packages | Models | Tools Enabled | Est. Size |
+| Feature Name | Python Packages | Models | Tools Fully Enabled | Est. Size |
 |---|---|---|---|---|
-| **Background Removal** | rembg, onnxruntime(-gpu) | birefnet-general-lite (default) | remove-background, passport-photo (partial) | ~500-700 MB |
-| **Face Detection** | mediapipe | blaze_face, face_landmarker | blur-faces, red-eye-removal, smart-crop, passport-photo (partial) | ~200-300 MB |
-| **Object Eraser & Colorize** | onnxruntime(-gpu) if not already installed | LaMa ONNX, DDColor ONNX, OpenCV colorize | erase-object, colorize, restore-photo (partial) | ~600-800 MB |
-| **Upscale & Face Enhance** | torch, torchvision, realesrgan, codeformer-pip (--no-deps), gfpgan, basicsr, lpips | RealESRGAN x4plus, GFPGANv1.3, CodeFormer (.pth + .onnx), facexlib models | upscale, enhance-faces, restore-photo (partial) | ~4-5 GB |
-| **OCR** | paddlepaddle(-gpu), paddleocr | PP-OCRv5 (7 models), PaddleOCR-VL 1.5 | ocr (balanced + best tiers) | ~3-4 GB |
-| **Advanced Noise Removal** | _(requires Upscale bundle for torch)_ | SCUNet, NAFNet | noise-removal (quality + maximum tiers) | ~100 MB |
+| **Background Removal** | rembg, onnxruntime(-gpu), mediapipe | birefnet-general-lite, blaze_face, face_landmarker | remove-background, passport-photo | ~700 MB - 1 GB |
+| **Face Detection** | mediapipe | blaze_face, face_landmarker | blur-faces, red-eye-removal, smart-crop | ~200-300 MB |
+| **Object Eraser & Colorize** | onnxruntime(-gpu) | LaMa ONNX, DDColor ONNX, OpenCV colorize | erase-object, colorize | ~600-800 MB |
+| **Upscale & Enhance** | torch, torchvision, realesrgan, codeformer-pip (--no-deps), gfpgan, basicsr, lpips | RealESRGAN x4plus, GFPGANv1.3, CodeFormer (.pth), facexlib, SCUNet, NAFNet | upscale, enhance-faces, noise-removal | ~4-5 GB |
+| **Photo Restoration** | onnxruntime(-gpu), mediapipe | LaMa ONNX, DDColor ONNX, CodeFormer ONNX, blaze_face, face_landmarker, OpenCV colorize | restore-photo | ~800 MB - 1 GB |
+| **OCR** | paddlepaddle(-gpu), paddleocr | PP-OCRv5 (7 models), PaddleOCR-VL 1.5 | ocr | ~3-4 GB |
 
 Notes:
-- `passport-photo` needs both Background Removal + Face Detection
-- `restore-photo` needs Object Eraser & Colorize + optionally Upscale & Face Enhance (for face restoration step)
-- `noise-removal` quick/balanced tiers work without any bundle (uses OpenCV)
-- `ocr` fast tier works without any bundle (uses Tesseract, pre-installed in base)
-- Advanced Noise Removal depends on the Upscale & Face Enhance bundle (shared PyTorch dependency)
-
-### Multi-Bundle Tools and Graceful Degradation
-
-Some tools span multiple bundles. The Python scripts already have per-stage try/except patterns. We extend this:
-
-**`restore-photo`** uses stages from 3 bundles:
-- Scratch removal (LaMa) → Object Eraser & Colorize bundle
-- Face enhancement (CodeFormer) → Upscale & Face Enhance bundle
-- Colorization (DDColor) → Object Eraser & Colorize bundle
-- Denoising (NLMeans) → no bundle needed (OpenCV)
-
-The tool should work with ANY subset of bundles installed. If only Object Eraser & Colorize is installed, scratch removal and colorization work; face enhancement is silently skipped. The restore-photo Python script already has per-stage try/except with "stage skipped" messages — we leverage this.
-
-The tool page shows which optional bundles are missing: "Install Upscale & Face Enhance for face restoration capabilities."
-
-**`passport-photo`** requires BOTH Background Removal AND Face Detection. It cannot function without either. The tool page shows which bundles are missing and only enables the "Process" button when both are installed.
-
-**`noise-removal`** has 4 quality tiers. Quick and balanced work with no bundles (OpenCV). Quality tier needs SCUNet (requires PyTorch from Upscale bundle). Maximum tier needs NAFNet (also requires PyTorch). The UI shows all tiers but grays out unavailable ones with "Requires Upscale & Face Enhance" hint text.
+- `passport-photo` is in the Background Removal bundle because it primarily needs rembg; mediapipe (for face landmarks) is included in the same bundle so the tool works fully
+- `noise-removal` is in the Upscale & Enhance bundle because its quality/maximum tiers need PyTorch; all 4 tiers (including OpenCV-based quick/balanced) are locked until the bundle is installed
+- `ocr` is fully locked until the OCR bundle is installed, including the Tesseract-based fast tier — this keeps the UX clean even though Tesseract is pre-installed in the base image
+- `restore-photo` is its own bundle because it needs models from multiple domains (inpainting, face enhancement, colorization); all stages work when installed
+- Some packages appear in multiple bundles (e.g., mediapipe in Background Removal, Face Detection, and Photo Restoration; onnxruntime in Background Removal, Object Eraser, and Photo Restoration). The install script skips already-installed packages — pip handles this naturally
+- Some models appear in multiple bundles (e.g., blaze_face in both Background Removal and Face Detection). The install script skips already-downloaded model files
 
 ### Bundle Dependencies
 
 ```
-Background Removal ─── standalone
-Face Detection ─────── standalone
-Object Eraser & Colorize ── standalone (uses onnxruntime from Background Removal if installed, otherwise installs it)
-Upscale & Face Enhance ─── standalone
-OCR ────────────────── standalone
-Advanced Noise Removal ─── depends on "Upscale & Face Enhance" (for PyTorch)
+Background Removal ───── standalone
+Face Detection ────────── standalone
+Object Eraser & Colorize ── standalone
+Upscale & Enhance ─────── standalone
+Photo Restoration ─────── standalone
+OCR ───────────────────── standalone
 ```
 
-onnxruntime is needed by both Background Removal and Object Eraser & Colorize. The install script installs it with the first bundle that needs it, and skips it for subsequent bundles.
+All bundles are independently installable. Shared packages (mediapipe, onnxruntime) and shared models (blaze_face, LaMa, etc.) are silently skipped if already present from another bundle.
 
 ### Single Venv Strategy
 
@@ -126,38 +109,34 @@ A `feature-manifest.json` file is baked into each Docker image at build time. It
       "description": "Remove image backgrounds with AI",
       "packages": {
         "common": ["rembg==2.0.62"],
-        "amd64": ["onnxruntime-gpu==1.20.1"],
-        "arm64": ["onnxruntime==1.20.1", "rembg[cpu]==2.0.62"]
+        "amd64": ["onnxruntime-gpu==1.20.1", "mediapipe==0.10.21"],
+        "arm64": ["onnxruntime==1.20.1", "rembg[cpu]==2.0.62", "mediapipe==0.10.18"]
       },
       "pipFlags": {},
       "models": [
         {
           "id": "birefnet-general-lite",
-          "name": "Default model",
-          "required": true,
           "downloadFn": "rembg_session",
           "args": ["birefnet-general-lite"]
-        }
-      ],
-      "optionalModels": [
-        {
-          "id": "u2net",
-          "name": "U2-Net (lightweight)",
-          "downloadFn": "rembg_session",
-          "args": ["u2net"]
         },
         {
-          "id": "birefnet-general",
-          "name": "BiRefNet General (high quality)",
-          "downloadFn": "rembg_session",
-          "args": ["birefnet-general"]
+          "id": "blaze-face-short-range",
+          "url": "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite",
+          "path": "mediapipe/blaze_face_short_range.tflite",
+          "minSize": 100000
+        },
+        {
+          "id": "face-landmarker",
+          "url": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
+          "path": "mediapipe/face_landmarker.task",
+          "minSize": 5000000
         }
       ],
-      "enablesTools": ["remove-background"],
-      "partialTools": ["passport-photo"]
+      "enablesTools": ["remove-background", "passport-photo"]
     },
     "upscale-enhance": {
-      "name": "Upscale & Face Enhance",
+      "name": "Upscale & Enhance",
+      "description": "AI upscaling, face enhancement, and noise removal",
       "packages": {
         "common": ["codeformer-pip==0.0.4", "lpips"],
         "amd64": [
@@ -176,10 +155,11 @@ A `feature-manifest.json` file is baked into each Docker image at build time. It
         { "id": "codeformer-pth", "url": "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth", "path": "codeformer/codeformer.pth", "minSize": 375000000 },
         { "id": "codeformer-onnx", "url": "hf://facefusion/models-3.0.0/codeformer.onnx", "path": "codeformer/codeformer.onnx", "minSize": 377000000 },
         { "id": "facexlib-detection", "url": "https://github.com/xinntao/facexlib/releases/download/v0.1.0/detection_Resnet50_Final.pth", "path": "gfpgan/facelib/detection_Resnet50_Final.pth", "minSize": 104000000 },
-        { "id": "facexlib-parsing", "url": "https://github.com/xinntao/facexlib/releases/download/v0.2.2/parsing_parsenet.pth", "path": "gfpgan/facelib/parsing_parsenet.pth", "minSize": 85000000 }
+        { "id": "facexlib-parsing", "url": "https://github.com/xinntao/facexlib/releases/download/v0.2.2/parsing_parsenet.pth", "path": "gfpgan/facelib/parsing_parsenet.pth", "minSize": 85000000 },
+        { "id": "scunet", "url": "https://github.com/cszn/KAIR/releases/download/v1.0/scunet_color_real_psnr.pth", "path": "scunet/scunet_color_real_psnr.pth", "minSize": 4000000 },
+        { "id": "nafnet", "url": "hf://mikestealth/nafnet-models/NAFNet-SIDD-width64.pth", "path": "nafnet/NAFNet-SIDD-width64.pth", "minSize": 67000000 }
       ],
-      "enablesTools": ["upscale", "enhance-faces"],
-      "partialTools": ["restore-photo"]
+      "enablesTools": ["upscale", "enhance-faces", "noise-removal"]
     }
   }
 }
@@ -202,18 +182,11 @@ The script must be idempotent — running it twice for the same bundle is a no-o
 
 ### Uninstall and Shared Package Strategy
 
-Bundles share Python packages (e.g., onnxruntime is needed by both Background Removal and Object Eraser & Colorize). Naively pip-uninstalling a bundle's packages could break other installed bundles.
+Bundles share Python packages (e.g., onnxruntime in Background Removal, Object Eraser, and Photo Restoration). Naively pip-uninstalling a bundle's packages could break other installed bundles.
 
-**Solution: Reference counting.** `installed.json` tracks which bundles are installed. The uninstall script:
+**v1 approach (simple):** Uninstall removes model files and updates `installed.json`. Orphaned pip packages stay in the venv — they use disk but don't cause issues. A "Clean up" button in the AI Features settings panel rebuilds the venv from scratch: creates a fresh venv, installs only packages needed by currently-installed bundles, removes the old venv.
 
-1. Removes the target bundle's model files (immediate disk savings)
-2. Computes the set of packages still needed by other installed bundles
-3. Only `pip uninstall` packages that are exclusively owned by the target bundle
-4. Updates `installed.json`
-
-For example: if Background Removal and Object Eraser are both installed, uninstalling Background Removal removes rembg models and the rembg package, but keeps onnxruntime (still needed by Object Eraser).
-
-If the reference counting proves too complex for v1, a simpler alternative: uninstall only removes model files. Orphaned pip packages remain until the user clicks "Clean up unused packages" in settings, which rebuilds the venv from scratch using only the currently-installed bundles' package lists.
+**Future improvement:** Reference counting — track which bundles need which packages, only remove packages exclusively owned by the target bundle.
 
 ### Tool Route Registration for Uninstalled Features
 
@@ -434,15 +407,15 @@ The frontend needs to know which tools are installed for three purposes: tool gr
 - The install prompt shows feature name, description, estimated size, and an "Enable" button
 - After clicking "Enable": show progress bar with SSE-streamed progress, auto-transition to normal tool UI on completion
 
-### Local Development
+### Development and Testing
 
-The on-demand feature system is Docker-only. Local development is unaffected:
+All development and testing is done via Docker containers — the same environment users run. Build the image locally and run it with:
 
-- Developers continue to use `.venv` with `pip install -r requirements.txt` (or `requirements-gpu.txt`)
-- The bridge uses `PYTHON_VENV_PATH` — locally this defaults to `../../.venv` (relative to `packages/ai/src/`)
-- The feature manifest and install script are not used outside Docker
-- The `GET /api/v1/features` endpoint detects non-Docker environments (`!process.env.DOCKER`) and returns all features as "installed" — this ensures local dev sees all tools as available
-- Model path resolution still includes the local dev fallback (`~/.cache/ashim/`) as the last tier
+```bash
+docker run -d --name ashim -p 1349:1349 -v ashim-data:/data ghcr.io/ashim-hq/ashim:latest
+```
+
+Auth can be disabled for development by passing `-e AUTH_ENABLED=false`.
 
 ### Scope Boundaries
 
