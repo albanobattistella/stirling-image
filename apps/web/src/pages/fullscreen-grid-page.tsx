@@ -7,6 +7,7 @@ import { GemLogo } from "@/components/common/gem-logo";
 import { apiGet } from "@/lib/api";
 import { ICON_MAP } from "@/lib/icon-map";
 import { cn } from "@/lib/utils";
+import { useFeaturesStore } from "@/stores/features-store";
 
 export function FullscreenGridPage() {
   const [search, setSearch] = useState("");
@@ -14,6 +15,11 @@ export function FullscreenGridPage() {
   const navigate = useNavigate();
   const [disabledTools, setDisabledTools] = useState<string[]>([]);
   const [experimentalEnabled, setExperimentalEnabled] = useState(false);
+  const fetchFeatures = useFeaturesStore((s) => s.fetch);
+
+  useEffect(() => {
+    fetchFeatures();
+  }, [fetchFeatures]);
 
   useEffect(() => {
     apiGet<{ settings: Record<string, string> }>("/v1/settings")

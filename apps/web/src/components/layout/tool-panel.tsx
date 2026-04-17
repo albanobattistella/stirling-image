@@ -1,5 +1,6 @@
 import { CATEGORIES, TOOLS } from "@ashim/shared";
 import { useEffect, useMemo, useState } from "react";
+import { useFeaturesStore } from "@/stores/features-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { SearchBar } from "../common/search-bar";
 import { ToolCard } from "../common/tool-card";
@@ -7,10 +8,15 @@ import { ToolCard } from "../common/tool-card";
 export function ToolPanel() {
   const [search, setSearch] = useState("");
   const { disabledTools, experimentalEnabled, loaded, fetch } = useSettingsStore();
+  const fetchFeatures = useFeaturesStore((s) => s.fetch);
 
   useEffect(() => {
     fetch();
   }, [fetch]);
+
+  useEffect(() => {
+    fetchFeatures();
+  }, [fetchFeatures]);
 
   const visibleTools = useMemo(() => {
     if (!loaded) return [];
