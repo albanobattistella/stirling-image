@@ -44,3 +44,58 @@ describe("Feature bundles", () => {
     }
   });
 });
+
+describe("Feature bundle edge cases", () => {
+  it("no duplicate tools across bundles", () => {
+    const allTools: string[] = [];
+    for (const bundle of Object.values(FEATURE_BUNDLES)) {
+      for (const tool of bundle.enablesTools) {
+        expect(allTools, `Tool ${tool} appears in multiple bundles`).not.toContain(tool);
+        allTools.push(tool);
+      }
+    }
+  });
+
+  it("every bundle has a non-empty estimated size", () => {
+    for (const bundle of Object.values(FEATURE_BUNDLES)) {
+      expect(bundle.estimatedSize.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("getToolsForBundle returns empty array for unknown bundle", () => {
+    expect(getToolsForBundle("nonexistent")).toEqual([]);
+  });
+
+  it("getBundleForTool returns null for unknown tool", () => {
+    expect(getBundleForTool("nonexistent-tool")).toBeNull();
+  });
+
+  it("TOOL_BUNDLE_MAP has no undefined values", () => {
+    for (const [tool, bundle] of Object.entries(TOOL_BUNDLE_MAP)) {
+      expect(bundle, `Tool ${tool} has undefined bundle`).toBeDefined();
+      expect(
+        FEATURE_BUNDLES[bundle],
+        `Bundle ${bundle} for tool ${tool} not in FEATURE_BUNDLES`,
+      ).toBeDefined();
+    }
+  });
+
+  it("every bundle id matches its key in FEATURE_BUNDLES", () => {
+    for (const [key, bundle] of Object.entries(FEATURE_BUNDLES)) {
+      expect(bundle.id).toBe(key);
+    }
+  });
+
+  it("every bundle has a non-empty name and description", () => {
+    for (const bundle of Object.values(FEATURE_BUNDLES)) {
+      expect(bundle.name.length).toBeGreaterThan(0);
+      expect(bundle.description.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("every bundle has at least one tool", () => {
+    for (const [id, bundle] of Object.entries(FEATURE_BUNDLES)) {
+      expect(bundle.enablesTools.length, `Bundle ${id} has no tools`).toBeGreaterThan(0);
+    }
+  });
+});
