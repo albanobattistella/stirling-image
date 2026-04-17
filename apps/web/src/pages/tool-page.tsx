@@ -1,4 +1,4 @@
-import { TOOLS } from "@ashim/shared";
+import { PYTHON_SIDECAR_TOOLS, TOOLS } from "@ashim/shared";
 import {
   CheckCircle2,
   ChevronLeft,
@@ -16,15 +16,18 @@ import { type BgPreviewState, ImageViewer } from "@/components/common/image-view
 import { ReviewPanel } from "@/components/common/review-panel";
 import { SideBySideComparison } from "@/components/common/side-by-side-comparison";
 import { ThumbnailStrip } from "@/components/common/thumbnail-strip";
+import { FeatureInstallPrompt } from "@/components/features/feature-install-prompt";
 import { AppLayout } from "@/components/layout/app-layout";
 import { CropCanvas } from "@/components/tools/crop-canvas";
 import type { EraserCanvasRef } from "@/components/tools/eraser-canvas";
 import { EraserCanvas } from "@/components/tools/eraser-canvas";
 import type { PreviewTransform } from "@/components/tools/rotate-settings";
+import { useAuth } from "@/hooks/use-auth";
 import { useMobile } from "@/hooks/use-mobile";
 import { formatFileSize } from "@/lib/download";
 import { ICON_MAP } from "@/lib/icon-map";
 import { getToolRegistryEntry } from "@/lib/tool-registry";
+import { useFeaturesStore } from "@/stores/features-store";
 import { useFileStore } from "@/stores/file-store";
 
 /** Formats that browsers can render in <img> tags. */
@@ -106,6 +109,13 @@ export function ToolPage() {
     () => (toolId ? getToolRegistryEntry(toolId) : undefined),
     [toolId],
   );
+  const isAiTool = toolId ? (PYTHON_SIDECAR_TOOLS as readonly string[]).includes(toolId) : false;
+  const getBundleForTool = useFeaturesStore((s) => s.getBundleForTool);
+  const isToolInstalled = useFeaturesStore((s) => s.isToolInstalled);
+  const featureBundle = toolId ? getBundleForTool(toolId) : null;
+  const toolInstalled = toolId ? isToolInstalled(toolId) : true;
+  const { hasPermission } = useAuth();
+  const isAdmin = hasPermission("settings:write");
   const {
     files,
     entries,
@@ -230,6 +240,14 @@ export function ToolPage() {
         <div className="flex items-center justify-center h-full text-muted-foreground">
           Tool not found
         </div>
+      </AppLayout>
+    );
+  }
+
+  if (isAiTool && !toolInstalled && featureBundle) {
+    return (
+      <AppLayout>
+        <FeatureInstallPrompt bundle={featureBundle} isAdmin={isAdmin} />
       </AppLayout>
     );
   }
