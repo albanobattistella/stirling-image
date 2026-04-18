@@ -1,6 +1,7 @@
 import type { Tool } from "@ashim/shared";
-import { PYTHON_SIDECAR_TOOLS } from "@ashim/shared";
+import { PYTHON_SIDECAR_TOOLS, TOOL_BUNDLE_MAP } from "@ashim/shared";
 import { Download, FileImage, Star } from "lucide-react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { ICON_MAP } from "@/lib/icon-map";
 import { cn } from "@/lib/utils";
@@ -15,7 +16,14 @@ export function ToolCard({ tool }: ToolCardProps) {
     (ICON_MAP[tool.icon] as React.ComponentType<{ className?: string }>) ?? FileImage;
 
   const isAiTool = (PYTHON_SIDECAR_TOOLS as readonly string[]).includes(tool.id);
-  const isInstalled = useFeaturesStore((s) => s.isToolInstalled)(tool.id);
+  const bundles = useFeaturesStore((s) => s.bundles);
+  const isInstalled = useMemo(() => {
+    if (!isAiTool) return true;
+    const bundleId = TOOL_BUNDLE_MAP[tool.id];
+    if (!bundleId) return true;
+    const bundle = bundles.find((b) => b.id === bundleId);
+    return bundle?.status === "installed";
+  }, [isAiTool, tool.id, bundles]);
   const showDownloadBadge = isAiTool && !isInstalled;
 
   return (
