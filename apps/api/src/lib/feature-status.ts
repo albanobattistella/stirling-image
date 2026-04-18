@@ -129,38 +129,16 @@ export function markUninstalled(bundleId: string): void {
 interface LockData {
   bundleId: string;
   startedAt: string;
-  pid: number;
-}
-
-function isPidAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export function acquireInstallLock(bundleId: string): boolean {
   if (existsSync(LOCK_PATH)) {
-    try {
-      const raw = readFileSync(LOCK_PATH, "utf-8");
-      const lock = JSON.parse(raw) as LockData;
-      if (isPidAlive(lock.pid)) {
-        return false;
-      }
-      // PID is dead — stale lock, remove it
-      unlinkSync(LOCK_PATH);
-    } catch {
-      // Corrupt lock file, remove it
-      unlinkSync(LOCK_PATH);
-    }
+    return false;
   }
 
   const lock: LockData = {
     bundleId,
     startedAt: new Date().toISOString(),
-    pid: process.pid,
   };
   writeFileSync(LOCK_PATH, JSON.stringify(lock, null, 2), "utf-8");
   return true;
@@ -183,15 +161,8 @@ export function getInstallingBundle(): {
   try {
     const raw = readFileSync(LOCK_PATH, "utf-8");
     const lock = JSON.parse(raw) as LockData;
-
-    if (!isPidAlive(lock.pid)) {
-      unlinkSync(LOCK_PATH);
-      return null;
-    }
-
     return { bundleId: lock.bundleId, startedAt: lock.startedAt };
   } catch {
-    // Corrupt lock file
     try {
       unlinkSync(LOCK_PATH);
     } catch {
@@ -289,17 +260,15 @@ export function recoverInterruptedInstalls(): void {
     }
   }
 
-  // 4. Check stale lock
+  // 4. Delete stale lock — if the server is starting up, any previous install is dead
   if (existsSync(LOCK_PATH)) {
     try {
       const raw = readFileSync(LOCK_PATH, "utf-8");
       const lock = JSON.parse(raw) as LockData;
-      if (!isPidAlive(lock.pid)) {
-        unlinkSync(LOCK_PATH);
-        console.warn(
-          `[feature-status] Removed stale install lock for "${lock.bundleId}" (PID ${lock.pid} is dead)`,
-        );
-      }
+      unlinkSync(LOCK_PATH);
+      console.warn(
+        `[feature-status] Removed stale install lock for "${lock.bundleId}" (server restarted)`,
+      );
     } catch {
       try {
         unlinkSync(LOCK_PATH);
