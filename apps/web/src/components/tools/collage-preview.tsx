@@ -474,19 +474,46 @@ function CollageCell({
         </div>
       )}
 
-      {/* Drag handle for reorder — top-right of selected cells */}
+      {/* Top bar — drag handle + fit/fill toggle */}
       {isSelected && image && !isLoading && (
         <div
-          ref={setDragRef}
-          {...listeners}
-          {...attributes}
-          role="group"
-          aria-label="Drag to reorder"
-          className="absolute top-1 right-1 bg-black/50 backdrop-blur-sm text-white rounded p-1 cursor-grab active:cursor-grabbing hover:bg-black/70 transition-colors"
+          className="absolute top-1.5 right-1.5 flex items-center gap-1"
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
         >
-          <GripVertical className="h-3.5 w-3.5" />
+          <button
+            type="button"
+            onClick={handleToggleFit}
+            className={cn(
+              "flex items-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium backdrop-blur-sm transition-colors",
+              transform.objectFit === "contain"
+                ? "bg-blue-500/80 text-white hover:bg-blue-500/90"
+                : "bg-black/50 text-white hover:bg-black/70",
+            )}
+            title={transform.objectFit === "cover" ? "Fit entire image" : "Fill cell"}
+          >
+            {transform.objectFit === "contain" ? (
+              <>
+                <Maximize className="h-3.5 w-3.5" />
+                Fit
+              </>
+            ) : (
+              <>
+                <Expand className="h-3.5 w-3.5" />
+                Fill
+              </>
+            )}
+          </button>
+          <div
+            ref={setDragRef}
+            {...listeners}
+            {...attributes}
+            role="group"
+            aria-label="Drag to reorder"
+            className="bg-black/50 backdrop-blur-sm text-white rounded p-1 cursor-grab active:cursor-grabbing hover:bg-black/70 transition-colors"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </div>
         </div>
       )}
 
@@ -496,7 +523,7 @@ function CollageCell({
           role="toolbar"
           aria-label="Zoom controls"
           className={cn(
-            "absolute bottom-0 left-0 right-0 flex items-center gap-2 px-2 py-1.5 bg-black/50 backdrop-blur-sm transition-opacity duration-300",
+            "absolute bottom-0 left-0 right-0 flex items-center gap-2 px-3 py-2 bg-black/50 backdrop-blur-sm transition-opacity duration-300",
             controlsVisible ? "opacity-100" : "opacity-0",
           )}
           onClick={(e) => e.stopPropagation()}
@@ -510,35 +537,18 @@ function CollageCell({
             step="0.1"
             value={transform.zoom}
             onChange={handleZoomSlider}
-            className="flex-1 h-1 accent-white cursor-pointer"
+            className="flex-1 h-1.5 accent-white cursor-pointer"
           />
-          <span className="text-white text-[10px] font-mono w-7 text-right shrink-0">
+          <span className="text-white text-xs font-mono w-8 text-right shrink-0">
             {transform.zoom.toFixed(1)}x
           </span>
-          <button
-            type="button"
-            onClick={handleToggleFit}
-            className={cn(
-              "transition-colors shrink-0",
-              transform.objectFit === "contain"
-                ? "text-blue-300 hover:text-blue-200"
-                : "text-white hover:text-white/80",
-            )}
-            title={transform.objectFit === "cover" ? "Fit entire image" : "Fill cell"}
-          >
-            {transform.objectFit === "contain" ? (
-              <Maximize className="h-3.5 w-3.5" />
-            ) : (
-              <Expand className="h-3.5 w-3.5" />
-            )}
-          </button>
           <button
             type="button"
             onClick={handleReset}
             className="text-white hover:text-white/80 transition-colors shrink-0"
             title="Reset position and zoom"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="h-4 w-4" />
           </button>
         </div>
       )}
