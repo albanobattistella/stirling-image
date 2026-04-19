@@ -495,9 +495,12 @@ function CollageCell({
       {/* Top bar — drag handle + fit/fill toggle */}
       {isSelected && image && !isLoading && (
         <div
+          role="toolbar"
+          aria-label="Image controls"
           className="absolute top-1.5 right-1.5 flex items-center gap-1"
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
         >
           <button
             type="button"
@@ -522,16 +525,16 @@ function CollageCell({
               </>
             )}
           </button>
-          <div
+          <button
+            type="button"
             ref={setDragRef}
             {...listeners}
             {...attributes}
-            role="group"
             aria-label="Drag to reorder"
             className="bg-black/50 backdrop-blur-sm text-white rounded p-1 cursor-grab active:cursor-grabbing hover:bg-black/70 transition-colors"
           >
             <GripVertical className="h-3.5 w-3.5" />
-          </div>
+          </button>
         </div>
       )}
 
@@ -546,6 +549,7 @@ function CollageCell({
           )}
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
           <input
