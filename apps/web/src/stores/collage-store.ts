@@ -14,10 +14,13 @@ export interface CollageImage {
   previewLoading: boolean;
 }
 
+export type ObjectFit = "cover" | "contain";
+
 export interface CellTransform {
   panX: number; // percentage -100..100
   panY: number; // percentage -100..100
   zoom: number; // 1.0 to 3.0
+  objectFit: ObjectFit;
 }
 
 interface CollageState {
@@ -76,7 +79,7 @@ interface CollageState {
   reset: () => void;
 }
 
-const DEFAULT_TRANSFORM: CellTransform = { panX: 0, panY: 0, zoom: 1 };
+const DEFAULT_TRANSFORM: CellTransform = { panX: 0, panY: 0, zoom: 1, objectFit: "cover" };
 
 let nextImageId = 0;
 

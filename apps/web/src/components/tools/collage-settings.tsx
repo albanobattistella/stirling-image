@@ -76,8 +76,8 @@ export function CollageSettings() {
       }
 
       const cells = template.cells.map((_, i) => {
-        const t = cellTransforms[i] ?? { panX: 0, panY: 0, zoom: 1 };
-        return { imageIndex: i, panX: t.panX, panY: t.panY, zoom: t.zoom };
+        const t = cellTransforms[i] ?? { panX: 0, panY: 0, zoom: 1, objectFit: "cover" };
+        return { imageIndex: i, panX: t.panX, panY: t.panY, zoom: t.zoom, objectFit: t.objectFit };
       });
 
       formData.append(

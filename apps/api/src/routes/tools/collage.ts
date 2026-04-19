@@ -322,6 +322,7 @@ const cellSchema = z.object({
   panX: z.number().min(-100).max(100).default(0),
   panY: z.number().min(-100).max(100).default(0),
   zoom: z.number().min(1).max(3).default(1),
+  objectFit: z.enum(["cover", "contain"]).default("cover"),
 });
 
 const settingsSchema = z.object({
@@ -528,7 +529,7 @@ export function registerCollage(app: FastifyInstance) {
         const rect = cellRects[i];
         const cellW = Math.max(1, Math.round(rect.w));
         const cellH = Math.max(1, Math.round(rect.h));
-        const cellSetting = cellSettings[i] ?? { panX: 0, panY: 0, zoom: 1 };
+        const cellSetting = cellSettings[i] ?? { panX: 0, panY: 0, zoom: 1, objectFit: "cover" };
 
         // Get image metadata for proper crop calculation
         const meta = await sharp(files[i].buffer).metadata();
@@ -536,29 +537,57 @@ export function registerCollage(app: FastifyInstance) {
         const imgH = meta.height ?? cellH;
 
         const zoom = Math.max(1, cellSetting.zoom);
+        const fitMode = cellSetting.objectFit ?? "cover";
 
-        // Calculate the size we need to resize to before extracting
-        // With zoom=1 and cover fit, we resize so the image fully covers the cell
-        const scaleToFit = Math.max(cellW / imgW, cellH / imgH);
-        const resizedW = Math.round(imgW * scaleToFit * zoom);
-        const resizedH = Math.round(imgH * scaleToFit * zoom);
+        let cellBuffer: Buffer;
 
-        // Pan offset: percentage of the available overflow
-        const overflowX = Math.max(0, resizedW - cellW);
-        const overflowY = Math.max(0, resizedH - cellH);
-        // Center by default, then apply pan (-100..100 maps to full overflow range)
-        const extractLeft = Math.round(overflowX / 2 - (cellSetting.panX / 100) * (overflowX / 2));
-        const extractTop = Math.round(overflowY / 2 - (cellSetting.panY / 100) * (overflowY / 2));
+        if (fitMode === "contain") {
+          // Contain: fit entire image inside the cell, fill rest with background
+          const bgColor =
+            settings.backgroundColor === "transparent"
+              ? { r: 0, g: 0, b: 0, alpha: 0 }
+              : (() => {
+                  const hex = settings.backgroundColor.replace("#", "");
+                  return {
+                    r: Number.parseInt(hex.substring(0, 2), 16),
+                    g: Number.parseInt(hex.substring(2, 4), 16),
+                    b: Number.parseInt(hex.substring(4, 6), 16),
+                    alpha: 1,
+                  };
+                })();
+          cellBuffer = await sharp(files[i].buffer)
+            .resize(Math.round(cellW * zoom), Math.round(cellH * zoom), {
+              fit: "inside",
+              withoutEnlargement: false,
+            })
+            .resize(cellW, cellH, {
+              fit: "contain",
+              background: bgColor,
+            })
+            .toBuffer();
+        } else {
+          // Cover: resize to fully fill the cell, then crop with pan offset
+          const scaleToFit = Math.max(cellW / imgW, cellH / imgH);
+          const resizedW = Math.round(imgW * scaleToFit * zoom);
+          const resizedH = Math.round(imgH * scaleToFit * zoom);
 
-        let cellBuffer = await sharp(files[i].buffer)
-          .resize(resizedW, resizedH, { fit: "fill" })
-          .extract({
-            left: Math.max(0, Math.min(extractLeft, resizedW - cellW)),
-            top: Math.max(0, Math.min(extractTop, resizedH - cellH)),
-            width: cellW,
-            height: cellH,
-          })
-          .toBuffer();
+          const overflowX = Math.max(0, resizedW - cellW);
+          const overflowY = Math.max(0, resizedH - cellH);
+          const extractLeft = Math.round(
+            overflowX / 2 - (cellSetting.panX / 100) * (overflowX / 2),
+          );
+          const extractTop = Math.round(overflowY / 2 - (cellSetting.panY / 100) * (overflowY / 2));
+
+          cellBuffer = await sharp(files[i].buffer)
+            .resize(resizedW, resizedH, { fit: "fill" })
+            .extract({
+              left: Math.max(0, Math.min(extractLeft, resizedW - cellW)),
+              top: Math.max(0, Math.min(extractTop, resizedH - cellH)),
+              width: cellW,
+              height: cellH,
+            })
+            .toBuffer();
+        }
 
         // Apply corner radius via SVG mask if needed
         if (settings.cornerRadius > 0) {

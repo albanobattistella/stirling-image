@@ -11,7 +11,17 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { useDrag, usePinch } from "@use-gesture/react";
-import { Download, GripVertical, ImagePlus, Loader2, RotateCcw, Upload, X } from "lucide-react";
+import {
+  Download,
+  Expand,
+  GripVertical,
+  ImagePlus,
+  Loader2,
+  Maximize,
+  RotateCcw,
+  Upload,
+  X,
+} from "lucide-react";
 import { type DragEvent, useCallback, useEffect, useRef, useState } from "react";
 import { type CollageTemplate, getTemplateById } from "@/lib/collage-templates";
 import { cn } from "@/lib/utils";
@@ -373,6 +383,15 @@ function CollageCell({
     [cellIndex, store],
   );
 
+  const handleToggleFit = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const next = transform.objectFit === "cover" ? "contain" : "cover";
+      store.setCellTransform(cellIndex, { objectFit: next });
+    },
+    [cellIndex, store, transform.objectFit],
+  );
+
   const handleReset = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -431,7 +450,10 @@ function CollageCell({
             src={displayUrl(image)}
             alt=""
             draggable={false}
-            className="w-full h-full object-cover select-none pointer-events-none"
+            className={cn(
+              "w-full h-full select-none pointer-events-none",
+              transform.objectFit === "contain" ? "object-contain" : "object-cover",
+            )}
             style={{
               transform: `translate(${transform.panX}%, ${transform.panY}%) scale(${transform.zoom})`,
             }}
@@ -484,6 +506,23 @@ function CollageCell({
           <span className="text-white text-[10px] font-mono w-7 text-right shrink-0">
             {transform.zoom.toFixed(1)}x
           </span>
+          <button
+            type="button"
+            onClick={handleToggleFit}
+            className={cn(
+              "transition-colors shrink-0",
+              transform.objectFit === "contain"
+                ? "text-blue-300 hover:text-blue-200"
+                : "text-white hover:text-white/80",
+            )}
+            title={transform.objectFit === "cover" ? "Fit entire image" : "Fill cell"}
+          >
+            {transform.objectFit === "contain" ? (
+              <Maximize className="h-3.5 w-3.5" />
+            ) : (
+              <Expand className="h-3.5 w-3.5" />
+            )}
+          </button>
           <button
             type="button"
             onClick={handleReset}
