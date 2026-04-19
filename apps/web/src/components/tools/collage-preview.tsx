@@ -10,7 +10,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { useDrag, usePinch, useWheel } from "@use-gesture/react";
+import { useDrag, usePinch } from "@use-gesture/react";
 import { Download, GripVertical, ImagePlus, Loader2, RotateCcw, Upload, X } from "lucide-react";
 import { type DragEvent, useCallback, useEffect, useRef, useState } from "react";
 import { type CollageTemplate, getTemplateById } from "@/lib/collage-templates";
@@ -286,7 +286,6 @@ function CollageCell({
   const store = useCollageStore();
   const cellRef = useRef<HTMLDivElement>(null);
   const [controlsVisible, setControlsVisible] = useState(false);
-  const controlsTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `cell-drop-${cellIndex}`,
@@ -303,34 +302,19 @@ function CollageCell({
     disabled: !image,
   });
 
-  const showControls = useCallback(() => {
-    setControlsVisible(true);
-    if (controlsTimer.current) clearTimeout(controlsTimer.current);
-    controlsTimer.current = setTimeout(() => setControlsVisible(false), 3000);
-  }, []);
-
   useEffect(() => {
-    if (isSelected && image) showControls();
+    if (isSelected && image) setControlsVisible(true);
     if (!isSelected) setControlsVisible(false);
-  }, [isSelected, image, showControls]);
-
-  useEffect(() => {
-    return () => {
-      if (controlsTimer.current) clearTimeout(controlsTimer.current);
-    };
-  }, []);
+  }, [isSelected, image]);
 
   const bindDrag = useDrag(
-    ({ delta: [dx, dy], first, memo }) => {
+    ({ movement: [mx, my], first, memo }) => {
       if (!image || !isSelected) return memo;
-      if (first) {
-        showControls();
-        memo = { panX: transform.panX, panY: transform.panY };
-      }
+      if (first) memo = { panX: transform.panX, panY: transform.panY };
       const rect = cellRef.current?.getBoundingClientRect();
       if (!rect || !memo) return memo;
-      const panX = Math.max(-100, Math.min(100, memo.panX + (dx / rect.width) * 100));
-      const panY = Math.max(-100, Math.min(100, memo.panY + (dy / rect.height) * 100));
+      const panX = Math.max(-100, Math.min(100, memo.panX + (mx / rect.width) * 100));
+      const panY = Math.max(-100, Math.min(100, memo.panY + (my / rect.height) * 100));
       store.setCellTransform(cellIndex, { panX, panY });
       return memo;
     },
@@ -340,7 +324,6 @@ function CollageCell({
   const bindPinch = usePinch(
     ({ offset: [scale] }) => {
       if (!image || !isSelected) return;
-      showControls();
       const zoom = Math.max(1, Math.min(3, scale));
       store.setCellTransform(cellIndex, { zoom });
     },
@@ -350,16 +333,21 @@ function CollageCell({
     },
   );
 
-  const bindWheel = useWheel(
-    ({ direction: [, dy] }) => {
-      if (!image || !isSelected) return;
-      showControls();
-      const delta = dy > 0 ? -0.1 : 0.1;
-      const zoom = Math.max(1, Math.min(3, transform.zoom + delta));
+  const zoomRef = useRef(transform.zoom);
+  zoomRef.current = transform.zoom;
+
+  useEffect(() => {
+    const el = cellRef.current;
+    if (!el || !image || !isSelected) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      const zoom = Math.max(1, Math.min(3, zoomRef.current + delta));
       store.setCellTransform(cellIndex, { zoom });
-    },
-    { eventOptions: { passive: false } },
-  );
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [image, isSelected, cellIndex, store]);
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -380,10 +368,9 @@ function CollageCell({
   const handleZoomSlider = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       e.stopPropagation();
-      showControls();
       store.setCellTransform(cellIndex, { zoom: Number.parseFloat(e.target.value) });
     },
-    [cellIndex, store, showControls],
+    [cellIndex, store],
   );
 
   const handleReset = useCallback(
@@ -432,7 +419,7 @@ function CollageCell({
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") handleClick(e as unknown as React.MouseEvent);
       }}
-      {...(isSelected ? { ...bindDrag(), ...bindPinch(), ...bindWheel() } : {})}
+      {...(isSelected ? { ...bindDrag(), ...bindPinch() } : {})}
     >
       {image ? (
         isLoading ? (
@@ -492,10 +479,6 @@ function CollageCell({
             step="0.1"
             value={transform.zoom}
             onChange={handleZoomSlider}
-            onPointerDown={() => {
-              if (controlsTimer.current) clearTimeout(controlsTimer.current);
-            }}
-            onPointerUp={showControls}
             className="flex-1 h-1 accent-white cursor-pointer"
           />
           <span className="text-white text-[10px] font-mono w-7 text-right shrink-0">
