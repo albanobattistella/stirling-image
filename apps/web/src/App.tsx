@@ -1,39 +1,55 @@
-import { Component, type ErrorInfo, lazy, type ReactNode, Suspense } from "react";
+import { Component, type ErrorInfo, type ReactNode, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
+import { ConnectionBanner } from "./components/common/connection-banner";
 import { KeyboardShortcutProvider } from "./components/common/keyboard-shortcut-provider";
 import { useAuth } from "./hooks/use-auth";
+import { useConnectionMonitor } from "./hooks/use-connection-monitor";
+import { lazyWithRetry } from "./lib/lazy-with-retry";
 
-// Lazy-load all pages so each page's JS (and its icons/deps) is only
-// downloaded when the user navigates there, shrinking the main bundle.
-const AutomatePage = lazy(() =>
+// Lazy-load all pages with automatic retry so chunk failures from
+// deployments are recovered transparently instead of white-screening.
+const AutomatePage = lazyWithRetry(() =>
   import("./pages/automate-page").then((m) => ({ default: m.AutomatePage })),
 );
-const ChangePasswordPage = lazy(() =>
+const ChangePasswordPage = lazyWithRetry(() =>
   import("./pages/change-password-page").then((m) => ({ default: m.ChangePasswordPage })),
 );
-const FilesPage = lazy(() => import("./pages/files-page").then((m) => ({ default: m.FilesPage })));
-const FullscreenGridPage = lazy(() =>
+const FilesPage = lazyWithRetry(() =>
+  import("./pages/files-page").then((m) => ({ default: m.FilesPage })),
+);
+const FullscreenGridPage = lazyWithRetry(() =>
   import("./pages/fullscreen-grid-page").then((m) => ({ default: m.FullscreenGridPage })),
 );
-const HomePage = lazy(() => import("./pages/home-page").then((m) => ({ default: m.HomePage })));
-const LoginPage = lazy(() => import("./pages/login-page").then((m) => ({ default: m.LoginPage })));
-const PrivacyPolicyPage = lazy(() =>
+const HomePage = lazyWithRetry(() =>
+  import("./pages/home-page").then((m) => ({ default: m.HomePage })),
+);
+const LoginPage = lazyWithRetry(() =>
+  import("./pages/login-page").then((m) => ({ default: m.LoginPage })),
+);
+const PrivacyPolicyPage = lazyWithRetry(() =>
   import("./pages/privacy-policy-page").then((m) => ({ default: m.PrivacyPolicyPage })),
 );
-const ToolPage = lazy(() => import("./pages/tool-page").then((m) => ({ default: m.ToolPage })));
+const ToolPage = lazyWithRetry(() =>
+  import("./pages/tool-page").then((m) => ({ default: m.ToolPage })),
+);
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
-  { hasError: boolean; error: Error | null }
+  { hasError: boolean; error: Error | null; isChunkError: boolean }
 > {
   constructor(props: { children: ReactNode }) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, isChunkError: false };
   }
 
   static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
+    const msg = error.message.toLowerCase();
+    const isChunkError =
+      msg.includes("dynamically imported module") ||
+      msg.includes("loading chunk") ||
+      msg.includes("failed to fetch");
+    return { hasError: true, error, isChunkError };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
@@ -42,6 +58,43 @@ class ErrorBoundary extends Component<
 
   render() {
     if (this.state.hasError) {
+      if (this.state.isChunkError) {
+        return (
+          <div className="flex h-screen items-center justify-center bg-background text-foreground">
+            <div className="text-center space-y-4 max-w-md px-6">
+              <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <svg
+                  className="h-6 w-6 text-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  role="img"
+                  aria-label="Refresh icon"
+                >
+                  <title>Refresh</title>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+              </div>
+              <h1 className="text-xl font-semibold">Update Available</h1>
+              <p className="text-sm text-muted-foreground">
+                A new version of ashim has been deployed.
+              </p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+        );
+      }
       return (
         <div className="flex h-screen items-center justify-center bg-background text-foreground">
           <div className="text-center space-y-4 max-w-md px-6">
@@ -52,7 +105,7 @@ class ErrorBoundary extends Component<
             <button
               type="button"
               onClick={() => {
-                this.setState({ hasError: false, error: null });
+                this.setState({ hasError: false, error: null, isChunkError: false });
                 window.location.href = "/";
               }}
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
@@ -112,9 +165,16 @@ function PageLoader() {
   );
 }
 
+function ConnectionMonitor() {
+  useConnectionMonitor();
+  return null;
+}
+
 export function App() {
   return (
     <ErrorBoundary>
+      <ConnectionMonitor />
+      <ConnectionBanner />
       <Toaster position="bottom-right" />
       <BrowserRouter>
         <KeyboardShortcutProvider>
