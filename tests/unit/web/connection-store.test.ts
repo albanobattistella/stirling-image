@@ -14,6 +14,10 @@ function failHealth() {
   return Promise.reject(new TypeError("Failed to fetch"));
 }
 
+function nonOkHealth() {
+  return Promise.resolve(new Response(null, { status: 503 }));
+}
+
 describe("connection-store", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -79,6 +83,13 @@ describe("connection-store", () => {
     await useConnectionStore.getState().checkHealth();
     expect(useConnectionStore.getState().status).toBe("connected");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("checkHealth transitions connected → disconnected on non-ok response", async () => {
+    fetchMock.mockImplementation(nonOkHealth);
+    expect(useConnectionStore.getState().status).toBe("connected");
+    await useConnectionStore.getState().checkHealth();
+    expect(useConnectionStore.getState().status).toBe("disconnected");
   });
 
   it("checkHealth transitions connected → disconnected on fetch failure", async () => {
