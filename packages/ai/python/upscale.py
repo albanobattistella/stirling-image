@@ -1,7 +1,26 @@
-"""Image upscaling with Real-ESRGAN fallback to Lanczos."""
+"""Image upscaling with Real-ESRGAN."""
 import sys
 import json
 import os
+import types
+
+# basicsr imports torchvision.transforms.functional_tensor which was removed
+# in torchvision >= 0.17. This shim must exist before basicsr is imported.
+try:
+    import torchvision.transforms.functional_tensor  # noqa: F401
+except (ImportError, ModuleNotFoundError):
+    try:
+        import torchvision.transforms.functional as _F
+        import torchvision.transforms
+
+        _shim = types.ModuleType("torchvision.transforms.functional_tensor")
+        for _attr in dir(_F):
+            if not _attr.startswith("_"):
+                setattr(_shim, _attr, getattr(_F, _attr))
+        sys.modules["torchvision.transforms.functional_tensor"] = _shim
+        torchvision.transforms.functional_tensor = _shim
+    except ImportError:
+        pass
 
 
 def emit_progress(percent, stage):
