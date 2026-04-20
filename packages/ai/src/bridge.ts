@@ -218,7 +218,11 @@ function dispatcherRun(
   if (!proc || !proc.stdin || !dispatcherReady) return null;
 
   const id = randomUUID();
-  const timeout = options.timeout ?? 300000;
+  const timeout =
+    options.timeout ??
+    (process.env.PROCESSING_TIMEOUT_S && parseInt(process.env.PROCESSING_TIMEOUT_S, 10) > 0
+      ? parseInt(process.env.PROCESSING_TIMEOUT_S, 10) * 1000
+      : 600000);
 
   return new Promise((resolvePromise, rejectPromise) => {
     const timer = setTimeout(() => {
@@ -278,7 +282,11 @@ function runPythonPerRequest(
   } = {},
 ): Promise<{ stdout: string; stderr: string }> {
   const scriptPath = resolve(PYTHON_DIR, scriptName);
-  const timeout = options.timeout ?? 300000;
+  const timeout =
+    options.timeout ??
+    (process.env.PROCESSING_TIMEOUT_S && parseInt(process.env.PROCESSING_TIMEOUT_S, 10) > 0
+      ? parseInt(process.env.PROCESSING_TIMEOUT_S, 10) * 1000
+      : 600000);
 
   return new Promise((resolvePromise, rejectPromise) => {
     const trySpawn = (pythonBin: string, isFallback: boolean) => {
@@ -390,14 +398,14 @@ export function runPythonWithProgress(
   const dispatcherPromise = dispatcherRun(scriptName, args, options);
   if (dispatcherPromise) {
     return dispatcherPromise.catch((err: Error) => {
-      // Dispatcher crashed mid-request (e.g. OOM when loading a large model).
-      // Retry in an isolated per-request process which starts clean and has
-      // more available memory than the warm dispatcher.
       if (err.message === "Python dispatcher exited unexpectedly") {
         console.warn(
           `[bridge] Dispatcher crashed during ${scriptName}, retrying with per-request process`,
         );
-        return runPythonPerRequest(scriptName, args, options);
+        return runPythonPerRequest(scriptName, args, options).then((result) => ({
+          ...result,
+          stderr: `${result.stderr}\n[bridge] retried after dispatcher crash`,
+        }));
       }
       throw err;
     });

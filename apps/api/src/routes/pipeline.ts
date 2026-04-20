@@ -18,6 +18,7 @@ import { z } from "zod";
 import { env } from "../config.js";
 import { db, schema } from "../db/index.js";
 import { autoOrient } from "../lib/auto-orient.js";
+import { resolveConcurrency } from "../lib/env.js";
 import { formatZodErrors } from "../lib/errors.js";
 import { isToolInstalled } from "../lib/feature-status.js";
 import { validateImageBuffer } from "../lib/file-validation.js";
@@ -39,17 +40,21 @@ const pipelineDefinitionSchema = z.object({
   steps: z
     .array(pipelineStepSchema)
     .min(1, "Pipeline must have at least one step")
-    .max(20, "Pipeline cannot exceed 20 steps"),
+    .refine((steps) => env.MAX_PIPELINE_STEPS === 0 || steps.length <= env.MAX_PIPELINE_STEPS, {
+      message: "Pipeline exceeds maximum steps",
+    }),
 });
 
 /** Schema for saving a pipeline. */
 const savePipelineSchema = z.object({
-  name: z.string().min(1, "Pipeline name is required").max(100),
-  description: z.string().max(500).optional(),
+  name: z.string().min(1, "Pipeline name is required").max(255),
+  description: z.string().max(2000).optional(),
   steps: z
     .array(pipelineStepSchema)
     .min(1, "Pipeline must have at least one step")
-    .max(20, "Pipeline cannot exceed 20 steps"),
+    .refine((steps) => env.MAX_PIPELINE_STEPS === 0 || steps.length <= env.MAX_PIPELINE_STEPS, {
+      message: "Pipeline exceeds maximum steps",
+    }),
 });
 
 export async function registerPipelineRoutes(app: FastifyInstance): Promise<void> {
@@ -424,7 +429,7 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
     }
 
     // Enforce batch size limit
-    if (files.length > env.MAX_BATCH_SIZE) {
+    if (env.MAX_BATCH_SIZE > 0 && files.length > env.MAX_BATCH_SIZE) {
       return reply.status(400).send({
         error: `Too many files. Maximum batch size is ${env.MAX_BATCH_SIZE}`,
       });
@@ -499,7 +504,7 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
     updateJobProgress({ ...progress });
 
     // ── Process files through the pipeline with concurrency control ──
-    const queue = new PQueue({ concurrency: env.CONCURRENT_JOBS });
+    const queue = new PQueue({ concurrency: resolveConcurrency(env) });
 
     const results: ({ buffer: Buffer; filename: string } | null)[] = new Array(files.length).fill(
       null,
