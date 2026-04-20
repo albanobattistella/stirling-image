@@ -33,6 +33,19 @@ describe("retryDynamicImport", () => {
     expect(importFn).toHaveBeenCalledTimes(3);
   });
 
+  it("retries CSS preload errors", async () => {
+    const mod = { default: () => null };
+    const importFn = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new TypeError("Unable to preload CSS for /assets/tool-page-DDbXBANV.css"),
+      )
+      .mockResolvedValue(mod);
+    const result = await retryDynamicImport(importFn, 3, 0);
+    expect(result).toBe(mod);
+    expect(importFn).toHaveBeenCalledTimes(2);
+  });
+
   it("only retries chunk-related errors, not other errors", async () => {
     const err = new Error("Some other error");
     const importFn = vi.fn().mockRejectedValue(err);

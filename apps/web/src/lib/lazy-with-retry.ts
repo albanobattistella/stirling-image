@@ -7,7 +7,8 @@ export function isChunkError(error: unknown): boolean {
     msg.includes("dynamically imported module") ||
     msg.includes("loading chunk") ||
     msg.includes("loading css chunk") ||
-    msg.includes("failed to fetch")
+    msg.includes("failed to fetch") ||
+    msg.includes("unable to preload")
   );
 }
 
