@@ -160,6 +160,9 @@ RUN for i in 1 2 3; do apt-get -o Acquire::Retries=3 update && break || sleep $(
     && if apt-cache show libheif-plugin-x265 >/dev/null 2>&1; then \
          apt-get install -y --no-install-recommends libheif-plugin-x265; \
        fi \
+    && if apt-cache show libcublas-12-6 >/dev/null 2>&1; then \
+         apt-get install -y --no-install-recommends libcublas-12-6; \
+       fi \
     && rm -rf /var/lib/apt/lists/*
 
 # Caire binary (content-aware seam carving)

@@ -99,7 +99,7 @@ def main():
 
         try:
             import cv2
-            import onnxruntime as ort
+            import onnxruntime
         except ImportError as e:
             print(json.dumps({
                 "success": False,
@@ -110,11 +110,8 @@ def main():
         emit_progress(10, "Loading model")
         model_path = _get_model_path()
 
-        # Configure ONNX Runtime session
-        from gpu import onnx_providers
-        providers = onnx_providers()
-
-        session = ort.InferenceSession(model_path, providers=providers)
+        from gpu import safe_onnx_session
+        session = safe_onnx_session(model_path)
 
         emit_progress(20, "Loading images")
         img = Image.open(input_path).convert("RGB")

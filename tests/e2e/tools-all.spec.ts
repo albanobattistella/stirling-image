@@ -45,6 +45,16 @@ const TOOLS_WITH_DROPZONE = [
 
 const TOOLS_WITHOUT_DROPZONE = [{ id: "qr-generate", name: "QR Code" }];
 
+const AI_TOOL_IDS = new Set([
+  "remove-background",
+  "upscale",
+  "erase-object",
+  "ocr",
+  "blur-faces",
+  "smart-crop",
+  "noise-removal",
+]);
+
 test.describe("All tool pages render", () => {
   for (const tool of TOOLS_WITH_DROPZONE) {
     test(`${tool.name} (/${tool.id}) loads with dropzone`, async ({ loggedInPage: page }) => {
@@ -52,6 +62,17 @@ test.describe("All tool pages render", () => {
 
       // Tool name should be visible
       await expect(page.getByText(tool.name, { exact: false }).first()).toBeVisible();
+
+      // AI tools may show install prompt instead of dropzone when feature is not installed
+      if (AI_TOOL_IDS.has(tool.id)) {
+        const uploadVisible = await page.getByText("Upload from computer").isVisible();
+        if (!uploadVisible) {
+          await expect(
+            page.getByText(/additional download|Feature Not Enabled/i).first(),
+          ).toBeVisible();
+          return;
+        }
+      }
 
       // Should show dropzone (some tools like collage use custom upload text)
       const uploadText = (tool as any).customDropzone

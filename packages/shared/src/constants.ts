@@ -1195,6 +1195,7 @@ export const PYTHON_SIDECAR_TOOLS = [
   "colorize",
   "enhance-faces",
   "noise-removal",
+  "smart-crop",
   "red-eye-removal",
   "restore-photo",
   "passport-photo",

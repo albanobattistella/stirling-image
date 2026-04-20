@@ -152,14 +152,10 @@ def inpaint_damage(img_bgr, mask):
     Returns:
         Restored BGR image with damage inpainted.
     """
-    import onnxruntime as ort
+    from gpu import safe_onnx_session
 
     model_path = _get_lama_path()
-    providers = ["CPUExecutionProvider"]
-    if "CUDAExecutionProvider" in ort.get_available_providers():
-        providers.insert(0, "CUDAExecutionProvider")
-
-    session = ort.InferenceSession(model_path, providers=providers)
+    session = safe_onnx_session(model_path)
 
     orig_h, orig_w = img_bgr.shape[:2]
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
@@ -261,7 +257,7 @@ def enhance_faces(img_bgr, fidelity=0.7):
         Tuple of (enhanced BGR image, number of faces found).
     """
     import mediapipe as mp
-    import onnxruntime as ort
+    from gpu import safe_onnx_session
 
     # Detect faces
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
@@ -321,11 +317,7 @@ def enhance_faces(img_bgr, fidelity=0.7):
 
     # Load CodeFormer model
     model_path = _get_codeformer_path()
-    providers = ["CPUExecutionProvider"]
-    if "CUDAExecutionProvider" in ort.get_available_providers():
-        providers.insert(0, "CUDAExecutionProvider")
-
-    session = ort.InferenceSession(model_path, providers=providers)
+    session = safe_onnx_session(model_path)
     input_names = [inp.name for inp in session.get_inputs()]
 
     result = img_bgr.copy()
@@ -476,20 +468,12 @@ def colorize_bw(img_bgr, intensity=0.85):
 
     Reuses the DDColor model that the colorize tool already downloads.
     """
-    import onnxruntime as ort
+    from gpu import safe_onnx_session
 
     if not os.path.exists(DDCOLOR_MODEL_PATH):
         return img_bgr, False
 
-    providers = ["CPUExecutionProvider"]
-    try:
-        from gpu import gpu_available
-        if gpu_available():
-            providers.insert(0, "CUDAExecutionProvider")
-    except ImportError as e:
-        print(f"[restore] GPU detection unavailable: {e}", file=sys.stderr, flush=True)
-
-    session = ort.InferenceSession(DDCOLOR_MODEL_PATH, providers=providers)
+    session = safe_onnx_session(DDCOLOR_MODEL_PATH)
     input_name = session.get_inputs()[0].name
     input_shape = session.get_inputs()[0].shape
     model_size = (

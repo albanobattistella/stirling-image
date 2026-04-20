@@ -46,19 +46,11 @@ OPENCV_POINTS_PATH = os.environ.get(
 
 def colorize_ddcolor(img_bgr, intensity):
     """Colorize using DDColor ONNX model."""
-    import onnxruntime as ort
+    from gpu import safe_onnx_session
 
     emit_progress(15, "Loading DDColor model")
 
-    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-    try:
-        from gpu import gpu_available
-        if not gpu_available():
-            providers = ["CPUExecutionProvider"]
-    except ImportError:
-        providers = ["CPUExecutionProvider"]
-
-    session = ort.InferenceSession(DDCOLOR_MODEL_PATH, providers=providers)
+    session = safe_onnx_session(DDCOLOR_MODEL_PATH)
     input_name = session.get_inputs()[0].name
     input_shape = session.get_inputs()[0].shape
     # Dynamic dims are strings ('w', 'h'), so default to 512 if not int

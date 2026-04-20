@@ -55,3 +55,20 @@ def onnx_providers():
     if gpu_available():
         return ["CUDAExecutionProvider", "CPUExecutionProvider"]
     return ["CPUExecutionProvider"]
+
+
+def safe_onnx_session(model_path, providers=None):
+    """Create an ONNX Runtime InferenceSession with graceful CUDA EP fallback."""
+    import onnxruntime as ort
+
+    if providers is None:
+        providers = onnx_providers()
+
+    try:
+        return ort.InferenceSession(model_path, providers=providers)
+    except Exception as e:
+        if "CUDAExecutionProvider" in providers:
+            print(f"[gpu] CUDA EP init failed ({e}), falling back to CPU",
+                  file=sys.stderr, flush=True)
+            return ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+        raise

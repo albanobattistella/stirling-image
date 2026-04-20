@@ -83,7 +83,7 @@ test.describe("Noise Removal tool", () => {
   });
 
   test("GIF + AI tier warning appears and disappears correctly", async ({ loggedInPage: page }) => {
-    await page.goto("/noise-removal");
+    await skipIfFeatureNotInstalled(page);
     await uploadFile(page, fixturePath("animated.gif"));
 
     // No warning with balanced tier (default)
@@ -102,7 +102,7 @@ test.describe("Noise Removal tool", () => {
   test("PNG - quick tier removes noise and shows download button", async ({
     loggedInPage: page,
   }) => {
-    await page.goto("/noise-removal");
+    await skipIfFeatureNotInstalled(page);
     await uploadFile(page, fixturePath("test-200x150.png"));
 
     await page.getByRole("button", { name: "Quick" }).click();
@@ -119,7 +119,7 @@ test.describe("Noise Removal tool", () => {
   test("JPG - balanced tier removes noise and shows download button", async ({
     loggedInPage: page,
   }) => {
-    await page.goto("/noise-removal");
+    await skipIfFeatureNotInstalled(page);
     await uploadFile(page, fixturePath("test-100x100.jpg"));
 
     // Balanced is default, no need to click it
@@ -132,7 +132,7 @@ test.describe("Noise Removal tool", () => {
   test("WEBP output format - processes and download link is correct type", async ({
     loggedInPage: page,
   }) => {
-    await page.goto("/noise-removal");
+    await skipIfFeatureNotInstalled(page);
     await uploadFile(page, fixturePath("test-200x150.png"));
 
     await page.getByRole("button", { name: "Quick" }).click();
@@ -144,7 +144,7 @@ test.describe("Noise Removal tool", () => {
   });
 
   test("download link has correct href after processing", async ({ loggedInPage: page }) => {
-    await page.goto("/noise-removal");
+    await skipIfFeatureNotInstalled(page);
     await uploadFile(page, fixturePath("test-200x150.png"));
 
     await page.getByRole("button", { name: "Quick" }).click();

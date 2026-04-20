@@ -76,7 +76,16 @@ def main():
 
         emit_progress(10, "Loading model")
 
-        session = new_session(model, providers=onnx_providers())
+        providers = onnx_providers()
+        try:
+            session = new_session(model, providers=providers)
+        except Exception as e:
+            if "CUDAExecutionProvider" in providers:
+                print(f"[remove-bg] GPU session failed ({e}), falling back to CPU",
+                      file=sys.stderr, flush=True)
+                session = new_session(model, providers=["CPUExecutionProvider"])
+            else:
+                raise
 
         emit_progress(25, "Model loaded")
 
