@@ -91,8 +91,6 @@ export function AiFeaturesSection() {
     prevInstallingKeys.current = currentKeys;
   }, [installing, loadDiskUsage]);
 
-  const anyInstalling = Object.keys(installing).length > 0;
-
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -105,9 +103,7 @@ export function AiFeaturesSection() {
         <button
           type="button"
           onClick={installAll}
-          disabled={
-            installAllActive || bundles.every((b) => b.status === "installed")
-          }
+          disabled={installAllActive || bundles.every((b) => b.status === "installed")}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
           <Download className="h-4 w-4" />

@@ -46,13 +46,26 @@ async function test(name, path, settings, checks = {}) {
     if (checks.expectKey && checks.expectValue) {
       const actual = body[checks.expectKey];
       if (actual !== checks.expectValue) {
-        log(name, "FAIL", `Expected ${checks.expectKey}=${checks.expectValue} but got ${actual} (FALLBACK DETECTED)`);
+        log(
+          name,
+          "FAIL",
+          `Expected ${checks.expectKey}=${checks.expectValue} but got ${actual} (FALLBACK DETECTED)`,
+        );
         return;
       }
     }
     // Build detail string
     const parts = [];
-    for (const k of ["method", "model", "engine", "format", "width", "height", "facesDetected", "steps"]) {
+    for (const k of [
+      "method",
+      "model",
+      "engine",
+      "format",
+      "width",
+      "height",
+      "facesDetected",
+      "steps",
+    ]) {
       if (body[k] !== undefined) {
         const v = Array.isArray(body[k]) ? JSON.stringify(body[k]) : body[k];
         parts.push(`${k}=${v}`);
@@ -93,27 +106,82 @@ async function main() {
   console.log("--- GPU/AI TOOLS (must use GPU, no CPU fallback) ---\n");
 
   // Background removal — all models
-  await test("Remove BG (birefnet-general-lite)", "remove-background", { model: "birefnet-general-lite" }, { expectKey: "model", expectValue: "birefnet-general-lite" });
-  await test("Remove BG (birefnet-portrait)", "remove-background", { model: "birefnet-portrait" }, { expectKey: "model", expectValue: "birefnet-portrait" });
-  await test("Remove BG (birefnet-general)", "remove-background", { model: "birefnet-general" }, { expectKey: "model", expectValue: "birefnet-general" });
-  await test("Remove BG (u2net)", "remove-background", { model: "u2net" }, { expectKey: "model", expectValue: "u2net" });
-  await test("Remove BG (bria-rmbg)", "remove-background", { model: "bria-rmbg" }, { expectKey: "model", expectValue: "bria-rmbg" });
-  await test("Remove BG (isnet-general-use)", "remove-background", { model: "isnet-general-use" }, { expectKey: "model", expectValue: "isnet-general-use" });
-  await test("Remove BG (birefnet-matting/Ultra)", "remove-background", { model: "birefnet-matting" }, { expectKey: "model", expectValue: "birefnet-matting" });
+  await test(
+    "Remove BG (birefnet-general-lite)",
+    "remove-background",
+    { model: "birefnet-general-lite" },
+    { expectKey: "model", expectValue: "birefnet-general-lite" },
+  );
+  await test(
+    "Remove BG (birefnet-portrait)",
+    "remove-background",
+    { model: "birefnet-portrait" },
+    { expectKey: "model", expectValue: "birefnet-portrait" },
+  );
+  await test(
+    "Remove BG (birefnet-general)",
+    "remove-background",
+    { model: "birefnet-general" },
+    { expectKey: "model", expectValue: "birefnet-general" },
+  );
+  await test(
+    "Remove BG (u2net)",
+    "remove-background",
+    { model: "u2net" },
+    { expectKey: "model", expectValue: "u2net" },
+  );
+  await test(
+    "Remove BG (bria-rmbg)",
+    "remove-background",
+    { model: "bria-rmbg" },
+    { expectKey: "model", expectValue: "bria-rmbg" },
+  );
+  await test(
+    "Remove BG (isnet-general-use)",
+    "remove-background",
+    { model: "isnet-general-use" },
+    { expectKey: "model", expectValue: "isnet-general-use" },
+  );
+  await test(
+    "Remove BG (birefnet-matting/Ultra)",
+    "remove-background",
+    { model: "birefnet-matting" },
+    { expectKey: "model", expectValue: "birefnet-matting" },
+  );
 
   // Upscale
-  await test("Upscale (realesrgan 2x)", "upscale", { scale: 2, model: "realesrgan" }, { expectKey: "method", expectValue: "realesrgan" });
-  await test("Upscale (realesrgan 4x)", "upscale", { scale: 4, model: "realesrgan" }, { expectKey: "method", expectValue: "realesrgan" });
+  await test(
+    "Upscale (realesrgan 2x)",
+    "upscale",
+    { scale: 2, model: "realesrgan" },
+    { expectKey: "method", expectValue: "realesrgan" },
+  );
+  await test(
+    "Upscale (realesrgan 4x)",
+    "upscale",
+    { scale: 4, model: "realesrgan" },
+    { expectKey: "method", expectValue: "realesrgan" },
+  );
   await test("Upscale (lanczos 2x)", "upscale", { scale: 2, model: "lanczos" });
   await test("Upscale (auto)", "upscale", { scale: 2, model: "auto" });
 
   // Face enhancement
-  await test("Face Enhance (gfpgan)", "enhance-faces", { model: "gfpgan" }, { expectKey: "model", expectValue: "gfpgan" });
+  await test(
+    "Face Enhance (gfpgan)",
+    "enhance-faces",
+    { model: "gfpgan" },
+    { expectKey: "model", expectValue: "gfpgan" },
+  );
   await test("Face Enhance (codeformer)", "enhance-faces", { model: "codeformer" });
   await test("Face Enhance (auto)", "enhance-faces", { model: "auto" });
 
   // Colorize
-  await test("Colorize (ddcolor)", "colorize", { model: "ddcolor" }, { expectKey: "method", expectValue: "ddcolor" });
+  await test(
+    "Colorize (ddcolor)",
+    "colorize",
+    { model: "ddcolor" },
+    { expectKey: "method", expectValue: "ddcolor" },
+  );
   await test("Colorize (auto)", "colorize", { model: "auto" });
 
   // Noise removal — all tiers
@@ -126,8 +194,18 @@ async function main() {
   await test("Photo Restoration", "restore-photo", {});
 
   // OCR
-  await test("OCR (tesseract)", "ocr", { engine: "tesseract" }, { expectKey: "engine", expectValue: "tesseract" });
-  await test("OCR (paddleocr)", "ocr", { engine: "paddleocr" }, { expectKey: "engine", expectValue: "paddleocr-v5" });
+  await test(
+    "OCR (tesseract)",
+    "ocr",
+    { engine: "tesseract" },
+    { expectKey: "engine", expectValue: "tesseract" },
+  );
+  await test(
+    "OCR (paddleocr)",
+    "ocr",
+    { engine: "paddleocr" },
+    { expectKey: "engine", expectValue: "paddleocr-v5" },
+  );
 
   // Face operations (MediaPipe)
   await test("Face Blur", "blur-faces", { intensity: 50 });
@@ -159,7 +237,11 @@ async function main() {
   await test("Image Enhancement (vivid)", "image-enhancement", { preset: "vivid" });
   await test("Sharpening", "sharpening", { sigma: 1.5, amount: 1.0 });
   await test("Border", "border", { size: 20, color: "#ff0000" });
-  await test("Replace Color", "replace-color", { targetColor: "#ffffff", replacementColor: "#000000", tolerance: 30 });
+  await test("Replace Color", "replace-color", {
+    targetColor: "#ffffff",
+    replacementColor: "#000000",
+    tolerance: 30,
+  });
 
   // ════════════════════════════════════════════════════════════════
   // SECTION 3: UTILITY TOOLS
@@ -178,10 +260,18 @@ async function main() {
     formData.append("file", new File([imageBlob], "test.webp", { type: "image/webp" }));
     formData.append("settings", JSON.stringify({}));
     const res = await fetch(`${BASE}/api/v1/tools/favicon`, {
-      method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData,
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
     });
-    log("Favicon", res.ok ? "PASS" : "FAIL", `HTTP ${res.status}, ${res.headers.get('content-type')}`);
-  } catch (e) { log("Favicon", "FAIL", e.message.slice(0, 100)); }
+    log(
+      "Favicon",
+      res.ok ? "PASS" : "FAIL",
+      `HTTP ${res.status}, ${res.headers.get("content-type")}`,
+    );
+  } catch (e) {
+    log("Favicon", "FAIL", e.message.slice(0, 100));
+  }
 
   // ════════════════════════════════════════════════════════════════
   // SECTION 4: MULTI-IMAGE / SPECIAL TOOLS (may need special input)
@@ -189,7 +279,12 @@ async function main() {
   console.log("\n--- SPECIAL TOOLS (may need specific inputs) ---\n");
 
   await test("QR Generate", "qr-generate", { text: "https://ashim.app", size: 512, format: "png" });
-  await test("Text Overlay", "text-overlay", { text: "TEST", fontSize: 48, color: "#ff0000", position: "center" });
+  await test("Text Overlay", "text-overlay", {
+    text: "TEST",
+    fontSize: 48,
+    color: "#ff0000",
+    position: "center",
+  });
   await test("Vectorize", "vectorize", {});
   await test("SVG to Raster", "svg-to-raster", {}); // Will fail - needs SVG input
 
@@ -200,8 +295,8 @@ async function main() {
   console.log("  SUMMARY");
   console.log("=============================================================\n");
 
-  const passed = results.filter(r => r.status === "PASS");
-  const failed = results.filter(r => r.status === "FAIL");
+  const passed = results.filter((r) => r.status === "PASS");
+  const failed = results.filter((r) => r.status === "FAIL");
 
   console.log(`PASSED: ${passed.length}`);
   console.log(`FAILED: ${failed.length}`);
@@ -219,21 +314,34 @@ async function main() {
   // Check GPU usage in docker logs
   console.log("\n--- GPU USAGE CHECK ---\n");
   const { execSync } = await import("child_process");
-  const logs = execSync('docker logs ashim 2>&1', { encoding: 'utf-8', maxBuffer: 1024 * 1024 });
-  const gpuLines = logs.split('\n').filter(l =>
-    l.includes('[gpu]') || l.includes('[bridge]') || l.includes('[dispatcher]') ||
-    l.includes('GPU') || l.includes('CUDA') || l.includes('CUDAExecution')
-  );
+  const logs = execSync("docker logs ashim 2>&1", { encoding: "utf-8", maxBuffer: 1024 * 1024 });
+  const gpuLines = logs
+    .split("\n")
+    .filter(
+      (l) =>
+        l.includes("[gpu]") ||
+        l.includes("[bridge]") ||
+        l.includes("[dispatcher]") ||
+        l.includes("GPU") ||
+        l.includes("CUDA") ||
+        l.includes("CUDAExecution"),
+    );
   for (const line of gpuLines.slice(0, 15)) {
     console.log("  " + line.trim().slice(0, 120));
   }
 
   // Check for any fallback warnings
   console.log("\n--- FALLBACK/MISMATCH WARNINGS ---\n");
-  const warnLines = logs.split('\n').filter(l =>
-    l.includes('mismatch') || l.includes('fallback') || l.includes('Falling back') ||
-    l.includes('degraded') || l.includes('lanczos') && l.includes('warn')
-  );
+  const warnLines = logs
+    .split("\n")
+    .filter(
+      (l) =>
+        l.includes("mismatch") ||
+        l.includes("fallback") ||
+        l.includes("Falling back") ||
+        l.includes("degraded") ||
+        (l.includes("lanczos") && l.includes("warn")),
+    );
   if (warnLines.length === 0) {
     console.log("  None detected - no silent fallbacks occurred.");
   } else {
@@ -245,4 +353,7 @@ async function main() {
   process.exit(failed.length > 0 ? 1 : 0);
 }
 
-main().catch(err => { console.error("Fatal:", err); process.exit(1); });
+main().catch((err) => {
+  console.error("Fatal:", err);
+  process.exit(1);
+});

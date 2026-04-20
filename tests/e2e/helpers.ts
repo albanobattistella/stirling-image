@@ -87,7 +87,12 @@ export function getTestImagePath(): string {
     ihdr[9] = 6; // RGBA
     fs.writeFileSync(
       _testImagePath,
-      Buffer.concat([sig, chunk("IHDR", ihdr), chunk("IDAT", deflated), chunk("IEND", Buffer.alloc(0))]),
+      Buffer.concat([
+        sig,
+        chunk("IHDR", ihdr),
+        chunk("IDAT", deflated),
+        chunk("IEND", Buffer.alloc(0)),
+      ]),
     );
   }
 

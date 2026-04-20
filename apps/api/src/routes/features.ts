@@ -239,7 +239,7 @@ export async function registerFeatureRoutes(app: FastifyInstance): Promise<void>
           for (const [otherId, otherBundle] of Object.entries(manifest.bundles)) {
             if (otherId === bundleId) continue;
             if (!isFeatureInstalled(otherId)) continue;
-            for (const m of (otherBundle as any).models ?? []) {
+            for (const m of otherBundle.models ?? []) {
               if (m.path) sharedPaths.add(m.path);
             }
           }

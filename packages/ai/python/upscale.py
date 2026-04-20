@@ -3,10 +3,11 @@ import sys
 import json
 import os
 
-# Patch for basicsr compatibility with torchvision >= 0.18.
-# torchvision removed transforms.functional_tensor, merging it into
-# transforms.functional. basicsr still imports the old path, so we
-# create a shim module to redirect the import.
+# Patch for basicsr compatibility with torchvision >= 0.17.
+# torchvision removed transforms.functional_tensor, merging everything
+# into transforms.functional. basicsr 1.4.2 still imports the old path
+# (e.g. rgb_to_grayscale), so we create a proxy module that forwards
+# ALL attribute lookups to the new location.
 try:
     import torchvision.transforms.functional_tensor  # noqa: F401
 except (ImportError, ModuleNotFoundError):
@@ -14,10 +15,20 @@ except (ImportError, ModuleNotFoundError):
         import types
         import torchvision.transforms.functional as _F
 
+        import torchvision.transforms
+
         _shim = types.ModuleType("torchvision.transforms.functional_tensor")
+        _shim.__getattr__ = lambda name: getattr(_F, name)
+        # Pre-populate the attribute basicsr actually imports so that
+        # `from torchvision.transforms.functional_tensor import rgb_to_grayscale`
+        # works (from-import checks __dict__ before __getattr__).
         _shim.rgb_to_grayscale = _F.rgb_to_grayscale
         sys.modules["torchvision.transforms.functional_tensor"] = _shim
-    except ImportError as e:
+        # The parent package must also reference the submodule for
+        # `from torchvision.transforms.functional_tensor import ...` to
+        # resolve correctly in all Python versions.
+        torchvision.transforms.functional_tensor = _shim
+    except (ImportError, AttributeError) as e:
         print(f"[upscale] torchvision shim failed: {e}", file=sys.stderr, flush=True)
 
 

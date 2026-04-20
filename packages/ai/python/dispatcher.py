@@ -49,6 +49,36 @@ def emit_progress(percent, stage):
     print(json.dumps({"progress": percent, "stage": stage}), file=sys.stderr, flush=True)
 
 
+# ── basicsr / torchvision compatibility shim ──────────────────────────
+# basicsr 1.4.2 (pulled in by realesrgan) does:
+#   from torchvision.transforms.functional_tensor import rgb_to_grayscale
+# but torchvision >= 0.17 removed the functional_tensor submodule,
+# merging everything into torchvision.transforms.functional.
+# We install a shim module ONCE here so every script in this process
+# benefits, rather than relying on each script to patch individually.
+try:
+    import torchvision.transforms.functional_tensor  # noqa: F401
+except (ImportError, ModuleNotFoundError):
+    try:
+        import types
+        import torchvision.transforms.functional as _F
+        import torchvision.transforms
+
+        _shim = types.ModuleType("torchvision.transforms.functional_tensor")
+        _shim.__getattr__ = lambda name: getattr(_F, name)
+        _shim.rgb_to_grayscale = _F.rgb_to_grayscale
+        sys.modules["torchvision.transforms.functional_tensor"] = _shim
+        torchvision.transforms.functional_tensor = _shim
+        print("[dispatcher] Installed torchvision.transforms.functional_tensor shim",
+              file=sys.stderr, flush=True)
+    except (ImportError, AttributeError):
+        # torchvision not installed yet — shim not needed until
+        # the upscale-enhance bundle is installed.
+        pass
+except Exception:
+    # Catch-all so dispatcher startup is never blocked.
+    pass
+
 # ── Pre-import heavy libraries ──────────────────────────────────────
 # These imports are the main source of cold-start latency.
 # By importing once at startup, subsequent requests skip the import cost.

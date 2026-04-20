@@ -232,9 +232,7 @@ export const useFeaturesStore = create<FeaturesState>((set, get) => {
       // Immediately mark every not-yet-installed bundle as queued so the UI
       // updates right away.  Exclude bundles that are already installing.
       const activeIds = new Set(Object.keys(get().installing));
-      const pending = get().bundles.filter(
-        (b) => b.status !== "installed" && !activeIds.has(b.id),
-      );
+      const pending = get().bundles.filter((b) => b.status !== "installed" && !activeIds.has(b.id));
       // Clear stale errors for these bundles
       const errors = { ...get().errors };
       for (const b of pending) delete errors[b.id];
