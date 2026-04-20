@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import { getBundleForTool, TOOL_BUNDLE_MAP } from "@ashim/shared";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -248,6 +248,15 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
           // AI tools: always main thread (they use Python bridge)
           const processBuffer = isSvg ? fileBuffer : await autoOrient(fileBuffer);
           result = await config.process(processBuffer, settings, filename);
+        }
+
+        // Add a tool-specific suffix to the filename so the download
+        // doesn't silently overwrite the user's original file.
+        // Skip if the tool already changed the filename (e.g. convert, split).
+        if (result.filename === filename) {
+          const ext = extname(filename);
+          const base = ext ? filename.slice(0, -ext.length) : filename;
+          result.filename = `${base}_${config.toolId}${ext}`;
         }
 
         // Create workspace and save output

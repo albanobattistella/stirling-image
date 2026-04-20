@@ -228,14 +228,43 @@ export const useFeaturesStore = create<FeaturesState>((set, get) => {
 
     installAll: async () => {
       set({ installAllActive: true });
-      const notInstalled = get().bundles.filter((b) => b.status === "not_installed");
-      set({ queued: notInstalled.map((b) => b.id) });
 
-      for (const bundle of notInstalled) {
-        set({ queued: get().queued.filter((id) => id !== bundle.id) });
+      // Immediately mark every not-yet-installed bundle as queued so the UI
+      // updates right away.  Exclude bundles that are already installing.
+      const activeIds = new Set(Object.keys(get().installing));
+      const pending = get().bundles.filter(
+        (b) => b.status !== "installed" && !activeIds.has(b.id),
+      );
+      // Clear stale errors for these bundles
+      const errors = { ...get().errors };
+      for (const b of pending) delete errors[b.id];
+      set({ queued: pending.map((b) => b.id), errors });
+
+      // If an install is already in progress (user clicked an individual
+      // install before Install All), wait for it to finish first.
+      if (activeIds.size > 0) {
+        const activeId = [...activeIds][0];
         await new Promise<void>((resolve) => {
-          completionRefs[bundle.id] = resolve;
-          get().installBundle(bundle.id);
+          completionRefs[activeId] = resolve;
+        });
+        await refreshBundles();
+      }
+
+      // Process the queue: re-read which bundles still need installing
+      // (the one that was active may have just finished).
+      while (true) {
+        const q = get().queued;
+        if (q.length === 0) break;
+        const nextId = q[0];
+        set({ queued: q.slice(1) });
+
+        // Skip if it got installed in the meantime
+        const current = get().bundles.find((b) => b.id === nextId);
+        if (current?.status === "installed") continue;
+
+        await new Promise<void>((resolve) => {
+          completionRefs[nextId] = resolve;
+          get().installBundle(nextId);
         });
       }
 

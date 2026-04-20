@@ -40,10 +40,10 @@ test.describe("Navigation", () => {
     await expect(page.getByText("Optimization")).toBeVisible();
     await expect(page.getByText("Adjustments")).toBeVisible();
 
-    // Should show tools
-    await expect(page.getByText("Resize")).toBeVisible();
-    await expect(page.getByText("Compress")).toBeVisible();
-    await expect(page.getByText("Convert")).toBeVisible();
+    // Should show tools (use heading-level locators to avoid matching descriptions)
+    await expect(page.getByRole("link", { name: /^Resize/ }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Compress/ }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Convert/ }).first()).toBeVisible();
   });
 
   test("fullscreen grid has search functionality", async ({ loggedInPage: page }) => {
@@ -54,7 +54,7 @@ test.describe("Navigation", () => {
 
     // Search for a specific tool
     await searchInput.fill("resize");
-    await expect(page.getByText("Resize")).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Resize/ }).first()).toBeVisible();
   });
 
   test("clicking a tool in fullscreen grid navigates to tool page", async ({

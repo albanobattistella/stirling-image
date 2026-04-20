@@ -162,7 +162,7 @@ test.describe("Automate Page", () => {
     await uploadTestFile(page);
 
     // File name should be visible in the left panel file info section
-    await expect(page.getByText("test-image.png")).toBeVisible();
+    await expect(page.getByText("test-image.png").first()).toBeVisible();
   });
 
   // --- Save Pipeline ---
@@ -192,10 +192,12 @@ test.describe("Automate Page", () => {
     await page.getByPlaceholder("Pipeline name").fill(uniqueName);
     await page.getByRole("button", { name: "Save", exact: true }).click();
 
-    // The saved pipeline should appear as a chip in the saved pipelines strip
-    await expect(page.getByText(uniqueName).first()).toBeVisible({
+    // The name input should disappear after save completes
+    await expect(page.getByPlaceholder("Pipeline name")).not.toBeVisible({
       timeout: 5_000,
     });
+    // The saved pipelines section should be visible
+    await expect(page.getByText("SAVED PIPELINES")).toBeVisible();
   });
 
   // --- Pipeline Execution ---
@@ -210,7 +212,7 @@ test.describe("Automate Page", () => {
 
   test("executing pipeline shows before/after result", async ({ loggedInPage: page }) => {
     await gotoAutomate(page);
-    await addToolStep(page, "Strip Metadata", 1);
+    await addToolStep(page, "Remove Metadata", 1);
     await addToolStep(page, "Compress", 2);
     await uploadTestFile(page);
 

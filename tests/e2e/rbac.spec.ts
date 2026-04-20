@@ -1,7 +1,7 @@
 import { test as base, expect } from "@playwright/test";
 import { login } from "./helpers";
 
-const API = "http://localhost:13490";
+const API = process.env.API_URL || "http://localhost:13490";
 
 const TEST_USER = "rbactest";
 const TEST_PASSWORD = "RbacTest1";

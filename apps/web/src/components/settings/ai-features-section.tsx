@@ -106,7 +106,7 @@ export function AiFeaturesSection() {
           type="button"
           onClick={installAll}
           disabled={
-            anyInstalling || installAllActive || bundles.every((b) => b.status === "installed")
+            installAllActive || bundles.every((b) => b.status === "installed")
           }
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
         >

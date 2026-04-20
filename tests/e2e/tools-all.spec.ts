@@ -11,7 +11,7 @@ const TOOLS_WITH_DROPZONE = [
   { id: "rotate", name: "Rotate" },
   { id: "convert", name: "Convert" },
   { id: "compress", name: "Compress" },
-  { id: "strip-metadata", name: "Strip Metadata" },
+  { id: "strip-metadata", name: "Remove Metadata" },
   { id: "edit-metadata", name: "Edit Metadata" },
   { id: "bulk-rename", name: "Bulk Rename" },
   { id: "image-to-pdf", name: "Image to PDF" },
@@ -33,7 +33,7 @@ const TOOLS_WITH_DROPZONE = [
   { id: "find-duplicates", name: "Find Duplicates" },
   { id: "color-palette", name: "Color Palette" },
   { id: "barcode-read", name: "Barcode" },
-  { id: "collage", name: "Collage" },
+  { id: "collage", name: "Collage", customDropzone: true },
   { id: "stitch", name: "Stitch" },
   { id: "split", name: "Image Splitting" },
   { id: "border", name: "Border" },
@@ -53,14 +53,20 @@ test.describe("All tool pages render", () => {
       // Tool name should be visible
       await expect(page.getByText(tool.name, { exact: false }).first()).toBeVisible();
 
-      // Should show dropzone
-      await expect(page.getByText("Upload from computer")).toBeVisible();
+      // Should show dropzone (some tools like collage use custom upload text)
+      const uploadText = (tool as any).customDropzone
+        ? page.getByText(/upload/i).first()
+        : page.getByText("Upload from computer");
+      await expect(uploadText).toBeVisible();
 
-      // Should show Files section
-      await expect(page.getByText("Files").first()).toBeVisible();
+      // Collage has a custom layout (no Files/Settings headings)
+      if (!(tool as any).customDropzone) {
+        // Should show Files section
+        await expect(page.getByText("Files").first()).toBeVisible();
 
-      // Should show Settings section
-      await expect(page.getByText("Settings").first()).toBeVisible();
+        // Should show Settings section
+        await expect(page.getByText("Settings").first()).toBeVisible();
+      }
     });
   }
 

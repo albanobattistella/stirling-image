@@ -8,6 +8,7 @@
  * Returns a ZIP file containing all processed images.
  */
 import { randomUUID } from "node:crypto";
+import { extname } from "node:path";
 import { getBundleForTool, TOOL_BUNDLE_MAP } from "@ashim/shared";
 import archiver from "archiver";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -170,7 +171,15 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
               }
               const result = await toolConfig.process(processBuffer, settings, processFilename);
 
-              results[index] = { buffer: result.buffer, filename: result.filename };
+              // Add tool suffix so downloads don't overwrite originals
+              let outFilename = result.filename;
+              if (outFilename === processFilename) {
+                const ext = extname(processFilename);
+                const base = ext ? processFilename.slice(0, -ext.length) : processFilename;
+                outFilename = `${base}_${toolId}${ext}`;
+              }
+
+              results[index] = { buffer: result.buffer, filename: outFilename };
 
               progress.completedFiles++;
               updateJobProgress({ ...progress });

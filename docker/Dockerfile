@@ -148,7 +148,7 @@ RUN for i in 1 2 3; do apt-get -o Acquire::Retries=3 update && break || sleep $(
     potrace \
     curl \
     gosu \
-    libheif-examples \
+    libheif-examples libheif-plugin-x265 \
     libimage-exiftool-perl \
     python3 python3-pip python3-venv python3-dev \
     tesseract-ocr tesseract-ocr-eng tesseract-ocr-deu tesseract-ocr-fra tesseract-ocr-spa \

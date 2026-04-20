@@ -228,14 +228,26 @@ export async function registerFeatureRoutes(app: FastifyInstance): Promise<void>
         return reply.status(409).send({ error: `Bundle "${bundleId}" is not installed` });
       }
 
-      // Read manifest to find model files to delete
+      // Read manifest to find model files to delete, but skip models
+      // that are still needed by another installed bundle.
       const manifest = readManifest();
       if (manifest) {
         const manifestBundle = manifest.bundles[bundleId];
         if (manifestBundle) {
+          // Collect model paths that OTHER installed bundles still need
+          const sharedPaths = new Set<string>();
+          for (const [otherId, otherBundle] of Object.entries(manifest.bundles)) {
+            if (otherId === bundleId) continue;
+            if (!isFeatureInstalled(otherId)) continue;
+            for (const m of (otherBundle as any).models ?? []) {
+              if (m.path) sharedPaths.add(m.path);
+            }
+          }
+
           const modelsDir = getModelsDir();
           for (const model of manifestBundle.models) {
             if (!model.path) continue;
+            if (sharedPaths.has(model.path)) continue; // still needed
             const modelPath = join(modelsDir, model.path);
             try {
               if (existsSync(modelPath)) {

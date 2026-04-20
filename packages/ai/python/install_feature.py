@@ -46,6 +46,39 @@ def detect_arch() -> str:
     return "amd64"
 
 
+def has_nvidia_gpu() -> bool:
+    """Check whether an NVIDIA GPU is accessible at runtime."""
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return result.returncode == 0 and len(result.stdout.strip()) > 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def cpu_fallback_packages(packages: list[str]) -> list[str]:
+    """Replace GPU-only packages with their CPU equivalents.
+
+    Called on amd64 when no NVIDIA GPU is detected so that onnxruntime /
+    paddlepaddle don't crash with a CUDA segfault.
+    """
+    replacements = {
+        "onnxruntime-gpu": "onnxruntime",
+        "paddlepaddle-gpu": "paddlepaddle",
+    }
+    result = []
+    for pkg in packages:
+        name = pkg.split("==")[0].split(">=")[0].split("[")[0].strip()
+        if name in replacements:
+            version = pkg[len(name):]  # e.g. "==1.20.1"
+            result.append(replacements[name] + version)
+        else:
+            result.append(pkg)
+    return result
+
+
 def check_disk_space(path: str, min_bytes: int = 100 * 1024 * 1024) -> None:
     """Exit with a clear error if free disk space is below min_bytes."""
     try:
@@ -94,6 +127,13 @@ def install_packages(bundle: dict, arch: str) -> None:
     common_pkgs = packages_section.get("common", [])
     arch_pkgs = packages_section.get(arch, [])
     all_pkgs = common_pkgs + arch_pkgs
+
+    # On amd64 without GPU, swap GPU packages for CPU equivalents to avoid
+    # segfaults from onnxruntime-gpu / paddlepaddle-gpu trying to init CUDA.
+    if arch == "amd64" and not has_nvidia_gpu():
+        all_pkgs = cpu_fallback_packages(all_pkgs)
+        sys.stderr.write("No NVIDIA GPU detected — using CPU package variants\n")
+        sys.stderr.flush()
     pip_flags = bundle.get("pipFlags", {})
     post_install = bundle.get("postInstall", [])
 

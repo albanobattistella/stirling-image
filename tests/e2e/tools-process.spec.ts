@@ -125,7 +125,7 @@ test.describe("Tool processing (core tools)", () => {
     await uploadTestImage(page);
     // Wait for analysis to complete (badges appear)
     await expect(
-      page.locator("text=Intensity").or(page.locator("text=Enhancement Mode")),
+      page.locator("text=Intensity").or(page.locator("text=Enhancement Mode")).first(),
     ).toBeVisible({ timeout: 10_000 });
     // Click Enhance button
     await page.getByRole("button", { name: /^enhance$/i }).click();

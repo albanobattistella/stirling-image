@@ -208,7 +208,7 @@ test.describe("Full user session", () => {
     await page.goto("/strip-metadata");
     await uploadTestImage(page);
 
-    await page.getByRole("button", { name: /strip metadata/i }).click();
+    await page.getByRole("button", { name: /remove metadata/i }).click();
     await waitForProcessing(page);
 
     const downloadBtn = page.getByRole("link", { name: /download/i }).first();
