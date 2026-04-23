@@ -36,7 +36,7 @@ const benefits = [
 
 export function WhyChoose() {
   return (
-    <section className="bg-dark-bg px-6 py-24 text-dark-fg md:py-36">
+    <section className="bg-background-alt px-6 py-24 md:py-36">
       <div className="mx-auto max-w-6xl">
         <FadeIn>
           <h2 className="text-center text-3xl font-bold tracking-tight md:text-4xl">
@@ -47,14 +47,12 @@ export function WhyChoose() {
         <div className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {benefits.map((benefit, i) => (
             <FadeIn key={benefit.title} delay={i * 0.05}>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+              <div className="rounded-2xl border border-border bg-background p-6 transition-all hover:shadow-md">
                 <div className="flex items-center gap-3">
-                  <benefit.icon size={24} className="text-accent shrink-0" />
+                  <benefit.icon size={24} className="shrink-0 text-accent" />
                   <h3 className="text-lg font-bold">{benefit.title}</h3>
                 </div>
-                <p className="mt-3 text-sm leading-relaxed text-dark-muted">
-                  {benefit.description}
-                </p>
+                <p className="mt-3 text-sm leading-relaxed text-muted">{benefit.description}</p>
               </div>
             </FadeIn>
           ))}
