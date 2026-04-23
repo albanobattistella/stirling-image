@@ -810,12 +810,13 @@ export function AutomatePage() {
                     )}
 
                     {!hasFile && (
-                      <div className="flex flex-col items-center gap-3 w-full max-w-md">
+                      <div className="flex flex-col items-center gap-3 w-full max-w-md h-full min-h-0">
                         <Dropzone
                           onFiles={handleFiles}
                           accept="image/*"
                           multiple
                           currentFiles={files}
+                          compact
                         />
                         <button
                           type="button"

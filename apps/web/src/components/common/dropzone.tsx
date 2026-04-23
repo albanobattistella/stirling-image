@@ -8,6 +8,8 @@ interface DropzoneProps {
   multiple?: boolean;
   /** Files that have already been dropped (for showing count & list). */
   currentFiles?: File[];
+  /** Use a smaller layout that fits constrained containers like the pipeline preview. */
+  compact?: boolean;
 }
 
 // Browsers may not map certain formats (HEIC, JXL, RAW, etc.) to image/* in file pickers.
@@ -17,7 +19,13 @@ function expandAccept(accept?: string): string | undefined {
   return `${accept},.heic,.heif,.hif,.jxl,.ico,.dng,.cr2,.nef,.arw,.orf,.rw2,.tga,.psd,.exr,.hdr`;
 }
 
-export function Dropzone({ onFiles, accept, multiple = true, currentFiles = [] }: DropzoneProps) {
+export function Dropzone({
+  onFiles,
+  accept,
+  multiple = true,
+  currentFiles = [],
+  compact = false,
+}: DropzoneProps) {
   const resolvedAccept = expandAccept(accept);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -61,13 +69,14 @@ export function Dropzone({ onFiles, accept, multiple = true, currentFiles = [] }
       onDragLeave={handleDrag}
       onDrop={handleDrop}
       className={cn(
-        "flex flex-col items-center justify-center rounded-2xl border-2 border-dashed transition-colors min-h-[400px] mx-auto max-w-2xl w-full",
+        "flex flex-col items-center justify-center rounded-2xl border-2 border-dashed transition-colors mx-auto max-w-2xl w-full",
+        compact ? "min-h-0 h-full" : "min-h-[400px]",
         isDragging
           ? "border-primary bg-primary/5"
           : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50",
       )}
     >
-      <div className="flex flex-col items-center gap-4 p-8">
+      <div className={cn("flex flex-col items-center", compact ? "gap-2 p-4" : "gap-4 p-8")}>
         <div className="text-3xl font-bold text-muted-foreground/30">
           <span className="text-primary/30">ashim</span>
         </div>
