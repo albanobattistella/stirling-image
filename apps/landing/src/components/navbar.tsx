@@ -8,7 +8,6 @@ const links = [
   { label: "Download", href: "#how-it-works" },
   { label: "Pricing", href: "#enterprise" },
   { label: "Docs", href: "https://docs.snapotter.com" },
-  { label: "About", href: "#open-source" },
   { label: "Contact", href: "/contact" },
 ];
 

@@ -13,10 +13,10 @@ export default function Home() {
       <Navbar />
       <main>
         <Hero />
+        <HowItWorks />
         <WhyChoose />
         <BentoGrid />
         <Enterprise />
-        <HowItWorks />
         <OpenSource />
       </main>
       <Footer />
