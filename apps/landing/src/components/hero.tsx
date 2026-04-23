@@ -22,7 +22,13 @@ export function Hero() {
         </FadeIn>
 
         <FadeIn delay={0.1}>
-          <p className="mt-6 text-xl md:text-2xl">
+          <p className="mt-4 text-lg text-muted md:text-xl">
+            The open-source, self-hosted image processing platform.
+          </p>
+        </FadeIn>
+
+        <FadeIn delay={0.15}>
+          <p className="mt-4 text-xl font-medium md:text-2xl">
             <TypingCursor />
           </p>
         </FadeIn>
