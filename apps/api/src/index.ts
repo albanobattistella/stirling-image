@@ -8,7 +8,7 @@ import Fastify from "fastify";
 import { env } from "./config.js";
 import { db, schema } from "./db/index.js";
 import { runMigrations } from "./db/migrate.js";
-import { initAnalytics, shutdownAnalytics } from "./lib/analytics.js";
+import { captureException, initAnalytics, shutdownAnalytics } from "./lib/analytics.js";
 import { startCleanupCron } from "./lib/cleanup.js";
 import { ensureAiDirs, recoverInterruptedInstalls } from "./lib/feature-status.js";
 import { shutdownWorkerPool } from "./lib/worker-pool.js";
@@ -53,7 +53,7 @@ function ensureInstanceId() {
 }
 
 ensureInstanceId();
-initAnalytics();
+await initAnalytics();
 
 // Mark any jobs left in processing/queued from a previous unclean shutdown
 recoverStaleJobs();
@@ -75,12 +75,7 @@ app.setErrorHandler((error: Error & { statusCode?: number }, request, reply) => 
     { err: error, url: request.url, method: request.method },
     "Unhandled request error",
   );
-  try {
-    const Sentry = require("@sentry/node") as typeof import("@sentry/node");
-    Sentry.captureException(error);
-  } catch {
-    // Sentry not available
-  }
+  captureException(error);
   const isProduction = process.env.NODE_ENV === "production";
   reply.status(statusCode).send({
     error: statusCode >= 500 ? "Internal server error" : error.message,

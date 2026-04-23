@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
+import type { PostHog } from "posthog-node";
 import { env } from "../config.js";
 import { db, schema } from "../db/index.js";
 import { getAuthUser } from "../plugins/auth.js";
@@ -8,13 +9,14 @@ const FILE_EXT_PATTERN =
   /\.(jpe?g|png|pdf|webp|gif|tiff?|bmp|svg|he[ic]f?|avif|raw|cr2|nef|arw|dng|psd|tga|exr|hdr)\b/gi;
 const FILE_PATH_PATTERN = /\/(tmp\/workspace|data\/files|data\/ai)\//g;
 
-let posthogClient: import("posthog-node").PostHog | null = null;
+let posthogClient: PostHog | null = null;
+let sentryModule: typeof import("@sentry/node") | null = null;
 
-export function initAnalytics(): void {
+export async function initAnalytics(): Promise<void> {
   if (!env.ANALYTICS_ENABLED || !env.POSTHOG_API_KEY) return;
 
   try {
-    const { PostHog } = require("posthog-node") as typeof import("posthog-node");
+    const { PostHog } = await import("posthog-node");
     posthogClient = new PostHog(env.POSTHOG_API_KEY, {
       host: env.POSTHOG_HOST,
       flushAt: 20,
@@ -26,8 +28,8 @@ export function initAnalytics(): void {
 
   if (env.SENTRY_DSN) {
     try {
-      const Sentry = require("@sentry/node") as typeof import("@sentry/node");
-      Sentry.init({
+      sentryModule = await import("@sentry/node");
+      sentryModule.init({
         dsn: env.SENTRY_DSN,
         sendDefaultPii: false,
         beforeSend(event) {
@@ -70,17 +72,19 @@ export function initAnalytics(): void {
   }
 }
 
+export function captureException(error: unknown): void {
+  sentryModule?.captureException(error);
+}
+
 export async function shutdownAnalytics(): Promise<void> {
   if (posthogClient) {
     await posthogClient.shutdown();
     posthogClient = null;
   }
 
-  try {
-    const Sentry = require("@sentry/node") as typeof import("@sentry/node");
-    await Sentry.close(2000);
-  } catch {
-    // @sentry/node not available
+  if (sentryModule) {
+    await sentryModule.close(2000);
+    sentryModule = null;
   }
 }
 
