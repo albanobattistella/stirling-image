@@ -774,7 +774,7 @@ function PeopleSection() {
     u.username.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const atLimit = users.length >= maxUsers;
+  const atLimit = maxUsers > 0 && users.length >= maxUsers;
 
   const handleAddUser = useCallback(
     async (e: React.FormEvent) => {
@@ -886,7 +886,9 @@ function PeopleSection() {
 
       {/* User count */}
       <p className="text-sm text-muted-foreground">
-        {users.length} / {maxUsers} users
+        {maxUsers > 0
+          ? `${users.length} / ${maxUsers} users`
+          : `${users.length} ${users.length === 1 ? "user" : "users"}`}
       </p>
 
       {/* Action message */}
