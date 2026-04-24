@@ -75,7 +75,7 @@ export function WhyChoose() {
       <div className="mx-auto max-w-6xl">
         <FadeIn>
           <p className="text-center text-sm font-medium text-accent">Why SnapOtter</p>
-          <h2 className="mt-2 text-center text-3xl font-bold tracking-tight md:text-4xl">
+          <h2 className="mt-2 font-[family-name:var(--font-nunito)] text-center text-3xl font-bold tracking-tight md:text-4xl">
             Built different. On purpose.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-center text-lg text-muted">
@@ -92,7 +92,9 @@ export function WhyChoose() {
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-background shadow-sm">
                   <benefit.icon size={22} className="text-accent" />
                 </div>
-                <h3 className="mt-4 text-base font-bold">{benefit.title}</h3>
+                <h3 className="mt-4 font-[family-name:var(--font-nunito)] text-base font-bold">
+                  {benefit.title}
+                </h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted">{benefit.description}</p>
               </div>
             </FadeIn>

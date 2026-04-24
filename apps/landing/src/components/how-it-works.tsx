@@ -22,7 +22,7 @@ export function HowItWorks() {
       <div className="mx-auto max-w-3xl text-center">
         <FadeIn>
           <p className="text-sm font-medium text-accent">Get started in seconds</p>
-          <h2 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">
+          <h2 className="mt-2 font-[family-name:var(--font-nunito)] text-2xl font-bold tracking-tight md:text-3xl">
             One command. That&apos;s it.
           </h2>
         </FadeIn>

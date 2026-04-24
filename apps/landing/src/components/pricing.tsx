@@ -57,7 +57,7 @@ export function Pricing() {
       <div className="mx-auto max-w-5xl">
         <FadeIn>
           <p className="text-center text-sm font-medium text-accent">Pricing</p>
-          <h2 className="mt-2 text-center text-3xl font-bold tracking-tight md:text-4xl">
+          <h2 className="mt-2 font-[family-name:var(--font-nunito)] text-center text-3xl font-bold tracking-tight md:text-4xl">
             Free for everyone. Enterprise when you need it.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-lg text-muted">
@@ -70,7 +70,9 @@ export function Pricing() {
           <FadeIn>
             <div className="flex h-full flex-col rounded-2xl border border-border bg-background p-8">
               <p className="text-sm font-medium text-accent">{freePlan.subtitle}</p>
-              <h3 className="mt-1 text-2xl font-bold">{freePlan.name}</h3>
+              <h3 className="mt-1 font-[family-name:var(--font-nunito)] text-2xl font-bold">
+                {freePlan.name}
+              </h3>
               <p className="mt-4 text-4xl font-bold">{freePlan.price}</p>
 
               <ul className="mt-8 flex-1 space-y-3">
@@ -96,7 +98,9 @@ export function Pricing() {
           <FadeIn delay={0.1}>
             <div className="flex h-full flex-col rounded-2xl border border-border bg-background p-8">
               <p className="text-sm font-medium text-accent">{enterprisePlan.subtitle}</p>
-              <h3 className="mt-1 text-2xl font-bold">{enterprisePlan.name}</h3>
+              <h3 className="mt-1 font-[family-name:var(--font-nunito)] text-2xl font-bold">
+                {enterprisePlan.name}
+              </h3>
               <p className="mt-4 text-4xl font-bold">{enterprisePlan.price}</p>
 
               <ul className="mt-8 flex-1 space-y-3">

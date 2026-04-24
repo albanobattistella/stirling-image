@@ -381,7 +381,7 @@ export function BentoGrid() {
     <section id="features" className="px-6 py-24 md:py-36">
       <div className="mx-auto max-w-6xl">
         <FadeIn>
-          <h2 className="text-center text-3xl font-bold tracking-tight md:text-4xl">
+          <h2 className="font-[family-name:var(--font-nunito)] text-center text-3xl font-bold tracking-tight md:text-4xl">
             40+ tools. Zero cloud dependency.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-center text-lg text-muted">

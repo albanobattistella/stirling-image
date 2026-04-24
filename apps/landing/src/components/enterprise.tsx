@@ -32,7 +32,7 @@ export function Enterprise() {
       <div className="mx-auto max-w-6xl">
         <FadeIn>
           <p className="text-center text-sm font-medium text-accent">Enterprise ready</p>
-          <h2 className="mt-2 text-center text-3xl font-bold tracking-tight md:text-4xl">
+          <h2 className="mt-2 font-[family-name:var(--font-nunito)] text-center text-3xl font-bold tracking-tight md:text-4xl">
             Your data never leaves your network.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-center text-lg text-muted">
@@ -49,7 +49,9 @@ export function Enterprise() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-background shadow-sm">
                   <feat.icon size={22} className="text-accent" />
                 </div>
-                <h3 className="mt-5 text-xl font-bold">{feat.title}</h3>
+                <h3 className="mt-5 font-[family-name:var(--font-nunito)] text-xl font-bold">
+                  {feat.title}
+                </h3>
                 <p className="mt-3 leading-relaxed text-muted">{feat.description}</p>
               </div>
             </FadeIn>
