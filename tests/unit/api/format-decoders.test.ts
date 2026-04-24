@@ -58,8 +58,16 @@ describe("needsCliDecode", () => {
     expect(needsCliDecode("")).toBe(false);
   });
 
+  it("returns true for bmp format", () => {
+    expect(needsCliDecode("bmp")).toBe(true);
+  });
+
+  it("returns true for jxl format", () => {
+    expect(needsCliDecode("jxl")).toBe(true);
+  });
+
   it("returns false for unknown format", () => {
-    expect(needsCliDecode("bmp")).toBe(false);
+    expect(needsCliDecode("xyz")).toBe(false);
   });
 });
 
