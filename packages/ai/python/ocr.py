@@ -143,6 +143,7 @@ def run_paddleocr_v5(input_path, language):
             lang=paddle_lang,
             device=device,
             ocr_version="PP-OCRv5",
+            enable_mkldnn=False,
         )
         emit_progress(30, "Scanning")
         results = ocr.predict(input=input_path)

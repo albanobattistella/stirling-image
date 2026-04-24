@@ -67,6 +67,24 @@ export async function seamCarve(
     const meta = await sharp(inputBuffer).metadata();
     const width = meta.width ?? 0;
     const height = meta.height ?? 0;
+    const megapixels = (width * height) / 1_000_000;
+
+    const MAX_MP = 25;
+    if (megapixels > MAX_MP) {
+      throw new Error(
+        `Image is too large for content-aware resize (${megapixels.toFixed(1)} MP, max ${MAX_MP} MP). Resize the image to a smaller size first.`,
+      );
+    }
+
+    const targetW = options.width ?? width;
+    const targetH = options.height ?? height;
+    const wRatio = targetW / width;
+    const hRatio = targetH / height;
+    if (wRatio < 0.25 || hRatio < 0.25) {
+      throw new Error(
+        `Content-aware resize cannot reduce dimensions by more than 75% (requested ${width}→${targetW} width, ${height}→${targetH} height). Use regular resize first to get closer to the target size.`,
+      );
+    }
 
     const processBuffer = await sharp(inputBuffer).jpeg({ quality: 95 }).toBuffer();
 
@@ -90,7 +108,6 @@ export async function seamCarve(
     if (options.blurRadius !== undefined) args.push("-blur", String(options.blurRadius));
     if (options.sobelThreshold !== undefined) args.push("-sobel", String(options.sobelThreshold));
 
-    const megapixels = (width * height) / 1_000_000;
     const timeoutMs = Math.max(120_000, megapixels * 10 * 1000);
     await execFileAsync(cairePath, args, { timeout: timeoutMs });
 
