@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Mock sharp before any imports that use it
 vi.mock("sharp", () => {
   const mockSharp = vi.fn(() => ({
+    resize: vi.fn().mockReturnThis(),
     png: vi.fn().mockReturnThis(),
     jpeg: vi.fn().mockReturnThis(),
     toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-png-data")),

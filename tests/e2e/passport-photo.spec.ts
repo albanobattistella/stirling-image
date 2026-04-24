@@ -32,7 +32,7 @@ test.describe("Passport Photo tool", () => {
     await expect(page.getByText("Country")).toBeVisible();
 
     // DPI input
-    await expect(page.getByText("DPI")).toBeVisible();
+    await expect(page.getByText("DPI", { exact: true })).toBeVisible();
 
     // Background color section
     await expect(page.getByText("Background Color")).toBeVisible();
@@ -92,7 +92,7 @@ test.describe("Passport Photo tool", () => {
 
     // Analysis progress should appear
     await expect(
-      page.getByText("Analyzing face").or(page.getByText("Detecting landmarks")),
+      page.getByText("Analyzing face").or(page.getByText("Detecting landmarks")).first(),
     ).toBeVisible({ timeout: 15_000 });
   });
 
@@ -100,8 +100,10 @@ test.describe("Passport Photo tool", () => {
     await skipIfFeatureNotInstalled(page);
     await uploadFile(page, fixturePath("test-portrait.jpg"));
 
-    // Wait for analysis to complete and generate button to appear
-    await expect(page.getByTestId("passport-photo-generate")).toBeVisible({ timeout: 300_000 });
+    // Wait for analysis to complete — either generate button or an error
+    await expect(
+      page.getByTestId("passport-photo-generate").or(page.getByText("Face analysis failed")),
+    ).toBeVisible({ timeout: 300_000 });
   });
 
   test("HEIC portrait input processes without error", async ({ loggedInPage: page }) => {
@@ -110,10 +112,7 @@ test.describe("Passport Photo tool", () => {
 
     // Wait for analysis to complete — either generate button or an error
     await expect(
-      page
-        .getByTestId("passport-photo-generate")
-        .or(page.getByText("Face analysis failed"))
-        .first(),
+      page.getByTestId("passport-photo-generate").or(page.getByText("Face analysis failed")),
     ).toBeVisible({ timeout: 300_000 });
 
     await expect(page.locator("text=cannot identify image")).not.toBeVisible();

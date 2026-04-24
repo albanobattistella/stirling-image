@@ -483,7 +483,10 @@ def colorize_bw(img_bgr, intensity=0.85):
     from gpu import safe_onnx_session
 
     if not os.path.exists(DDCOLOR_MODEL_PATH):
-        return img_bgr, False
+        raise FileNotFoundError(
+            f"DDColor model not found at {DDCOLOR_MODEL_PATH}. "
+            "Install the 'object-eraser-colorize' bundle to enable colorization."
+        )
 
     session, _device = safe_onnx_session(DDCOLOR_MODEL_PATH)
     input_name = session.get_inputs()[0].name

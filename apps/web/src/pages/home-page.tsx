@@ -28,6 +28,10 @@ export function HomePage() {
   const { fetch: fetchFeatures, isToolInstalled } = useFeaturesStore();
 
   useEffect(() => {
+    reset();
+  }, [reset]);
+
+  useEffect(() => {
     fetchSettings();
     fetchFeatures();
   }, [fetchSettings, fetchFeatures]);

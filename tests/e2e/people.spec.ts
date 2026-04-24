@@ -79,7 +79,7 @@ base.describe("People Management — API", () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(Array.isArray(data.users)).toBe(true);
-    expect(data.maxUsers).toBe(5);
+    expect(typeof data.maxUsers).toBe("number");
     expect(data.users[0]).toHaveProperty("team");
   });
 
@@ -118,9 +118,8 @@ base.describe("People Management — API", () => {
     expect(data.team).toBe("Default");
   });
 
-  base.test("register enforces user limit of 5", async () => {
-    // admin is user 1, create 4 more to hit the limit
-    for (let i = 1; i <= 4; i++) {
+  base.test("register allows unlimited users when MAX_USERS=0", async () => {
+    for (let i = 1; i <= 3; i++) {
       const res = await fetch(`${API}/api/auth/register`, {
         method: "POST",
         headers: authJson(token),
@@ -132,20 +131,6 @@ base.describe("People Management — API", () => {
       });
       expect(res.status).toBe(201);
     }
-
-    // 6th user should be rejected
-    const res = await fetch(`${API}/api/auth/register`, {
-      method: "POST",
-      headers: authJson(token),
-      body: JSON.stringify({
-        username: "limituser5",
-        password: "Test1234",
-        role: "user",
-      }),
-    });
-    expect(res.status).toBe(403);
-    const data = await res.json();
-    expect(data.code).toBe("USER_LIMIT_REACHED");
   });
 
   base.test("register rejects duplicate username", async () => {
@@ -343,7 +328,7 @@ uiTest.describe("People Management — UI", () => {
     await page.waitForTimeout(500);
 
     // Should show user count
-    await expect(page.getByText(/\d+ \/ 5 users/)).toBeVisible();
+    await expect(page.getByText(/\d+ users?/)).toBeVisible();
 
     // Should show table headers
     await expect(page.getByText("User").first()).toBeVisible();

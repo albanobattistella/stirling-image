@@ -33,9 +33,9 @@ test.describe("Colorize tool", () => {
     await skipIfFeatureNotInstalled(page);
 
     // Model buttons
-    await expect(page.getByRole("button", { name: "Fast" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Balanced" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Best" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Fast/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Balanced/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Best/ })).toBeVisible();
 
     // Color intensity slider
     await expect(page.getByText("Color Intensity")).toBeVisible();

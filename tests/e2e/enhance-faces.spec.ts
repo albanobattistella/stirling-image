@@ -65,10 +65,10 @@ test.describe("Enhance Faces tool", () => {
     await expect(slider).toBeVisible();
 
     await slider.fill("50");
-    await expect(page.getByText("50%")).toBeVisible();
+    await expect(page.getByText("50%").first()).toBeVisible();
 
     await slider.fill("100");
-    await expect(page.getByText("100%")).toBeVisible();
+    await expect(page.getByText("100%").first()).toBeVisible();
   });
 
   test("JPG portrait - processes and shows download", async ({ loggedInPage: page }) => {

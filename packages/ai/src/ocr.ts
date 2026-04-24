@@ -26,12 +26,15 @@ export async function extractText(
 ): Promise<OcrResult> {
   const inputPath = join(outputDir, "input_ocr.png");
 
-  // Convert any input format (HEIC, AVIF, WebP, TIFF, etc.) to PNG
-  // so Tesseract and PaddleOCR can read it reliably.
-  const pngBuffer = await sharp(inputBuffer).png().toBuffer();
+  // Convert to PNG and cap at 2048px to prevent PaddleOCR OOM on large images.
+  const MAX_OCR_DIM = 2048;
+  const pngBuffer = await sharp(inputBuffer)
+    .resize({ width: MAX_OCR_DIM, height: MAX_OCR_DIM, fit: "inside", withoutEnlargement: true })
+    .png()
+    .toBuffer();
   await writeFile(inputPath, pngBuffer);
 
-  const meta = await sharp(inputBuffer).metadata();
+  const meta = await sharp(pngBuffer).metadata();
   const megapixels = ((meta.width ?? 0) * (meta.height ?? 0)) / 1_000_000;
   const timeout = Math.max(600_000, megapixels * 30 * 1000);
 

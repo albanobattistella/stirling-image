@@ -33,9 +33,9 @@ test.describe("Upscale tool", () => {
     await skipIfFeatureNotInstalled(page);
 
     // Scale factor buttons
-    await expect(page.getByRole("button", { name: "2x" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "4x" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "8x" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "2x", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "4x", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "8x", exact: true })).toBeVisible();
 
     // Quality tier buttons
     await expect(page.getByRole("button", { name: "Fast" })).toBeVisible();
@@ -63,11 +63,11 @@ test.describe("Upscale tool", () => {
   test("scale factor buttons are interactive", async ({ loggedInPage: page }) => {
     await skipIfFeatureNotInstalled(page);
 
-    const btn4x = page.getByRole("button", { name: "4x" });
+    const btn4x = page.getByRole("button", { name: "4x", exact: true });
     await btn4x.click();
     await expect(btn4x).toHaveClass(/bg-primary/);
 
-    const btn8x = page.getByRole("button", { name: "8x" });
+    const btn8x = page.getByRole("button", { name: "8x", exact: true });
     await btn8x.click();
     await expect(btn8x).toHaveClass(/bg-primary/);
   });

@@ -77,7 +77,7 @@ test.describe("Smart Crop tool", () => {
     await page.getByRole("button", { name: "Auto Trim" }).click();
 
     await expect(page.getByText("Tolerance")).toBeVisible();
-    await expect(page.getByText("Pad to square")).toBeVisible();
+    await expect(page.getByText("Pad to square", { exact: true })).toBeVisible();
   });
 
   test("aspect ratio presets update dimensions", async ({ loggedInPage: page }) => {

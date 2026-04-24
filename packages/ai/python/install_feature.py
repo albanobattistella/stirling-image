@@ -75,7 +75,7 @@ def cpu_fallback_packages(packages: list[str]) -> list[str]:
         # "torch==2.7.0+cu126 torchvision==0.22.0+cu126 --index-url ..."
         first_token = pkg.split()[0] if pkg.strip() else ""
         if first_token.startswith("torch==") and "+cu" in first_token:
-            # Extract torch and torchvision versions, strip CUDA suffix
+            # Extract torch and torchvision versions, use CPU-only index
             cpu_pkgs = []
             for token in pkg.split():
                 if token.startswith("torch==") and "+cu" in token:
@@ -84,7 +84,9 @@ def cpu_fallback_packages(packages: list[str]) -> list[str]:
                 elif token.startswith("torchvision==") and "+cu" in token:
                     base_ver = token.split("+")[0]  # "torchvision==0.21.0"
                     cpu_pkgs.append(base_ver)
-                # Drop --index-url and its argument (not needed for CPU torch)
+            # Use CPU-only wheels (~200MB vs ~2.6GB with CUDA)
+            cpu_pkgs.append("--index-url")
+            cpu_pkgs.append("https://download.pytorch.org/whl/cpu")
             result.extend(cpu_pkgs)
             continue
 

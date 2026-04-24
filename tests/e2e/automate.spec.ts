@@ -109,11 +109,11 @@ test.describe("Automate Page", () => {
   test("has Save Pipeline button (disabled when no steps)", async ({ loggedInPage: page }) => {
     await gotoAutomate(page);
     // Save Pipeline button is only rendered when steps > 0, so it should not exist yet
-    await expect(page.getByRole("button", { name: "Save Pipeline" })).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "Save" })).not.toBeVisible();
 
     // Add a step so the button appears
     await addToolStep(page, "Resize", 1);
-    await expect(page.getByRole("button", { name: "Save Pipeline" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save" })).toBeVisible();
   });
 
   // --- Add Step ---
@@ -174,14 +174,14 @@ test.describe("Automate Page", () => {
     await gotoAutomate(page);
     await addToolStep(page, "Resize", 1);
 
-    await expect(page.getByRole("button", { name: "Save Pipeline" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save" })).toBeVisible();
   });
 
   test("clicking Save Pipeline shows name input form", async ({ loggedInPage: page }) => {
     await gotoAutomate(page);
     await addToolStep(page, "Resize", 1);
 
-    await page.getByRole("button", { name: "Save Pipeline" }).click();
+    await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByPlaceholder("Pipeline name")).toBeVisible();
   });
 
@@ -210,7 +210,7 @@ test.describe("Automate Page", () => {
     await addToolStep(page, "Compress", 2);
 
     const uniqueName = `E2E Pipeline ${Date.now()}`;
-    await page.getByRole("button", { name: "Save Pipeline" }).click();
+    await page.getByRole("button", { name: "Save" }).click();
     await page.getByPlaceholder("Pipeline name").fill(uniqueName);
     await page.getByRole("button", { name: "Save", exact: true }).click();
 
