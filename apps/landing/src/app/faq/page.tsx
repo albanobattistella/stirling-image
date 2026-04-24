@@ -34,9 +34,9 @@ const faqs = [
       "SnapOtter includes 14 local AI models for background removal, upscaling, OCR, face detection, colorization, noise removal, photo restoration, and more. All models run on your hardware.",
   },
   {
-    question: "What technology does SnapOtter use?",
+    question: "Does SnapOtter collect any analytics?",
     answer:
-      "The backend uses Node.js with Sharp for high-performance image processing. AI features use Python with models like RealESRGAN, rembg, and PaddleOCR. The frontend is React with a REST API.",
+      "Analytics is completely optional and disabled by default. If you choose to enable it, SnapOtter collects anonymous usage data and error logs to help improve the software. No personal data or image content is ever collected. You have full control over this in the settings and can disable it at any time.",
   },
   {
     question: "Can I use SnapOtter in my company?",
