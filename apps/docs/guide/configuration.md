@@ -78,7 +78,7 @@ All configuration is done through environment variables. Every variable has a se
 ```yaml
 services:
   SnapOtter:
-    image: snapotterhq/snapotter:latest
+    image: snapotter/snapotter:latest
     ports:
       - "1349:1349"
     volumes:

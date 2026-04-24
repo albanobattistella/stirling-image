@@ -10,7 +10,7 @@ See [Docker Image](./docker-tags) for GPU setup, Docker Compose examples, and ve
 # docker-compose.yml — Copy this file and run: docker compose up -d
 services:
   SnapOtter:
-    image: snapotterhq/snapotter:latest    # or ghcr.io/snapotter-hq/snapotter:latest
+    image: snapotter/snapotter:latest    # or ghcr.io/snapotter-hq/snapotter:latest
     container_name: SnapOtter
     ports:
       - "1349:1349"                # Web UI + API
@@ -60,7 +60,7 @@ docker compose up -d
 
 The app is then available at `http://localhost:1349`.
 
-> **Docker Hub rate limits?** Replace `snapotterhq/snapotter:latest` with `ghcr.io/snapotter-hq/snapotter:latest` to pull from GitHub Container Registry instead. Both registries receive the same image on every release.
+> **Docker Hub rate limits?** Replace `snapotter/snapotter:latest` with `ghcr.io/snapotter-hq/snapotter:latest` to pull from GitHub Container Registry instead. Both registries receive the same image on every release.
 
 ## Quick Start (GPU)
 
@@ -71,7 +71,7 @@ For NVIDIA GPU acceleration on AI tools (background removal, upscaling, face enh
 # Install toolkit: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
 services:
   SnapOtter:
-    image: snapotterhq/snapotter:latest
+    image: snapotter/snapotter:latest
     container_name: SnapOtter
     ports:
       - "1349:1349"
@@ -392,7 +392,7 @@ Note: Cloudflare has a 100 MB upload limit on free plans. Set `MAX_UPLOAD_SIZE_M
 The GitHub repository has three workflows:
 
 - **ci.yml** -- Runs automatically on every push and PR. Lints, typechecks, tests, builds, and validates the Docker image (without pushing).
-- **release.yml** -- Triggered manually via `workflow_dispatch`. Runs semantic-release to create a version tag and GitHub release, then builds a multi-arch Docker image (amd64 + arm64) and pushes to Docker Hub (`snapotterhq/snapotter`) and GitHub Container Registry (`ghcr.io/snapotter-hq/snapotter`).
+- **release.yml** -- Triggered manually via `workflow_dispatch`. Runs semantic-release to create a version tag and GitHub release, then builds a multi-arch Docker image (amd64 + arm64) and pushes to Docker Hub (`snapotter/snapotter`) and GitHub Container Registry (`ghcr.io/snapotter-hq/snapotter`).
 - **deploy-docs.yml** -- Builds this documentation site and deploys it to GitHub Pages on push to `main`.
 
 To create a release, go to **Actions > Release > Run workflow** in the GitHub UI, or run:

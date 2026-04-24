@@ -109,7 +109,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            snapotterhq/snapotter
+            snapotter/snapotter
             ghcr.io/snapotter-hq/snapotter
 
       - name: Build and push by digest
@@ -120,7 +120,7 @@ jobs:
           file: docker/Dockerfile
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=image,"name=snapotterhq/snapotter,ghcr.io/snapotter-hq/snapotter",push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,"name=snapotter/snapotter,ghcr.io/snapotter-hq/snapotter",push-by-digest=true,name-canonical=true,push=true
           cache-from: type=registry,ref=ghcr.io/snapotter-hq/snapotter:cache-${{ env.PLATFORM_PAIR }}
           cache-to: type=registry,ref=ghcr.io/snapotter-hq/snapotter:cache-${{ env.PLATFORM_PAIR }},mode=max
 
@@ -168,7 +168,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            snapotterhq/snapotter
+            snapotter/snapotter
             ghcr.io/snapotter-hq/snapotter
           tags: |
             type=semver,pattern={{version}},value=v${{ needs.release.outputs.new_version }}
@@ -180,8 +180,8 @@ jobs:
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
-            $(jq -cr '.tags | map(select(startswith("snapotterhq/")) | "-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf 'snapotterhq/snapotter@sha256:%s ' *)
+            $(jq -cr '.tags | map(select(startswith("snapotter/")) | "-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf 'snapotter/snapotter@sha256:%s ' *)
 
       - name: Create GHCR manifest
         working-directory: /tmp/digests
