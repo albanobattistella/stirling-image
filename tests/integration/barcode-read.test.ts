@@ -254,4 +254,231 @@ describe("Barcode Read", () => {
 
     expect(res.statusCode).toBe(401);
   });
+
+  // ── Extended coverage: settings, formats, edge cases ───────────────
+
+  it("reads QR code with tryHarder disabled", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "qr.png", contentType: "image/png", content: qrCodePng },
+      { name: "settings", content: JSON.stringify({ tryHarder: false }) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/barcode-read",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    // May or may not detect with tryHarder=false, but should not error
+    expect(Array.isArray(result.barcodes)).toBe(true);
+  });
+
+  it("reads QR code with tryHarder explicitly enabled", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "qr.png", contentType: "image/png", content: qrCodePng },
+      { name: "settings", content: JSON.stringify({ tryHarder: true }) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/barcode-read",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.barcodes.length).toBeGreaterThanOrEqual(1);
+    expect(result.barcodes[0].text).toBe(QR_TEXT);
+  });
+
+  it("reads barcode from JPEG input", async () => {
+    // Generate a QR then convert to JPEG
+    const jpegQr = await sharp(qrCodePng).jpeg({ quality: 90 }).toBuffer();
+
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "qr.jpg", contentType: "image/jpeg", content: jpegQr },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/barcode-read",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.filename).toBe("qr.jpg");
+    expect(result.barcodes.length).toBeGreaterThanOrEqual(1);
+    expect(result.barcodes[0].text).toBe(QR_TEXT);
+  });
+
+  it("reads barcode from WebP input", async () => {
+    const webpQr = await sharp(qrCodePng).webp({ quality: 90 }).toBuffer();
+
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "qr.webp", contentType: "image/webp", content: webpQr },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/barcode-read",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.filename).toBe("qr.webp");
+    expect(result.barcodes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("reads QR code from AVIF content fixture", async () => {
+    const qrAvif = readFileSync(join(FIXTURES, "content", "qr-code.avif"));
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "qr-code.avif", contentType: "image/avif", content: qrAvif },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/barcode-read",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.filename).toBe("qr-code.avif");
+    expect(Array.isArray(result.barcodes)).toBe(true);
+  });
+
+  it("annotated image has same dimensions as input", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "qr.png", contentType: "image/png", content: qrCodePng },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/barcode-read",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.annotatedUrl).toBeDefined();
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.annotatedUrl,
+    });
+    const annotatedMeta = await sharp(dlRes.rawPayload).metadata();
+    const inputMeta = await sharp(qrCodePng).metadata();
+    expect(annotatedMeta.width).toBe(inputMeta.width);
+    expect(annotatedMeta.height).toBe(inputMeta.height);
+  });
+
+  it("barcode type is reported for QR codes", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "qr.png", contentType: "image/png", content: qrCodePng },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/barcode-read",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.barcodes[0].type).toMatch(/qr/i);
+  });
+
+  it("rejects invalid settings (wrong type for tryHarder)", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "qr.png", contentType: "image/png", content: qrCodePng },
+      { name: "settings", content: JSON.stringify({ tryHarder: "yes" }) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/barcode-read",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects invalid JSON in settings", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "qr.png", contentType: "image/png", content: qrCodePng },
+      { name: "settings", content: "{{bad" },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/barcode-read",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(400);
+    const result = JSON.parse(res.body);
+    expect(result.error).toMatch(/json/i);
+  });
+
+  it("handles a 1x1 pixel image gracefully", async () => {
+    const TINY = readFileSync(join(FIXTURES, "test-1x1.png"));
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "tiny.png", contentType: "image/png", content: TINY },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/barcode-read",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.barcodes).toHaveLength(0);
+    expect(result.annotatedUrl).toBeNull();
+  });
 });

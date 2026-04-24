@@ -318,3 +318,219 @@ describe("Settings field edge cases", () => {
     expect(res.statusCode).toBe(200);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1x1 PIXEL IMAGE — EXTENDED TOOL COVERAGE
+// ═══════════════════════════════════════════════════════════════════════════
+describe("1x1 pixel image through additional tools", () => {
+  it("compresses a 1x1 image without crashing", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "tiny.png", content: PNG_1x1, contentType: "image/png" },
+      { name: "settings", content: JSON.stringify({ quality: 50 }) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/compress",
+      headers: { "content-type": contentType, authorization: `Bearer ${adminToken}` },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("gets info for a 1x1 image", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "tiny.png", content: PNG_1x1, contentType: "image/png" },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/info",
+      headers: { "content-type": contentType, authorization: `Bearer ${adminToken}` },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body);
+    expect(json.width).toBe(1);
+    expect(json.height).toBe(1);
+    expect(json.format).toBe("png");
+  });
+
+  it("converts a 1x1 PNG to JPEG without crashing", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "tiny.png", content: PNG_1x1, contentType: "image/png" },
+      { name: "settings", content: JSON.stringify({ format: "jpeg" }) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/convert",
+      headers: { "content-type": contentType, authorization: `Bearer ${adminToken}` },
+      body,
+    });
+
+    expect([200, 400]).toContain(res.statusCode);
+    if (res.statusCode === 400) {
+      const json = JSON.parse(res.body);
+      expect(json.error).toBeDefined();
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UNICODE AND SPECIAL FILENAMES
+// ═══════════════════════════════════════════════════════════════════════════
+describe("Unicode and special filenames", () => {
+  it("handles emoji in filename", async () => {
+    const { body, contentType } = createMultipartPayload([
+      {
+        name: "file",
+        filename: "\u{1F3A8}photo.png",
+        content: PNG_200x150,
+        contentType: "image/png",
+      },
+      { name: "settings", content: JSON.stringify({ width: 100 }) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/resize",
+      headers: { "content-type": contentType, authorization: `Bearer ${adminToken}` },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body);
+    expect(json.downloadUrl).toBeDefined();
+  });
+
+  it("handles CJK characters in filename", async () => {
+    const { body, contentType } = createMultipartPayload([
+      {
+        name: "file",
+        filename: "写真.png",
+        content: PNG_200x150,
+        contentType: "image/png",
+      },
+      { name: "settings", content: JSON.stringify({ width: 100 }) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/resize",
+      headers: { "content-type": contentType, authorization: `Bearer ${adminToken}` },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("handles spaces and special chars in filename", async () => {
+    const { body, contentType } = createMultipartPayload([
+      {
+        name: "file",
+        filename: "my photo (2).png",
+        content: PNG_200x150,
+        contentType: "image/png",
+      },
+      { name: "settings", content: JSON.stringify({ width: 100 }) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/resize",
+      headers: { "content-type": contentType, authorization: `Bearer ${adminToken}` },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("handles a very long filename (255 chars)", async () => {
+    const longName = "a".repeat(251) + ".png";
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: longName, content: PNG_200x150, contentType: "image/png" },
+      { name: "settings", content: JSON.stringify({ width: 100 }) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/resize",
+      headers: { "content-type": contentType, authorization: `Bearer ${adminToken}` },
+      body,
+    });
+
+    // Should succeed — sanitizeFilename may truncate but not crash
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("sanitizes path traversal in filename", async () => {
+    const { body, contentType } = createMultipartPayload([
+      {
+        name: "file",
+        filename: "../../../etc/passwd.png",
+        content: PNG_200x150,
+        contentType: "image/png",
+      },
+      { name: "settings", content: JSON.stringify({ width: 100 }) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/resize",
+      headers: { "content-type": contentType, authorization: `Bearer ${adminToken}` },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body);
+    // Download URL must not contain traversal sequences
+    expect(json.downloadUrl).not.toContain("..");
+    expect(json.downloadUrl).not.toContain("etc/passwd");
+  });
+
+  it("handles filename with no extension", async () => {
+    const { body, contentType } = createMultipartPayload([
+      {
+        name: "file",
+        filename: "noextension",
+        content: PNG_200x150,
+        contentType: "image/png",
+      },
+      { name: "settings", content: JSON.stringify({ width: 100 }) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/resize",
+      headers: { "content-type": contentType, authorization: `Bearer ${adminToken}` },
+      body,
+    });
+
+    // Should process via magic byte detection regardless of extension
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("handles filename that is only dots", async () => {
+    const { body, contentType } = createMultipartPayload([
+      {
+        name: "file",
+        filename: "....png",
+        content: PNG_200x150,
+        contentType: "image/png",
+      },
+      { name: "settings", content: JSON.stringify({ width: 100 }) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/resize",
+      headers: { "content-type": contentType, authorization: `Bearer ${adminToken}` },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+});

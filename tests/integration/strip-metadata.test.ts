@@ -238,6 +238,163 @@ describe("Format handling", () => {
   });
 });
 
+// ── Selective stripping with download verification ────────────────
+describe("Selective stripping with download verification", () => {
+  it("selective stripExif returns valid downloadable image", async () => {
+    const res = await postTool({ stripAll: false, stripExif: true });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(dlRes.statusCode).toBe(200);
+
+    // Verify the output is a valid image
+    const meta = await sharp(dlRes.rawPayload).metadata();
+    expect(meta.format).toBe("jpeg");
+    expect(meta.width).toBeGreaterThan(0);
+  });
+
+  it("selective stripXmp returns valid downloadable image", async () => {
+    const res = await postTool({ stripAll: false, stripXmp: true });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(dlRes.statusCode).toBe(200);
+
+    const meta = await sharp(dlRes.rawPayload).metadata();
+    expect(meta.format).toBe("jpeg");
+  });
+
+  it("selective stripIcc returns valid downloadable image", async () => {
+    const res = await postTool({ stripAll: false, stripIcc: true });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(dlRes.statusCode).toBe(200);
+
+    const meta = await sharp(dlRes.rawPayload).metadata();
+    expect(meta.format).toBe("jpeg");
+  });
+
+  it("strips multiple categories but not all returns valid image", async () => {
+    const res = await postTool({
+      stripAll: false,
+      stripExif: true,
+      stripGps: true,
+      stripXmp: true,
+      stripIcc: false,
+    });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(dlRes.statusCode).toBe(200);
+
+    const meta = await sharp(dlRes.rawPayload).metadata();
+    expect(meta.format).toBe("jpeg");
+    expect(meta.width).toBeGreaterThan(0);
+  });
+
+  it("with all strip flags false, preserves metadata", async () => {
+    const res = await postTool({
+      stripAll: false,
+      stripExif: false,
+      stripGps: false,
+      stripIcc: false,
+      stripXmp: false,
+    });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.downloadUrl).toBeDefined();
+
+    // With withMetadata(), the output should retain EXIF
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    const meta = await sharp(dlRes.rawPayload).metadata();
+    expect(meta.exif).toBeDefined();
+  });
+});
+
+// ── WebP input ──────────────────────────────────────────────────
+describe("WebP format handling", () => {
+  it("processes WebP input and strips metadata", async () => {
+    const webp = readFileSync(join(FIXTURES, "test-50x50.webp"));
+    const res = await postTool({ stripAll: true }, webp, "test.webp", "image/webp");
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.downloadUrl).toBeDefined();
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    const meta = await sharp(dlRes.rawPayload).metadata();
+    expect(meta.format).toBe("webp");
+  });
+});
+
+// ── File size comparison ─────────────────────────────────────────
+describe("File size impact", () => {
+  it("stripping metadata typically reduces or maintains file size", async () => {
+    const res = await postTool({ stripAll: true });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    // After stripping, size should be positive
+    expect(result.processedSize).toBeGreaterThan(0);
+  });
+});
+
+// ── Inspect endpoint edge cases ─────────────────────────────────
+describe("Inspect endpoint edge cases", () => {
+  it("inspects a PNG file with no EXIF", async () => {
+    const { body: payload, contentType } = createMultipartPayload([
+      {
+        name: "file",
+        filename: "test.png",
+        contentType: "image/png",
+        content: PNG,
+      },
+    ]);
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/strip-metadata/inspect",
+      payload,
+      headers: {
+        "content-type": contentType,
+        authorization: `Bearer ${adminToken}`,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.filename).toBe("test.png");
+    expect(result.fileSize).toBeGreaterThan(0);
+    // PNG without EXIF should not have exif property
+    expect(result.exif).toBeUndefined();
+  });
+});
+
 // ── Error handling ────────────────────────────────────────────────
 describe("Error handling", () => {
   it("returns 400 when no file is provided", async () => {

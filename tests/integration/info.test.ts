@@ -268,4 +268,127 @@ describe("Info", () => {
 
     expect(res.statusCode).toBe(401);
   });
+
+  // ── HEIC format info ──────────────────────────────────────────
+
+  it("returns correct metadata for HEIC image", async () => {
+    const HEIC = readFileSync(join(FIXTURES, "test-200x150.heic"));
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.heic", contentType: "image/heic", content: HEIC },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/info",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    // HEIC might need system decoder — skip if 422
+    if (res.statusCode === 422) return;
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.width).toBeGreaterThan(0);
+    expect(result.height).toBeGreaterThan(0);
+    expect(result.filename).toBe("test.heic");
+  });
+
+  // ── SVG info ──────────────────────────────────────────────────
+
+  it("returns correct metadata for SVG image", async () => {
+    const SVG = readFileSync(join(FIXTURES, "test-100x100.svg"));
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.svg", contentType: "image/svg+xml", content: SVG },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/info",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.filename).toBe("test.svg");
+    expect(result.fileSize).toBeGreaterThan(0);
+  });
+
+  // ── Image with EXIF detailed checks ───────────────────────────
+
+  it("reports hasExif=false for plain PNG", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "plain.png", contentType: "image/png", content: TINY_PNG },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/info",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.hasExif).toBe(false);
+  });
+
+  it("reports hasIcc for image with ICC profile", async () => {
+    const { body, contentType } = createMultipartPayload([
+      {
+        name: "file",
+        filename: "test-with-exif.jpg",
+        contentType: "image/jpeg",
+        content: EXIF_JPG,
+      },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/info",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    // hasIcc should be a boolean regardless
+    expect(typeof result.hasIcc).toBe("boolean");
+  });
+
+  // ── Bit depth and color space ─────────────────────────────────
+
+  it("includes bitDepth in response for PNG", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/info",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    // bitDepth comes from Sharp's metadata.depth — can be a number or
+    // descriptive string (e.g. "uchar") depending on the format/version
+    expect(result).toHaveProperty("bitDepth");
+  });
 });

@@ -240,4 +240,153 @@ describe("vectorize", () => {
 
     expect(res.statusCode).toBe(400);
   });
+
+  // ── Color count and detail levels ─────────────────────────────
+
+  it("produces different SVG for different colorPrecision values", async () => {
+    const mkPayload = (colorPrecision: number) =>
+      createMultipartPayload([
+        { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+        {
+          name: "settings",
+          content: JSON.stringify({ colorMode: "color", colorPrecision }),
+        },
+      ]);
+
+    const { body: body1, contentType: ct1 } = mkPayload(2);
+    const { body: body2, contentType: ct2 } = mkPayload(8);
+
+    const res1 = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/vectorize",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": ct1 },
+      body: body1,
+    });
+
+    const res2 = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/vectorize",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": ct2 },
+      body: body2,
+    });
+
+    expect(res1.statusCode).toBe(200);
+    expect(res2.statusCode).toBe(200);
+
+    // Both should produce valid SVGs
+    const json1 = JSON.parse(res1.body);
+    const json2 = JSON.parse(res2.body);
+    expect(json1.processedSize).toBeGreaterThan(0);
+    expect(json2.processedSize).toBeGreaterThan(0);
+  });
+
+  it("handles filterSpeckle to remove small artifacts", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+      {
+        name: "settings",
+        content: JSON.stringify({
+          colorMode: "color",
+          filterSpeckle: 20,
+        }),
+      },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/vectorize",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": contentType },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("processes a JPEG input file", async () => {
+    const JPG = readFileSync(join(FIXTURES, "test-100x100.jpg"));
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.jpg", contentType: "image/jpeg", content: JPG },
+      { name: "settings", content: JSON.stringify({}) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/vectorize",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": contentType },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body);
+    expect(json.downloadUrl).toMatch(/\.svg$/);
+  });
+
+  it("handles very small input (1x1 pixel)", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "tiny.png", contentType: "image/png", content: SMALL_PNG },
+      { name: "settings", content: JSON.stringify({}) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/vectorize",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": contentType },
+      body,
+    });
+
+    // Should either succeed or return a processing error, not crash
+    expect(res.statusCode === 200 || res.statusCode === 422).toBe(true);
+  });
+
+  it("bw mode with low threshold produces different output than high threshold", async () => {
+    const mkPayload = (threshold: number) =>
+      createMultipartPayload([
+        { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+        {
+          name: "settings",
+          content: JSON.stringify({ colorMode: "bw", threshold }),
+        },
+      ]);
+
+    const { body: body1, contentType: ct1 } = mkPayload(50);
+    const { body: body2, contentType: ct2 } = mkPayload(200);
+
+    const res1 = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/vectorize",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": ct1 },
+      body: body1,
+    });
+
+    const res2 = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/vectorize",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": ct2 },
+      body: body2,
+    });
+
+    expect(res1.statusCode).toBe(200);
+    expect(res2.statusCode).toBe(200);
+
+    const json1 = JSON.parse(res1.body);
+    const json2 = JSON.parse(res2.body);
+    // Different thresholds should produce different SVG sizes
+    expect(json1.processedSize).not.toBe(json2.processedSize);
+  });
+
+  it("rejects unauthenticated requests", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+      { name: "settings", content: JSON.stringify({}) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/vectorize",
+      headers: { "content-type": contentType },
+      body,
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
 });

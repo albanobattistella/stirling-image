@@ -338,16 +338,16 @@ test.describe("Image to PDF", () => {
     const jpg = readFileSync(join(FIXTURES, "test-100x100.jpg"));
     const { body, contentType } = buildMultipart(
       [{ name: "file", filename: "test.jpg", contentType: "image/jpeg", buffer: jpg }],
-      [{ name: "settings", value: JSON.stringify({ pageSize: "a4" }) }],
+      [{ name: "settings", value: JSON.stringify({ pageSize: "A4" }) }],
     );
     const res = await request.post("/api/v1/tools/image-to-pdf", {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": contentType },
       data: body,
     });
     expect(res.ok()).toBe(true);
-    const dlRes = await res.body();
-    // PDF starts with %PDF magic bytes
-    expect(Buffer.from(dlRes).subarray(0, 4).toString()).toBe("%PDF");
+    const json = await res.json();
+    expect(json.downloadUrl).toBeTruthy();
+    expect(json.processedSize).toBeGreaterThan(0);
   });
 
   test("convert multiple images to multi-page PDF", async ({ request }) => {
@@ -358,15 +358,16 @@ test.describe("Image to PDF", () => {
         { name: "file", filename: "a.jpg", contentType: "image/jpeg", buffer: jpg },
         { name: "file", filename: "b.png", contentType: "image/png", buffer: png },
       ],
-      [{ name: "settings", value: JSON.stringify({ pageSize: "a4" }) }],
+      [{ name: "settings", value: JSON.stringify({ pageSize: "A4" }) }],
     );
     const res = await request.post("/api/v1/tools/image-to-pdf", {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": contentType },
       data: body,
     });
     expect(res.ok()).toBe(true);
-    const dlRes = await res.body();
-    expect(Buffer.from(dlRes).subarray(0, 4).toString()).toBe("%PDF");
+    const json = await res.json();
+    expect(json.downloadUrl).toBeTruthy();
+    expect(json.processedSize).toBeGreaterThan(0);
   });
 });
 

@@ -278,6 +278,118 @@ describe("Preview endpoint", () => {
   });
 });
 
+// ── Quality presets ──────────────────────────────────────────────
+describe("Quality presets", () => {
+  it("minimum quality (1) produces valid output", async () => {
+    const res = await postTool({ format: "jpeg", quality: 1 });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.processedSize).toBeGreaterThan(0);
+  });
+
+  it("maximum quality (100) produces valid output", async () => {
+    const res = await postTool({ format: "jpeg", quality: 100 });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.processedSize).toBeGreaterThan(0);
+  });
+
+  it("higher quality produces larger or equal file for JPEG", async () => {
+    // Use JPEG format where quality-to-size correlation is more predictable
+    const resLow = await postTool({ format: "jpeg", quality: 10 });
+    const resHigh = await postTool({ format: "jpeg", quality: 95 });
+    expect(resLow.statusCode).toBe(200);
+    expect(resHigh.statusCode).toBe(200);
+    const lowResult = JSON.parse(resLow.body);
+    const highResult = JSON.parse(resHigh.body);
+    expect(highResult.processedSize).toBeGreaterThanOrEqual(lowResult.processedSize);
+  });
+});
+
+// ── Progressive encoding ────────────────────────────────────────
+describe("Progressive encoding", () => {
+  it("supports progressive=true for JPEG", async () => {
+    const res = await postTool({ format: "jpeg", progressive: true });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.downloadUrl).toBeDefined();
+  });
+
+  it("supports progressive=false for JPEG", async () => {
+    const res = await postTool({ format: "jpeg", progressive: false });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.downloadUrl).toBeDefined();
+  });
+});
+
+// ── Resize with format conversion ───────────────────────────────
+describe("Combined resize and format conversion", () => {
+  it("converts PNG to WebP and constrains maxWidth simultaneously", async () => {
+    const res = await postTool({ format: "webp", maxWidth: 80 });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    const meta = await sharp(dlRes.rawPayload).metadata();
+    expect(meta.format).toBe("webp");
+    expect(meta.width).toBeLessThanOrEqual(80);
+  });
+
+  it("converts JPEG to AVIF and constrains maxHeight", async () => {
+    const res = await postTool({ format: "avif", maxHeight: 40 }, JPG, "test.jpg", "image/jpeg");
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    const meta = await sharp(dlRes.rawPayload).metadata();
+    expect(meta.format).toBe("heif");
+    expect(meta.height).toBeLessThanOrEqual(40);
+  });
+});
+
+// ── Image dimensions preservation ───────────────────────────────
+describe("Dimension preservation", () => {
+  it("does not enlarge image when maxWidth exceeds original width", async () => {
+    // PNG is 200x150. maxWidth: 500 should not upscale.
+    const res = await postTool({ format: "png", maxWidth: 500 });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    const meta = await sharp(dlRes.rawPayload).metadata();
+    expect(meta.width).toBeLessThanOrEqual(200);
+  });
+});
+
+// ── Metadata stripping toggle ───────────────────────────────────
+describe("Metadata stripping toggle", () => {
+  it("preserves metadata when stripMetadata=false", async () => {
+    const exifJpg = readFileSync(join(FIXTURES, "test-with-exif.jpg"));
+    const res = await postTool(
+      { format: "jpeg", stripMetadata: false },
+      exifJpg,
+      "test-with-exif.jpg",
+      "image/jpeg",
+    );
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.downloadUrl).toBeDefined();
+  });
+});
+
 // ── Error handling ────────────────────────────────────────────────
 describe("Error handling", () => {
   it("returns 400 when no file is provided", async () => {
@@ -313,6 +425,28 @@ describe("Error handling", () => {
 
   it("returns 400 for negative maxWidth", async () => {
     const res = await postTool({ maxWidth: -100 });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("returns 400 for negative maxHeight", async () => {
+    const res = await postTool({ maxHeight: -50 });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("returns 400 for invalid settings JSON", async () => {
+    const { body: payload, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+      { name: "settings", content: "not-json" },
+    ]);
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/optimize-for-web",
+      payload,
+      headers: {
+        "content-type": contentType,
+        authorization: `Bearer ${adminToken}`,
+      },
+    });
     expect(res.statusCode).toBe(400);
   });
 });

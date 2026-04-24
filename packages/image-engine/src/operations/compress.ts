@@ -3,6 +3,7 @@ import type { CompressOptions, Sharp } from "../types.js";
 
 const FORMAT_MAP: Record<string, string> = {
   jpg: "jpeg",
+  jpeg: "jpeg",
   png: "png",
   webp: "webp",
   avif: "avif",
@@ -10,6 +11,9 @@ const FORMAT_MAP: Record<string, string> = {
   tiff: "tiff",
   gif: "gif",
 };
+
+/** Formats that Sharp cannot encode — fall back to PNG for output. */
+const NO_ENCODER = new Set(["svg", "bmp", "raw", "tga", "psd", "exr", "hdr", "ico"]);
 
 function formatOpts(format: string, quality: number): Record<string, unknown> {
   const opts: Record<string, unknown> = { quality };
@@ -22,9 +26,11 @@ export async function compress(image: Sharp, options: CompressOptions): Promise<
 
   const metadata = await image.metadata();
   const detected = metadata.format ?? "jpeg";
+  // Fall back to PNG for formats Sharp cannot encode (SVG, BMP, etc.)
+  const safeDetected = NO_ENCODER.has(detected) ? "png" : detected;
   const outputFormat = (FORMAT_MAP[format ?? ""] ??
-    FORMAT_MAP[detected] ??
-    detected) as keyof import("sharp").FormatEnum;
+    FORMAT_MAP[safeDetected] ??
+    safeDetected) as keyof import("sharp").FormatEnum;
 
   if (targetSizeBytes !== undefined) {
     if (targetSizeBytes <= 0) {

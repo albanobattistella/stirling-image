@@ -275,6 +275,113 @@ describe("Multiple input formats", () => {
   });
 });
 
+// ── Mode + intensity combinations ────────────────────────────────
+describe("Mode and intensity combinations", () => {
+  it("applies portrait mode at high intensity", async () => {
+    const res = await postTool({ mode: "portrait", intensity: 90 });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(Buffer.compare(dlRes.rawPayload, PNG)).not.toBe(0);
+  });
+
+  it("applies low-light mode at low intensity", async () => {
+    const res = await postTool({ mode: "low-light", intensity: 10 });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.processedSize).toBeGreaterThan(0);
+  });
+
+  it("applies food mode at zero intensity (no-op)", async () => {
+    const res = await postTool({ mode: "food", intensity: 0 });
+    expect(res.statusCode).toBe(200);
+  });
+});
+
+// ── Analyze endpoint edge cases ─────────────────────────────────
+describe("Analyze endpoint details", () => {
+  it("analysis returns correction values within expected ranges", async () => {
+    const { body: payload, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.jpg", contentType: "image/jpeg", content: JPG },
+    ]);
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/image-enhancement/analyze",
+      payload,
+      headers: {
+        "content-type": contentType,
+        authorization: `Bearer ${adminToken}`,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.corrections).toBeDefined();
+    expect(typeof result.corrections).toBe("object");
+  });
+
+  it("analysis works on WebP input", async () => {
+    const { body: payload, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.webp", contentType: "image/webp", content: WEBP },
+    ]);
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/image-enhancement/analyze",
+      payload,
+      headers: {
+        "content-type": contentType,
+        authorization: `Bearer ${adminToken}`,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.corrections).toBeDefined();
+  });
+});
+
+// ── All corrections enabled simultaneously ──────────────────────
+describe("Full corrections suite", () => {
+  it("enhances with all corrections enabled at max intensity", async () => {
+    const res = await postTool({
+      mode: "auto",
+      intensity: 100,
+      corrections: {
+        exposure: true,
+        contrast: true,
+        whiteBalance: true,
+        saturation: true,
+        sharpness: true,
+        denoise: true,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.downloadUrl).toBeDefined();
+    expect(result.processedSize).toBeGreaterThan(0);
+  });
+});
+
+// ── Format preservation ─────────────────────────────────────────
+describe("Format preservation", () => {
+  it("preserves JPEG format for JPEG input", async () => {
+    const res = await postTool({ mode: "auto" }, JPG, "test.jpg", "image/jpeg");
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    const meta = await sharp(dlRes.rawPayload).metadata();
+    expect(meta.format).toBe("jpeg");
+  });
+});
+
 // ── Error handling ────────────────────────────────────────────────
 describe("Error handling", () => {
   it("returns 400 when no file is provided", async () => {
@@ -305,6 +412,23 @@ describe("Error handling", () => {
 
   it("returns 400 for intensity out of range (>100)", async () => {
     const res = await postTool({ intensity: 150 });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("returns 400 for invalid settings JSON", async () => {
+    const { body: payload, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+      { name: "settings", content: "broken-json" },
+    ]);
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/image-enhancement",
+      payload,
+      headers: {
+        "content-type": contentType,
+        authorization: `Bearer ${adminToken}`,
+      },
+    });
     expect(res.statusCode).toBe(400);
   });
 });

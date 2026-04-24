@@ -320,6 +320,199 @@ describe("Binary data in settings field", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ZERO-BYTE AND EMPTY FILE UPLOADS
+// ═══════════════════════════════════════════════════════════════════════════
+describe("Zero-byte and empty file uploads (adversarial)", () => {
+  it("rejects an empty file with a clear 400 error message", async () => {
+    const res = await postTool("resize", [
+      { name: "file", filename: "empty.jpg", content: Buffer.alloc(0), contentType: "image/jpeg" },
+      { name: "settings", content: JSON.stringify({ width: 100 }) },
+    ]);
+
+    expect(res.statusCode).toBe(400);
+    const json = JSON.parse(res.body);
+    expect(json.error).toBeDefined();
+    expect(json.error.toLowerCase()).toMatch(/no image|empty/i);
+  });
+
+  it("rejects a single null byte as an image", async () => {
+    const res = await postTool("resize", [
+      {
+        name: "file",
+        filename: "one-byte.png",
+        content: Buffer.from([0x00]),
+        contentType: "image/png",
+      },
+      { name: "settings", content: JSON.stringify({ width: 100 }) },
+    ]);
+
+    expect([400, 422]).toContain(res.statusCode);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WRONG MAGIC BYTES (PNG DATA WITH .jpg EXTENSION AND image/jpeg CONTENT TYPE)
+// ═══════════════════════════════════════════════════════════════════════════
+describe("Wrong magic bytes — format mismatch", () => {
+  it("handles PNG data uploaded as JPEG content type gracefully", async () => {
+    const res = await postTool("resize", [
+      {
+        name: "file",
+        filename: "really-a-png.jpg",
+        content: PNG_200x150,
+        contentType: "image/jpeg",
+      },
+      { name: "settings", content: JSON.stringify({ width: 100 }) },
+    ]);
+
+    // Sharp detects via magic bytes, not content-type — should succeed
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("rejects a text file renamed to .png", async () => {
+    const textAsImage = Buffer.from("This is just plain text, not an image at all.");
+
+    const res = await postTool("resize", [
+      { name: "file", filename: "fake.png", content: textAsImage, contentType: "image/png" },
+      { name: "settings", content: JSON.stringify({ width: 100 }) },
+    ]);
+
+    expect([400, 422]).toContain(res.statusCode);
+    const json = JSON.parse(res.body);
+    expect(json.error).toBeDefined();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRUNCATED FILES — PARTIAL IMAGE DATA
+// ═══════════════════════════════════════════════════════════════════════════
+describe("Truncated files", () => {
+  it("handles first 50 bytes of a valid JPEG gracefully", async () => {
+    // Create a minimal JPEG-like header then truncate
+    const validJpeg = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 0, b: 0 } },
+    })
+      .jpeg()
+      .toBuffer();
+
+    const truncated = validJpeg.subarray(0, 50);
+
+    const res = await postTool("resize", [
+      { name: "file", filename: "truncated.jpg", content: truncated, contentType: "image/jpeg" },
+      { name: "settings", content: JSON.stringify({ width: 5 }) },
+    ]);
+
+    // Must not crash; either 200 (partial decode), 400, or 422
+    expect([200, 400, 422]).toContain(res.statusCode);
+  });
+
+  it("handles first 8 bytes (just the PNG signature) gracefully", async () => {
+    // PNG signature is 8 bytes: 89 50 4E 47 0D 0A 1A 0A
+    const pngSignatureOnly = PNG_200x150.subarray(0, 8);
+
+    const res = await postTool("resize", [
+      {
+        name: "file",
+        filename: "sig-only.png",
+        content: pngSignatureOnly,
+        contentType: "image/png",
+      },
+      { name: "settings", content: JSON.stringify({ width: 10 }) },
+    ]);
+
+    expect([200, 400, 422]).toContain(res.statusCode);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BINARY GARBAGE DATA — VARIOUS SIZES
+// ═══════════════════════════════════════════════════════════════════════════
+describe("Binary garbage data at various sizes", () => {
+  it("rejects 1 byte of garbage", async () => {
+    const res = await postTool("compress", [
+      {
+        name: "file",
+        filename: "tiny-garbage.jpg",
+        content: Buffer.from([0xab]),
+        contentType: "image/jpeg",
+      },
+      { name: "settings", content: JSON.stringify({ quality: 50 }) },
+    ]);
+
+    expect([400, 422]).toContain(res.statusCode);
+  });
+
+  it("rejects 64KB of random data without crashing", async () => {
+    const garbage = Buffer.from(
+      Array.from({ length: 65536 }, () => Math.floor(Math.random() * 256)),
+    );
+
+    const res = await postTool("rotate", [
+      { name: "file", filename: "big-garbage.png", content: garbage, contentType: "image/png" },
+      { name: "settings", content: JSON.stringify({ angle: 90 }) },
+    ]);
+
+    expect([400, 422]).toContain(res.statusCode);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXTREME DIMENSION REQUESTS
+// ═══════════════════════════════════════════════════════════════════════════
+describe("Extreme dimension requests", () => {
+  it("rejects resize to 0x0 dimensions", async () => {
+    const res = await postTool("resize", [
+      { name: "file", filename: "test.png", content: PNG_200x150, contentType: "image/png" },
+      { name: "settings", content: JSON.stringify({ width: 0, height: 0 }) },
+    ]);
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects resize to negative dimensions", async () => {
+    const res = await postTool("resize", [
+      { name: "file", filename: "test.png", content: PNG_200x150, contentType: "image/png" },
+      { name: "settings", content: JSON.stringify({ width: -100, height: -50 }) },
+    ]);
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("handles resize to extremely large dimensions without crashing", async () => {
+    const res = await postTool("resize", [
+      { name: "file", filename: "test.png", content: PNG_200x150, contentType: "image/png" },
+      { name: "settings", content: JSON.stringify({ width: 50000, height: 50000 }) },
+    ]);
+
+    // May succeed (Sharp allows large), fail at processing (422), or be
+    // rejected by validation (400). Must not crash.
+    expect([200, 400, 422]).toContain(res.statusCode);
+  }, 60_000);
+
+  it("rejects crop region larger than image dimensions", async () => {
+    const res = await postTool("crop", [
+      { name: "file", filename: "test.png", content: PNG_200x150, contentType: "image/png" },
+      { name: "settings", content: JSON.stringify({ left: 0, top: 0, width: 9999, height: 9999 }) },
+    ]);
+
+    // Crop extends beyond image — Sharp will fail, should return 422
+    expect([400, 422]).toContain(res.statusCode);
+  });
+
+  it("rejects crop with offset beyond image bounds", async () => {
+    const res = await postTool("crop", [
+      { name: "file", filename: "test.png", content: PNG_200x150, contentType: "image/png" },
+      {
+        name: "settings",
+        content: JSON.stringify({ left: 500, top: 500, width: 10, height: 10 }),
+      },
+    ]);
+
+    expect([400, 422]).toContain(res.statusCode);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // AUTH — UNAUTHENTICATED ACCESS
 // ═══════════════════════════════════════════════════════════════════════════
 describe("Unauthenticated tool access", () => {

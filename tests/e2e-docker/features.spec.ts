@@ -1,10 +1,53 @@
 import { expect, test } from "@playwright/test";
 
+// ─── Helpers ────────────────────────────────────────────────────────
+
+let _token: string | undefined;
+
+async function getToken(request: import("@playwright/test").APIRequestContext): Promise<string> {
+  if (_token) return _token;
+  const res = await request.post("/api/auth/login", {
+    data: { username: "admin", password: "admin" },
+  });
+  const body = await res.json();
+  _token = body.token as string;
+  return _token;
+}
+
+interface BundleInfo {
+  id: string;
+  status: string;
+}
+
+async function fetchBundleStatuses(
+  request: import("@playwright/test").APIRequestContext,
+): Promise<BundleInfo[]> {
+  const token = await getToken(request);
+  const res = await request.get("/api/v1/features", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok()) return [];
+  const data = await res.json();
+  return data.bundles as BundleInfo[];
+}
+
+async function isBundleInstalled(
+  request: import("@playwright/test").APIRequestContext,
+  bundleId: string,
+): Promise<boolean> {
+  const bundles = await fetchBundleStatuses(request);
+  const bundle = bundles.find((b) => b.id === bundleId);
+  return bundle?.status === "installed";
+}
+
 // ─── Feature API tests ─────────────────────────────────────────────
 
 test.describe("Feature API", () => {
   test("GET /api/v1/features returns all 6 bundles with correct shape", async ({ request }) => {
-    const response = await request.get("/api/v1/features");
+    const token = await getToken(request);
+    const response = await request.get("/api/v1/features", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     expect(response.ok()).toBeTruthy();
     const data = await response.json();
     expect(data.bundles).toHaveLength(6);
@@ -30,7 +73,10 @@ test.describe("Feature API", () => {
   });
 
   test("each bundle has the correct tools", async ({ request }) => {
-    const response = await request.get("/api/v1/features");
+    const token = await getToken(request);
+    const response = await request.get("/api/v1/features", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     const data = await response.json();
 
     const toolMap: Record<string, string[]> = {
@@ -49,17 +95,28 @@ test.describe("Feature API", () => {
   });
 
   test("POST install returns 404 for unknown bundle", async ({ request }) => {
-    const response = await request.post("/api/v1/admin/features/nonexistent/install");
+    const token = await getToken(request);
+    const response = await request.post("/api/v1/admin/features/nonexistent/install", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     expect(response.status()).toBe(404);
   });
 
   test("POST uninstall returns 409 for not-installed bundle", async ({ request }) => {
+    const installed = await isBundleInstalled(request, "background-removal");
+    if (installed) {
+      test.skip();
+      return;
+    }
     const response = await request.post("/api/v1/admin/features/background-removal/uninstall");
     expect(response.status()).toBe(409);
   });
 
   test("GET disk-usage returns totalBytes", async ({ request }) => {
-    const response = await request.get("/api/v1/admin/features/disk-usage");
+    const token = await getToken(request);
+    const response = await request.get("/api/v1/admin/features/disk-usage", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     expect(response.ok()).toBeTruthy();
     const data = await response.json();
     expect(typeof data.totalBytes).toBe("number");
@@ -90,6 +147,11 @@ test.describe("Tool route guards", () => {
 
   for (const { tool, bundle } of aiTools) {
     test(`${tool} returns 501 FEATURE_NOT_INSTALLED with correct bundle`, async ({ request }) => {
+      const installed = await isBundleInstalled(request, bundle);
+      if (installed) {
+        test.skip();
+        return;
+      }
       const response = await request.post(`/api/v1/tools/${tool}`, {
         multipart: {
           file: {
@@ -134,6 +196,11 @@ test.describe("Batch and pipeline guards", () => {
   );
 
   test("batch endpoint returns 501 for uninstalled AI tool", async ({ request }) => {
+    const installed = await isBundleInstalled(request, "background-removal");
+    if (installed) {
+      test.skip();
+      return;
+    }
     const response = await request.post("/api/v1/tools/remove-background/batch", {
       multipart: {
         "files[]": {
@@ -153,7 +220,12 @@ test.describe("Batch and pipeline guards", () => {
 // ─── GUI tests (Playwright page interactions) ───────────────────────
 
 test.describe("Feature install UI", () => {
-  test("uninstalled AI tool page shows install prompt", async ({ page }) => {
+  test("uninstalled AI tool page shows install prompt", async ({ page, request }) => {
+    const installed = await isBundleInstalled(request, "background-removal");
+    if (installed) {
+      test.skip();
+      return;
+    }
     await page.goto("/remove-background");
     await expect(page.getByText("Background Removal")).toBeVisible({
       timeout: 10000,
@@ -170,7 +242,12 @@ test.describe("Feature install UI", () => {
     });
   });
 
-  test("AI tools show download badge in sidebar", async ({ page }) => {
+  test("AI tools show download badge in sidebar", async ({ page, request }) => {
+    const installed = await isBundleInstalled(request, "background-removal");
+    if (installed) {
+      test.skip();
+      return;
+    }
     await page.goto("/resize");
     // Wait for the sidebar to load
     await expect(page.locator("[data-testid='tool-panel']").or(page.locator("nav"))).toBeVisible({

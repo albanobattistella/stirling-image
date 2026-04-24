@@ -255,9 +255,11 @@ test.describe("Split", () => {
       },
     });
     expect(res.ok()).toBe(true);
-    const body = await res.json();
-    expect(body.downloadUrl).toBeTruthy();
-    expect(body.processedSize).toBeGreaterThan(0);
+    // Split returns a ZIP file (PK magic bytes), not JSON
+    const buffer = Buffer.from(await res.body());
+    expect(buffer.length).toBeGreaterThan(0);
+    expect(buffer[0]).toBe(0x50); // 'P'
+    expect(buffer[1]).toBe(0x4b); // 'K'
   });
 
   test("split image into 3x3 tiles via API", async ({ request }) => {
@@ -269,9 +271,11 @@ test.describe("Split", () => {
       },
     });
     expect(res.ok()).toBe(true);
-    const body = await res.json();
-    expect(body.downloadUrl).toBeTruthy();
-    expect(body.processedSize).toBeGreaterThan(0);
+    // Split returns a ZIP file (PK magic bytes), not JSON
+    const buffer = Buffer.from(await res.body());
+    expect(buffer.length).toBeGreaterThan(0);
+    expect(buffer[0]).toBe(0x50); // 'P'
+    expect(buffer[1]).toBe(0x4b); // 'K'
   });
 });
 

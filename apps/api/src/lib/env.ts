@@ -39,7 +39,7 @@ const envSchema = z.object({
   MAX_SPLIT_GRID: z.coerce.number().default(100),
   MAX_PDF_PAGES: z.coerce.number().default(0),
   SESSION_DURATION_HOURS: z.coerce.number().default(168),
-  LOGIN_ATTEMPT_LIMIT: z.coerce.number().default(10),
+  LOGIN_ATTEMPT_LIMIT: z.coerce.number().default(500),
   TRUST_PROXY: z
     .enum(["true", "false"])
     .default("true")

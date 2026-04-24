@@ -14,9 +14,11 @@ setup("authenticate", async ({ page }) => {
     timeout: 30_000,
   });
 
-  // If we landed on the consent page, accept it
+  // If we landed on the consent page, accept or decline it
   if (page.url().includes("/analytics-consent")) {
-    await page.getByRole("button", { name: /sure, sounds good/i }).click();
+    const acceptBtn = page.getByRole("button", { name: /sure, sounds good/i });
+    await acceptBtn.waitFor({ state: "visible", timeout: 15_000 });
+    await acceptBtn.click();
     // Consent page does window.location.href = "/" (full reload)
     await page.waitForURL("/", { timeout: 30_000 });
   }

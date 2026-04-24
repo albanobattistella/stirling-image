@@ -1642,6 +1642,210 @@ describe("useFeaturesStore", () => {
     expect(useFeaturesStore.getState().errors["ai-rembg"]).toBe("Server error");
     expect(useFeaturesStore.getState().installing["ai-rembg"]).toBeUndefined();
   });
+
+  it("installBundle sets generic error for non-Error throws", async () => {
+    mockApiPost.mockRejectedValueOnce("string error");
+
+    await useFeaturesStore.getState().installBundle("ai-rembg");
+
+    expect(useFeaturesStore.getState().errors["ai-rembg"]).toBe("Failed to start installation");
+  });
+
+  it("installBundle clears previous error for that bundle", async () => {
+    useFeaturesStore.setState({
+      errors: { "ai-rembg": "Old error" },
+    });
+
+    const mockClose = vi.fn();
+    vi.stubGlobal(
+      "EventSource",
+      vi.fn().mockReturnValue({
+        onmessage: null,
+        onerror: null,
+        close: mockClose,
+      }),
+    );
+    mockApiPost.mockResolvedValueOnce({ jobId: "job-456" });
+
+    await useFeaturesStore.getState().installBundle("ai-rembg");
+
+    expect(useFeaturesStore.getState().errors["ai-rembg"]).toBeUndefined();
+  });
+
+  it("uninstallBundle sets generic error for non-Error throws", async () => {
+    mockApiPost.mockRejectedValueOnce(42);
+
+    await useFeaturesStore.getState().uninstallBundle("ai-rembg");
+
+    expect(useFeaturesStore.getState().errors["ai-rembg"]).toBe("Uninstall failed");
+  });
+
+  it("getBundleForTool returns null when bundle not found in bundles list", () => {
+    useFeaturesStore.setState({ bundles: [] });
+    expect(useFeaturesStore.getState().getBundleForTool("remove-bg")).toBeNull();
+  });
+
+  it("isToolInstalled returns false when bundle exists but is in error state", () => {
+    useFeaturesStore.setState({
+      bundles: [
+        {
+          id: "ai-rembg",
+          name: "AI Background Remover",
+          description: "Remove backgrounds",
+          status: "error",
+          installedVersion: null,
+          estimatedSize: "500MB",
+          enablesTools: ["remove-bg"],
+          progress: null,
+          error: "Install failed",
+        },
+      ],
+    });
+    expect(useFeaturesStore.getState().isToolInstalled("remove-bg")).toBe(false);
+  });
+
+  it("isToolInstalled returns false when bundle is installing", () => {
+    useFeaturesStore.setState({
+      bundles: [
+        {
+          id: "ai-rembg",
+          name: "AI Background Remover",
+          description: "Remove backgrounds",
+          status: "installing",
+          installedVersion: null,
+          estimatedSize: "500MB",
+          enablesTools: ["remove-bg"],
+          progress: { percent: 50, stage: "Downloading..." },
+          error: null,
+        },
+      ],
+    });
+    expect(useFeaturesStore.getState().isToolInstalled("remove-bg")).toBe(false);
+  });
+
+  it("clearError is a no-op for nonexistent bundle", () => {
+    useFeaturesStore.setState({ errors: { "ai-rembg": "Error" } });
+    useFeaturesStore.getState().clearError("nonexistent");
+    expect(useFeaturesStore.getState().errors).toEqual({ "ai-rembg": "Error" });
+  });
+
+  it("refresh updates bundles from API", async () => {
+    const bundles = [
+      {
+        id: "ai-esrgan",
+        name: "AI Upscaler",
+        description: "Upscale images",
+        status: "installed" as const,
+        installedVersion: "2.0.0",
+        estimatedSize: "1GB",
+        enablesTools: ["upscale"],
+        progress: null,
+        error: null,
+      },
+    ];
+    mockApiGet.mockResolvedValueOnce({ bundles });
+
+    await useFeaturesStore.getState().refresh();
+
+    expect(useFeaturesStore.getState().bundles).toEqual(bundles);
+    expect(useFeaturesStore.getState().loaded).toBe(true);
+  });
+
+  it("refresh silently ignores API errors", async () => {
+    useFeaturesStore.setState({
+      bundles: [
+        {
+          id: "ai-rembg",
+          name: "AI Background Remover",
+          description: "Remove backgrounds",
+          status: "installed",
+          installedVersion: "1.0.0",
+          estimatedSize: "500MB",
+          enablesTools: ["remove-bg"],
+          progress: null,
+          error: null,
+        },
+      ],
+      loaded: true,
+    });
+    mockApiGet.mockRejectedValueOnce(new Error("Network error"));
+
+    await useFeaturesStore.getState().refresh();
+
+    // Bundles should remain unchanged on error
+    expect(useFeaturesStore.getState().bundles).toHaveLength(1);
+  });
+
+  it("fetch recovers active installs on load", async () => {
+    const bundles = [
+      {
+        id: "ai-rembg",
+        name: "AI Background Remover",
+        description: "Remove backgrounds",
+        status: "installing" as const,
+        installedVersion: null,
+        estimatedSize: "500MB",
+        enablesTools: ["remove-bg"],
+        progress: { percent: 30, stage: "Downloading models..." },
+        error: null,
+      },
+    ];
+    mockApiGet.mockResolvedValueOnce({ bundles });
+
+    await useFeaturesStore.getState().fetch();
+
+    // The recovering logic should have set installing state for the active bundle
+    expect(useFeaturesStore.getState().installing["ai-rembg"]).toBeDefined();
+    expect(useFeaturesStore.getState().installing["ai-rembg"].percent).toBe(30);
+    expect(useFeaturesStore.getState().installing["ai-rembg"].stage).toBe("Downloading models...");
+  });
+
+  it("fetch recovers active installs with default progress when none given", async () => {
+    const bundles = [
+      {
+        id: "ai-rembg",
+        name: "AI Background Remover",
+        description: "Remove backgrounds",
+        status: "installing" as const,
+        installedVersion: null,
+        estimatedSize: "500MB",
+        enablesTools: ["remove-bg"],
+        progress: null,
+        error: null,
+      },
+    ];
+    mockApiGet.mockResolvedValueOnce({ bundles });
+
+    await useFeaturesStore.getState().fetch();
+
+    expect(useFeaturesStore.getState().installing["ai-rembg"]).toBeDefined();
+    expect(useFeaturesStore.getState().installing["ai-rembg"].percent).toBe(0);
+    expect(useFeaturesStore.getState().installing["ai-rembg"].stage).toBe("Resuming...");
+  });
+
+  it("reinstallBundle calls uninstall then install", async () => {
+    const mockClose = vi.fn();
+    vi.stubGlobal(
+      "EventSource",
+      vi.fn().mockReturnValue({
+        onmessage: null,
+        onerror: null,
+        close: mockClose,
+      }),
+    );
+
+    // uninstall call
+    mockApiPost.mockResolvedValueOnce({});
+    // refresh after uninstall
+    mockApiGet.mockResolvedValueOnce({ bundles: [] });
+    // install call
+    mockApiPost.mockResolvedValueOnce({ jobId: "job-reinstall" });
+
+    await useFeaturesStore.getState().reinstallBundle("ai-rembg");
+
+    expect(mockApiPost).toHaveBeenCalledWith("/v1/admin/features/ai-rembg/uninstall");
+    expect(mockApiPost).toHaveBeenCalledWith("/v1/admin/features/ai-rembg/install");
+  });
 });
 
 // ==========================================================================

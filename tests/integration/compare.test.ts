@@ -221,4 +221,243 @@ describe("Compare", () => {
 
     expect(res.statusCode).toBe(401);
   });
+
+  // ── Extended coverage: cross-format, HEIC, diff details ────────────
+
+  it("compares JPEG vs PNG (cross-format)", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "a.jpg", contentType: "image/jpeg", content: JPG },
+      { name: "file", filename: "b.png", contentType: "image/png", content: PNG },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/compare",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.similarity).toBeLessThan(100);
+    expect(result.similarity).toBeGreaterThanOrEqual(0);
+    expect(result.dimensions.width).toBe(200);
+    expect(result.dimensions.height).toBe(150);
+  });
+
+  it("compares WebP vs JPEG (cross-format)", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "a.webp", contentType: "image/webp", content: WEBP },
+      { name: "file", filename: "b.jpg", contentType: "image/jpeg", content: JPG },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/compare",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.similarity).toBeGreaterThanOrEqual(0);
+    expect(result.similarity).toBeLessThanOrEqual(100);
+  });
+
+  it("compares HEIC vs PNG", async () => {
+    const HEIC = readFileSync(join(FIXTURES, "test-200x150.heic"));
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "a.heic", contentType: "image/heic", content: HEIC },
+      { name: "file", filename: "b.png", contentType: "image/png", content: PNG },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/compare",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.similarity).toBeGreaterThanOrEqual(0);
+    expect(result.dimensions).toBeDefined();
+  });
+
+  it("compares two HEIC images (same file)", async () => {
+    const HEIC = readFileSync(join(FIXTURES, "test-200x150.heic"));
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "a.heic", contentType: "image/heic", content: HEIC },
+      { name: "file", filename: "b.heic", contentType: "image/heic", content: HEIC },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/compare",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.similarity).toBe(100);
+  });
+
+  it("diff image is always PNG format", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "a.jpg", contentType: "image/jpeg", content: JPG },
+      { name: "file", filename: "b.webp", contentType: "image/webp", content: WEBP },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/compare",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+    });
+    const meta = await sharp(dlRes.rawPayload).metadata();
+    expect(meta.format).toBe("png");
+  });
+
+  it("similarity is rounded to 2 decimal places", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "a.png", contentType: "image/png", content: PNG },
+      { name: "file", filename: "b.jpg", contentType: "image/jpeg", content: JPG },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/compare",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    const simStr = String(result.similarity);
+    const decimals = simStr.includes(".") ? simStr.split(".")[1].length : 0;
+    expect(decimals).toBeLessThanOrEqual(2);
+  });
+
+  it("compares two very small images (50x50)", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "a.webp", contentType: "image/webp", content: WEBP },
+      { name: "file", filename: "b.webp", contentType: "image/webp", content: WEBP },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/compare",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.similarity).toBe(100);
+    expect(result.dimensions.width).toBe(50);
+    expect(result.dimensions.height).toBe(50);
+  });
+
+  it("compares a portrait JPEG with a landscape PNG", async () => {
+    const PORTRAIT_JPG = readFileSync(join(FIXTURES, "test-portrait.jpg"));
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "portrait.jpg", contentType: "image/jpeg", content: PORTRAIT_JPG },
+      { name: "file", filename: "landscape.png", contentType: "image/png", content: PNG },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/compare",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+    expect(result.similarity).toBeLessThan(100);
+    // Dimensions should be max of both
+    expect(result.dimensions.width).toBeGreaterThan(0);
+    expect(result.dimensions.height).toBeGreaterThan(0);
+  });
+
+  it("processedSize reflects the diff image file size", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "a.png", contentType: "image/png", content: PNG },
+      { name: "file", filename: "b.jpg", contentType: "image/jpeg", content: JPG },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/compare",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+    });
+    // processedSize should match the actual diff image buffer size
+    expect(result.processedSize).toBe(dlRes.rawPayload.length);
+  });
+
+  it("rejects requests with three or more images (only two allowed)", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "a.png", contentType: "image/png", content: PNG },
+      { name: "file", filename: "b.png", contentType: "image/png", content: PNG },
+      { name: "file", filename: "c.jpg", contentType: "image/jpeg", content: JPG },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/compare",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    // The route accepts the first two files, ignoring the third
+    // so this should succeed
+    expect(res.statusCode).toBe(200);
+  });
 });

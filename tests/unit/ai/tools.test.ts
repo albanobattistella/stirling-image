@@ -897,4 +897,770 @@ describe("error propagation from bridge", () => {
 
     await expect(colorize(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow("out of memory");
   });
+
+  it("propagates timeout through removeBackground", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(new Error("Python script timed out"));
+
+    await expect(removeBackground(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "Python script timed out",
+    );
+  });
+
+  it("propagates timeout through blurFaces", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(new Error("Python script timed out"));
+
+    await expect(blurFaces(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow("Python script timed out");
+  });
+
+  it("propagates timeout through enhanceFaces", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(new Error("Python script timed out"));
+
+    await expect(enhanceFaces(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "Python script timed out",
+    );
+  });
+
+  it("propagates timeout through detectFaceLandmarks", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(new Error("Python script timed out"));
+
+    await expect(detectFaceLandmarks(FAKE_INPUT)).rejects.toThrow("Python script timed out");
+  });
+
+  it("propagates timeout through inpaint", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(new Error("Python script timed out"));
+    const maskBuffer = Buffer.from("fake-mask");
+
+    await expect(inpaint(FAKE_INPUT, maskBuffer, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "Python script timed out",
+    );
+  });
+
+  it("propagates timeout through noiseRemoval", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(new Error("Python script timed out"));
+
+    await expect(noiseRemoval(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "Python script timed out",
+    );
+  });
+
+  it("propagates timeout through removeRedEye", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(new Error("Python script timed out"));
+
+    await expect(removeRedEye(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "Python script timed out",
+    );
+  });
+
+  it("propagates timeout through restorePhoto", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(new Error("Python script timed out"));
+
+    await expect(restorePhoto(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "Python script timed out",
+    );
+  });
+
+  it("propagates timeout through upscale", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(new Error("Python script timed out"));
+
+    await expect(upscale(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow("Python script timed out");
+  });
+
+  it("propagates segfault through detectFaces", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(
+      new Error("Process crashed (segmentation fault)"),
+    );
+
+    await expect(detectFaces(FAKE_INPUT)).rejects.toThrow("segmentation fault");
+  });
+});
+
+// ── onProgress forwarding ────────────────────────────────────────────
+
+describe("onProgress forwarding", () => {
+  beforeEach(() => {
+    vi.mocked(parseStdoutJson).mockReturnValue({ success: true });
+  });
+
+  it("colorize forwards onProgress", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 800,
+      height: 600,
+      method: "deoldify",
+    });
+    const onProgress = vi.fn();
+    await colorize(FAKE_INPUT, FAKE_OUTPUT_DIR, {}, onProgress);
+
+    expect(runPythonWithProgress).toHaveBeenCalledWith(
+      "colorize.py",
+      expect.any(Array),
+      expect.objectContaining({ onProgress }),
+    );
+  });
+
+  it("blurFaces forwards onProgress", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      facesDetected: 0,
+    });
+    const onProgress = vi.fn();
+    await blurFaces(FAKE_INPUT, FAKE_OUTPUT_DIR, {}, onProgress);
+
+    expect(runPythonWithProgress).toHaveBeenCalledWith(
+      "detect_faces.py",
+      expect.any(Array),
+      expect.objectContaining({ onProgress }),
+    );
+  });
+
+  it("detectFaces forwards onProgress", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      facesDetected: 0,
+    });
+    const onProgress = vi.fn();
+    await detectFaces(FAKE_INPUT, {}, onProgress);
+
+    expect(runPythonWithProgress).toHaveBeenCalledWith(
+      "detect_faces.py",
+      expect.any(Array),
+      expect.objectContaining({ onProgress }),
+    );
+  });
+
+  it("enhanceFaces forwards onProgress", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      facesDetected: 0,
+    });
+    const onProgress = vi.fn();
+    await enhanceFaces(FAKE_INPUT, FAKE_OUTPUT_DIR, {}, onProgress);
+
+    expect(runPythonWithProgress).toHaveBeenCalledWith(
+      "enhance_faces.py",
+      expect.any(Array),
+      expect.objectContaining({ onProgress }),
+    );
+  });
+
+  it("detectFaceLandmarks forwards onProgress", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      faceDetected: false,
+      imageWidth: 800,
+      imageHeight: 600,
+    });
+    const onProgress = vi.fn();
+    await detectFaceLandmarks(FAKE_INPUT, onProgress);
+
+    expect(runPythonWithProgress).toHaveBeenCalledWith(
+      "face_landmarks.py",
+      expect.any(Array),
+      expect.objectContaining({ onProgress }),
+    );
+  });
+
+  it("inpaint forwards onProgress", async () => {
+    const maskBuffer = Buffer.from("fake-mask");
+    const onProgress = vi.fn();
+    await inpaint(FAKE_INPUT, maskBuffer, FAKE_OUTPUT_DIR, onProgress);
+
+    expect(runPythonWithProgress).toHaveBeenCalledWith(
+      "inpaint.py",
+      expect.any(Array),
+      expect.objectContaining({ onProgress }),
+    );
+  });
+
+  it("noiseRemoval forwards onProgress", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 800,
+      height: 600,
+    });
+    const onProgress = vi.fn();
+    await noiseRemoval(FAKE_INPUT, FAKE_OUTPUT_DIR, {}, onProgress);
+
+    expect(runPythonWithProgress).toHaveBeenCalledWith(
+      "noise_removal.py",
+      expect.any(Array),
+      expect.objectContaining({ onProgress }),
+    );
+  });
+
+  it("removeRedEye forwards onProgress", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 800,
+      height: 600,
+    });
+    const onProgress = vi.fn();
+    await removeRedEye(FAKE_INPUT, FAKE_OUTPUT_DIR, {}, onProgress);
+
+    expect(runPythonWithProgress).toHaveBeenCalledWith(
+      "red_eye_removal.py",
+      expect.any(Array),
+      expect.objectContaining({ onProgress }),
+    );
+  });
+
+  it("restorePhoto forwards onProgress", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 800,
+      height: 600,
+    });
+    const onProgress = vi.fn();
+    await restorePhoto(FAKE_INPUT, FAKE_OUTPUT_DIR, {}, onProgress);
+
+    expect(runPythonWithProgress).toHaveBeenCalledWith(
+      "restore.py",
+      expect.any(Array),
+      expect.objectContaining({ onProgress }),
+    );
+  });
+
+  it("upscale forwards onProgress", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 1600,
+      height: 1200,
+    });
+    const onProgress = vi.fn();
+    await upscale(FAKE_INPUT, FAKE_OUTPUT_DIR, {}, onProgress);
+
+    expect(runPythonWithProgress).toHaveBeenCalledWith(
+      "upscale.py",
+      expect.any(Array),
+      expect.objectContaining({ onProgress }),
+    );
+  });
+});
+
+// ── alternate output_path handling ───────────────────────────────────
+
+describe("alternate output_path from Python", () => {
+  it("noiseRemoval reads from alternate output_path", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 800,
+      height: 600,
+      output_path: "/tmp/alt-denoise.webp",
+    });
+
+    await noiseRemoval(FAKE_INPUT, FAKE_OUTPUT_DIR);
+    expect(readFile).toHaveBeenCalledWith("/tmp/alt-denoise.webp");
+  });
+
+  it("removeRedEye reads from alternate output_path", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 800,
+      height: 600,
+      output_path: "/tmp/alt-redeye.webp",
+    });
+
+    await removeRedEye(FAKE_INPUT, FAKE_OUTPUT_DIR);
+    expect(readFile).toHaveBeenCalledWith("/tmp/alt-redeye.webp");
+  });
+
+  it("restorePhoto reads from alternate output_path", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 800,
+      height: 600,
+      output_path: "/tmp/alt-restore.webp",
+    });
+
+    await restorePhoto(FAKE_INPUT, FAKE_OUTPUT_DIR);
+    expect(readFile).toHaveBeenCalledWith("/tmp/alt-restore.webp");
+  });
+
+  it("upscale reads from alternate output_path", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 1600,
+      height: 1200,
+      output_path: "/tmp/alt-upscale.webp",
+    });
+
+    await upscale(FAKE_INPUT, FAKE_OUTPUT_DIR);
+    expect(readFile).toHaveBeenCalledWith("/tmp/alt-upscale.webp");
+  });
+});
+
+// ── fallback error messages ──────────────────────────────────────────
+
+describe("fallback error messages when error string is absent", () => {
+  it("removeBackground uses fallback message", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({ success: false });
+
+    await expect(removeBackground(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "Background removal failed",
+    );
+  });
+
+  it("colorize uses fallback message", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({ success: false });
+
+    await expect(colorize(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow("Colorization failed");
+  });
+
+  it("blurFaces uses fallback message", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({ success: false });
+
+    await expect(blurFaces(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow("Face detection failed");
+  });
+
+  it("detectFaces uses fallback message", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({ success: false });
+
+    await expect(detectFaces(FAKE_INPUT)).rejects.toThrow("Face detection failed");
+  });
+
+  it("enhanceFaces uses fallback message", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({ success: false });
+
+    await expect(enhanceFaces(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "Face enhancement failed",
+    );
+  });
+
+  it("detectFaceLandmarks uses fallback message", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({ success: false });
+
+    await expect(detectFaceLandmarks(FAKE_INPUT)).rejects.toThrow("Face landmark detection failed");
+  });
+
+  it("noiseRemoval uses fallback message", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({ success: false });
+
+    await expect(noiseRemoval(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow("Noise removal failed");
+  });
+
+  it("removeRedEye uses fallback message", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({ success: false });
+
+    await expect(removeRedEye(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "Red eye removal failed",
+    );
+  });
+
+  it("restorePhoto uses fallback message", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({ success: false });
+
+    await expect(restorePhoto(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "Photo restoration failed",
+    );
+  });
+
+  it("upscale uses fallback message", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({ success: false });
+
+    await expect(upscale(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow("Upscaling failed");
+  });
+});
+
+// ── custom error messages from Python ────────────────────────────────
+
+describe("custom error messages from Python result", () => {
+  it("removeBackground surfaces Python error string", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: false,
+      error: "CUDA out of memory",
+    });
+
+    await expect(removeBackground(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "CUDA out of memory",
+    );
+  });
+
+  it("blurFaces surfaces Python error string", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: false,
+      error: "Invalid image format",
+    });
+
+    await expect(blurFaces(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow("Invalid image format");
+  });
+
+  it("detectFaceLandmarks surfaces Python error string", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: false,
+      error: "MediaPipe model not found",
+    });
+
+    await expect(detectFaceLandmarks(FAKE_INPUT)).rejects.toThrow("MediaPipe model not found");
+  });
+
+  it("noiseRemoval surfaces Python error string", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: false,
+      error: "Denoising model error",
+    });
+
+    await expect(noiseRemoval(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "Denoising model error",
+    );
+  });
+
+  it("removeRedEye surfaces Python error string", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: false,
+      error: "No red eyes found",
+    });
+
+    await expect(removeRedEye(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow("No red eyes found");
+  });
+
+  it("restorePhoto surfaces Python error string", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: false,
+      error: "Restoration pipeline crashed",
+    });
+
+    await expect(restorePhoto(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "Restoration pipeline crashed",
+    );
+  });
+
+  it("upscale surfaces Python error string", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: false,
+      error: "Model weights corrupted",
+    });
+
+    await expect(upscale(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow("Model weights corrupted");
+  });
+});
+
+// ── default values for optional Python response fields ───────────────
+
+describe("default values for optional response fields", () => {
+  it("colorize defaults method to unknown", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 800,
+      height: 600,
+    });
+
+    const result = await colorize(FAKE_INPUT, FAKE_OUTPUT_DIR);
+    expect(result.method).toBe("unknown");
+  });
+
+  it("noiseRemoval defaults format and tier from options", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 800,
+      height: 600,
+    });
+
+    const result = await noiseRemoval(FAKE_INPUT, FAKE_OUTPUT_DIR);
+    expect(result.format).toBe("png");
+    expect(result.tier).toBe("balanced");
+  });
+
+  it("removeRedEye defaults format to png", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 800,
+      height: 600,
+    });
+
+    const result = await removeRedEye(FAKE_INPUT, FAKE_OUTPUT_DIR);
+    expect(result.format).toBe("png");
+  });
+
+  it("detectFaceLandmarks defaults imageWidth and imageHeight to 0", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      faceDetected: true,
+      landmarks: {
+        leftEye: { x: 100, y: 150 },
+        rightEye: { x: 200, y: 150 },
+        eyeCenter: { x: 150, y: 150 },
+        chin: { x: 150, y: 300 },
+        forehead: { x: 150, y: 80 },
+        crown: { x: 150, y: 50 },
+        nose: { x: 150, y: 200 },
+        faceCenterX: 150,
+      },
+    });
+
+    const result = await detectFaceLandmarks(FAKE_INPUT);
+    expect(result.imageWidth).toBe(0);
+    expect(result.imageHeight).toBe(0);
+  });
+
+  it("blurFaces defaults faces to empty array", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      facesDetected: 0,
+    });
+
+    const result = await blurFaces(FAKE_INPUT, FAKE_OUTPUT_DIR);
+    expect(result.faces).toEqual([]);
+  });
+
+  it("enhanceFaces defaults faces to empty array and model to unknown", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      facesDetected: 0,
+    });
+
+    const result = await enhanceFaces(FAKE_INPUT, FAKE_OUTPUT_DIR);
+    expect(result.faces).toEqual([]);
+    expect(result.model).toBe("unknown");
+  });
+});
+
+// ── temp file cleanup on bridge rejection ────────────────────────────
+
+describe("temp file cleanup on bridge rejection", () => {
+  it("removeBackground cleans up when bridge rejects", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(new Error("bridge error"));
+
+    await expect(removeBackground(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow("bridge error");
+    // unlink called in finally block for both input and output temp files
+    expect(unlink).toHaveBeenCalledTimes(2);
+  });
+
+  it("detectFaces cleans up temp file when bridge rejects", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(new Error("bridge error"));
+
+    await expect(detectFaces(FAKE_INPUT)).rejects.toThrow("bridge error");
+    expect(unlink).toHaveBeenCalled();
+  });
+
+  it("detectFaceLandmarks cleans up temp file when bridge rejects", async () => {
+    vi.mocked(runPythonWithProgress).mockRejectedValue(new Error("bridge error"));
+
+    await expect(detectFaceLandmarks(FAKE_INPUT)).rejects.toThrow("bridge error");
+    expect(unlink).toHaveBeenCalled();
+  });
+});
+
+// ── option serialization edge cases ──────────────────────────────────
+
+describe("option serialization", () => {
+  beforeEach(() => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 800,
+      height: 600,
+    });
+  });
+
+  it("removeBackground passes empty options as empty JSON object", async () => {
+    await removeBackground(FAKE_INPUT, FAKE_OUTPUT_DIR);
+
+    const args = vi.mocked(runPythonWithProgress).mock.calls[0][1];
+    expect(JSON.parse(args[2])).toEqual({});
+  });
+
+  it("detectFaces merges user options with detectOnly flag", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      facesDetected: 0,
+    });
+
+    await detectFaces(FAKE_INPUT, { sensitivity: 0.3 });
+
+    const args = vi.mocked(runPythonWithProgress).mock.calls[0][1];
+    const parsed = JSON.parse(args[2]);
+    expect(parsed.detectOnly).toBe(true);
+    expect(parsed.sensitivity).toBe(0.3);
+  });
+
+  it("blurFaces passes empty options as empty JSON object", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      facesDetected: 0,
+    });
+
+    await blurFaces(FAKE_INPUT, FAKE_OUTPUT_DIR);
+
+    const args = vi.mocked(runPythonWithProgress).mock.calls[0][1];
+    expect(JSON.parse(args[2])).toEqual({});
+  });
+
+  it("upscale passes empty options as empty JSON object", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 1600,
+      height: 1200,
+    });
+
+    await upscale(FAKE_INPUT, FAKE_OUTPUT_DIR);
+
+    const args = vi.mocked(runPythonWithProgress).mock.calls[0][1];
+    expect(JSON.parse(args[2])).toEqual({});
+  });
+
+  it("noiseRemoval passes all option fields", async () => {
+    await noiseRemoval(FAKE_INPUT, FAKE_OUTPUT_DIR, {
+      tier: "aggressive",
+      strength: 0.9,
+      detailPreservation: 0.5,
+      colorNoise: 0.3,
+    });
+
+    const args = vi.mocked(runPythonWithProgress).mock.calls[0][1];
+    expect(JSON.parse(args[2])).toEqual({
+      tier: "aggressive",
+      strength: 0.9,
+      detailPreservation: 0.5,
+      colorNoise: 0.3,
+    });
+  });
+
+  it("restorePhoto passes all option fields", async () => {
+    await restorePhoto(FAKE_INPUT, FAKE_OUTPUT_DIR, {
+      mode: "auto",
+      scratchRemoval: true,
+      faceEnhancement: true,
+      fidelity: 0.8,
+      denoise: true,
+      denoiseStrength: 0.5,
+      colorize: true,
+    });
+
+    const args = vi.mocked(runPythonWithProgress).mock.calls[0][1];
+    expect(JSON.parse(args[2])).toEqual({
+      mode: "auto",
+      scratchRemoval: true,
+      faceEnhancement: true,
+      fidelity: 0.8,
+      denoise: true,
+      denoiseStrength: 0.5,
+      colorize: true,
+    });
+  });
+
+  it("removeRedEye passes format and quality options", async () => {
+    await removeRedEye(FAKE_INPUT, FAKE_OUTPUT_DIR, {
+      sensitivity: 0.8,
+      strength: 0.6,
+      format: "webp",
+      quality: 90,
+    });
+
+    const args = vi.mocked(runPythonWithProgress).mock.calls[0][1];
+    expect(JSON.parse(args[2])).toEqual({
+      sensitivity: 0.8,
+      strength: 0.6,
+      format: "webp",
+      quality: 90,
+    });
+  });
+
+  it("upscale passes all option fields", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      width: 3200,
+      height: 2400,
+    });
+
+    await upscale(FAKE_INPUT, FAKE_OUTPUT_DIR, {
+      scale: 4,
+      model: "realesrgan-x4plus",
+      faceEnhance: true,
+      denoise: 0.5,
+      format: "webp",
+      quality: 85,
+    });
+
+    const args = vi.mocked(runPythonWithProgress).mock.calls[0][1];
+    expect(JSON.parse(args[2])).toEqual({
+      scale: 4,
+      model: "realesrgan-x4plus",
+      faceEnhance: true,
+      denoise: 0.5,
+      format: "webp",
+      quality: 85,
+    });
+  });
+
+  it("detectFaceLandmarks passes fixed unused and empty options args", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      faceDetected: false,
+      imageWidth: 800,
+      imageHeight: 600,
+    });
+
+    await detectFaceLandmarks(FAKE_INPUT);
+
+    const args = vi.mocked(runPythonWithProgress).mock.calls[0][1];
+    expect(args[1]).toBe("unused");
+    expect(args[2]).toBe("{}");
+  });
+});
+
+// ── OCR dynamic timeout ─────────────────────────────────────────────
+
+describe("OCR dynamic timeout", () => {
+  it("uses megapixel-based timeout for large images", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({
+      success: true,
+      text: "Hello",
+      engine: "paddleocr",
+    });
+
+    await extractText(FAKE_INPUT, FAKE_OUTPUT_DIR);
+
+    // sharp metadata returns 800x600 = 0.48MP
+    // timeout = max(600_000, 0.48 * 30 * 1000) = 600_000
+    const options = vi.mocked(runPythonWithProgress).mock.calls[0][2];
+    expect(options.timeout).toBeGreaterThanOrEqual(600_000);
+  });
+});
+
+// ── removeBackground dynamic timeout ────────────────────────────────
+
+describe("removeBackground dynamic timeout", () => {
+  it("uses megapixel-based timeout for large images", async () => {
+    vi.mocked(parseStdoutJson).mockReturnValue({ success: true });
+
+    await removeBackground(FAKE_INPUT, FAKE_OUTPUT_DIR);
+
+    // sharp metadata returns 800x600 = 0.48MP
+    // baseTimeout = 300000, timeout = max(300000, 0.48 * 30 * 1000) = 300000
+    const options = vi.mocked(runPythonWithProgress).mock.calls[0][2];
+    expect(options.timeout).toBe(300000);
+  });
+});
+
+// ── parseStdoutJson failure in tool pipeline ─────────────────────────
+
+describe("parseStdoutJson throws in tool pipeline", () => {
+  it("propagates parse error through removeBackground", async () => {
+    vi.mocked(parseStdoutJson).mockImplementation(() => {
+      throw new Error("No JSON response from Python script");
+    });
+
+    await expect(removeBackground(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "No JSON response from Python script",
+    );
+  });
+
+  it("propagates parse error through extractText", async () => {
+    vi.mocked(parseStdoutJson).mockImplementation(() => {
+      throw new Error("No JSON response from Python script");
+    });
+
+    await expect(extractText(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "No JSON response from Python script",
+    );
+  });
+
+  it("propagates parse error through upscale", async () => {
+    vi.mocked(parseStdoutJson).mockImplementation(() => {
+      throw new Error("No JSON response from Python script");
+    });
+
+    await expect(upscale(FAKE_INPUT, FAKE_OUTPUT_DIR)).rejects.toThrow(
+      "No JSON response from Python script",
+    );
+  });
 });

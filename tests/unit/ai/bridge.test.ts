@@ -404,4 +404,217 @@ describe("bridge - runPythonWithProgress (per-request fallback)", () => {
       ]),
     );
   });
+
+  it("accumulates multiple stderr chunks into a single string", async () => {
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+
+    const promise = runPythonWithProgress("test_script.py", []);
+
+    mock.stderr.emit("data", Buffer.from("line1\n"));
+    mock.stderr.emit("data", Buffer.from("line2\n"));
+    mock.stdout.emit("data", Buffer.from('{"success": true}\n'));
+    mock.emitEvent("close", 0, null);
+
+    const result = await promise;
+    expect(result.stderr).toContain("line1");
+    expect(result.stderr).toContain("line2");
+  });
+
+  it("flushes partial stderr buffer on process close", async () => {
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+
+    const promise = runPythonWithProgress("test_script.py", []);
+
+    // Emit partial line without trailing newline
+    mock.stderr.emit("data", Buffer.from("partial error"));
+    mock.stdout.emit("data", Buffer.from('{"success": true}\n'));
+    mock.emitEvent("close", 0, null);
+
+    const result = await promise;
+    expect(result.stderr).toContain("partial error");
+  });
+
+  it("ignores empty stderr lines during progress parsing", async () => {
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+    const progressUpdates: Array<{ percent: number; stage: string }> = [];
+
+    const promise = runPythonWithProgress("test_script.py", [], {
+      onProgress: (percent, stage) => {
+        progressUpdates.push({ percent, stage });
+      },
+    });
+
+    // Empty lines between progress updates
+    mock.stderr.emit("data", Buffer.from("\n\n" + '{"progress": 50, "stage": "Working"}\n\n'));
+    mock.stdout.emit("data", Buffer.from('{"success": true}\n'));
+    mock.emitEvent("close", 0, null);
+
+    await promise;
+    expect(progressUpdates).toEqual([{ percent: 50, stage: "Working" }]);
+  });
+
+  it("treats SIGKILL signal as OOM error", async () => {
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+
+    const promise = runPythonWithProgress("test_script.py", []);
+
+    // SIGKILL signal without exit code 137
+    mock.emitEvent("close", null, "SIGKILL");
+
+    await expect(promise).rejects.toThrow("out of memory");
+  });
+
+  it("treats SIGSEGV signal as segfault error", async () => {
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+
+    const promise = runPythonWithProgress("test_script.py", []);
+
+    mock.emitEvent("close", null, "SIGSEGV");
+
+    await expect(promise).rejects.toThrow("segmentation fault");
+  });
+
+  it("includes exit code in error when no signal and no stderr", async () => {
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+
+    const promise = runPythonWithProgress("test_script.py", []);
+
+    mock.emitEvent("close", 2, null);
+
+    await expect(promise).rejects.toThrow("exited with code 2");
+  });
+
+  it("does not invoke onProgress for non-JSON stderr lines", async () => {
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+    const onProgress = vi.fn();
+
+    const promise = runPythonWithProgress("test_script.py", [], { onProgress });
+
+    mock.stderr.emit("data", Buffer.from("not JSON at all\n"));
+    mock.stdout.emit("data", Buffer.from('{"success": true}\n'));
+    mock.emitEvent("close", 0, null);
+
+    await promise;
+    expect(onProgress).not.toHaveBeenCalled();
+  });
+
+  it("does not invoke onProgress for JSON without progress field", async () => {
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+    const onProgress = vi.fn();
+
+    const promise = runPythonWithProgress("test_script.py", [], { onProgress });
+
+    mock.stderr.emit("data", Buffer.from('{"status": "loading"}\n'));
+    mock.stdout.emit("data", Buffer.from('{"success": true}\n'));
+    mock.emitEvent("close", 0, null);
+
+    await promise;
+    expect(onProgress).not.toHaveBeenCalled();
+  });
+
+  it("uses PROCESSING_TIMEOUT_S env var when set", async () => {
+    const origTimeout = process.env.PROCESSING_TIMEOUT_S;
+    process.env.PROCESSING_TIMEOUT_S = "5";
+
+    vi.useFakeTimers();
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+
+    const promise = runPythonWithProgress("test_script.py", []);
+
+    // 5 seconds = 5000ms
+    vi.advanceTimersByTime(5500);
+    mock.emitEvent("close", null, "SIGTERM");
+
+    await expect(promise).rejects.toThrow("Python script timed out");
+    vi.useRealTimers();
+
+    // Restore
+    if (origTimeout !== undefined) {
+      process.env.PROCESSING_TIMEOUT_S = origTimeout;
+    } else {
+      delete process.env.PROCESSING_TIMEOUT_S;
+    }
+  });
+
+  it("ignores invalid PROCESSING_TIMEOUT_S values", async () => {
+    const origTimeout = process.env.PROCESSING_TIMEOUT_S;
+    process.env.PROCESSING_TIMEOUT_S = "0";
+
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+
+    const promise = runPythonWithProgress("test_script.py", []);
+
+    mock.stdout.emit("data", Buffer.from('{"success": true}\n'));
+    mock.emitEvent("close", 0, null);
+
+    // Should not throw -- falls back to 600000ms default
+    await expect(promise).resolves.toBeDefined();
+
+    if (origTimeout !== undefined) {
+      process.env.PROCESSING_TIMEOUT_S = origTimeout;
+    } else {
+      delete process.env.PROCESSING_TIMEOUT_S;
+    }
+  });
+});
+
+describe("bridge - parseStdoutJson edge cases", () => {
+  let parseStdoutJson: (stdout: string) => unknown;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    const mod = await import("../../../packages/ai/src/bridge.js");
+    parseStdoutJson = mod.parseStdoutJson;
+  });
+
+  it("handles JSON with array values", () => {
+    const result = parseStdoutJson('{"success": true, "steps": ["a", "b"]}');
+    expect(result).toEqual({ success: true, steps: ["a", "b"] });
+  });
+
+  it("handles deeply nested JSON", () => {
+    const result = parseStdoutJson('{"success": true, "data": {"a": {"b": {"c": 1}}}}');
+    expect(result).toEqual({ success: true, data: { a: { b: { c: 1 } } } });
+  });
+
+  it("handles JSON with numeric values", () => {
+    const result = parseStdoutJson('{"width": 1920, "height": 1080, "scale": 2.5}');
+    expect(result).toEqual({ width: 1920, height: 1080, scale: 2.5 });
+  });
+
+  it("handles JSON with boolean and null values", () => {
+    const result = parseStdoutJson('{"success": true, "error": null, "gpu": false}');
+    expect(result).toEqual({ success: true, error: null, gpu: false });
+  });
+
+  it("handles JSON with unicode characters", () => {
+    const result = parseStdoutJson('{"text": "\\u4f60\\u597d"}');
+    expect(result).toEqual({ text: "你好" });
+  });
+
+  it("throws on stdout that is only whitespace", () => {
+    expect(() => parseStdoutJson("   \n\n  ")).toThrow("No JSON response");
+  });
+
+  it("extracts JSON that follows multiple non-JSON log lines", () => {
+    const stdout = [
+      "WARNING: GPU not detected",
+      "INFO: Falling back to CPU",
+      "INFO: Model loaded in 2.3s",
+      '{"success": true, "device": "cpu"}',
+    ].join("\n");
+
+    const result = parseStdoutJson(stdout);
+    expect(result).toEqual({ success: true, device: "cpu" });
+  });
 });

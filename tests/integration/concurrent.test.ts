@@ -175,3 +175,96 @@ describe("Concurrent mix of valid and invalid requests", () => {
     expect(JSON.parse(anotherValidRes.body).jobId).toBeDefined();
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 10 SIMULTANEOUS UPLOADS TO SAME ENDPOINT
+// ═══════════════════════════════════════════════════════════════════════════
+describe("10 simultaneous uploads to the same tool", () => {
+  it("handles 10 concurrent resize requests with distinct widths", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        app.inject(
+          buildToolRequest("resize", PNG_200x150, `concurrent-${i}.png`, { width: 20 + i * 10 }),
+        ),
+      ),
+    );
+
+    for (const res of results) {
+      expect(res.statusCode).toBe(200);
+      const json = JSON.parse(res.body);
+      expect(json.jobId).toBeDefined();
+      expect(json.downloadUrl).toBeDefined();
+    }
+
+    // All 10 must produce unique job IDs
+    const jobIds = results.map((r) => JSON.parse(r.body).jobId);
+    expect(new Set(jobIds).size).toBe(10);
+  }, 60_000);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MIXED TOOL REQUESTS IN PARALLEL — VERIFY NO RESPONSE CORRUPTION
+// ═══════════════════════════════════════════════════════════════════════════
+describe("Mixed tool requests in parallel with result verification", () => {
+  it("resize + crop + rotate + compress simultaneously produce correct results", async () => {
+    const [resizeRes, cropRes, rotateRes, compressRes] = await Promise.all([
+      app.inject(buildToolRequest("resize", PNG_200x150, "mix-resize.png", { width: 50 })),
+      app.inject(
+        buildToolRequest("crop", PNG_200x150, "mix-crop.png", {
+          left: 0,
+          top: 0,
+          width: 100,
+          height: 100,
+        }),
+      ),
+      app.inject(buildToolRequest("rotate", PNG_200x150, "mix-rotate.png", { angle: 180 })),
+      app.inject(buildToolRequest("compress", PNG_200x150, "mix-compress.png", { quality: 30 })),
+    ]);
+
+    // All must succeed
+    expect(resizeRes.statusCode).toBe(200);
+    expect(cropRes.statusCode).toBe(200);
+    expect(rotateRes.statusCode).toBe(200);
+    expect(compressRes.statusCode).toBe(200);
+
+    // All must have unique job IDs
+    const ids = [resizeRes, cropRes, rotateRes, compressRes].map((r) => JSON.parse(r.body).jobId);
+    expect(new Set(ids).size).toBe(4);
+
+    // Resize output should be smaller than original
+    const resizeBody = JSON.parse(resizeRes.body);
+    expect(resizeBody.processedSize).toBeLessThan(resizeBody.originalSize);
+
+    // Crop output should be smaller than original
+    const cropBody = JSON.parse(cropRes.body);
+    expect(cropBody.processedSize).toBeLessThan(cropBody.originalSize);
+
+    // Download URLs must reference the correct tool suffix
+    expect(resizeBody.downloadUrl).toContain("resize");
+    expect(cropBody.downloadUrl).toContain("crop");
+    expect(JSON.parse(rotateRes.body).downloadUrl).toContain("rotate");
+    expect(JSON.parse(compressRes.body).downloadUrl).toContain("compress");
+  }, 30_000);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONCURRENT REQUESTS WITH DIFFERENT IMAGE FORMATS
+// ═══════════════════════════════════════════════════════════════════════════
+describe("Concurrent requests with different image formats", () => {
+  it("processes PNG and JPEG simultaneously without cross-format contamination", async () => {
+    const results = await Promise.all([
+      app.inject(buildToolRequest("resize", PNG_200x150, "format-a.png", { width: 80 })),
+      app.inject(buildToolRequest("resize", JPG_100x100, "format-b.jpg", { width: 50 })),
+      app.inject(buildToolRequest("resize", PNG_200x150, "format-c.png", { width: 60 })),
+      app.inject(buildToolRequest("resize", JPG_100x100, "format-d.jpg", { width: 40 })),
+    ]);
+
+    for (const res of results) {
+      expect(res.statusCode).toBe(200);
+    }
+
+    // All unique job IDs
+    const ids = results.map((r) => JSON.parse(r.body).jobId);
+    expect(new Set(ids).size).toBe(4);
+  }, 30_000);
+});
