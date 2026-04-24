@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@/stores/connection-store", () => ({
+  useConnectionStore: { getState: () => ({ setDisconnected: vi.fn() }) },
+}));
+
 import { retryDynamicImport } from "@/lib/lazy-with-retry";
 
 describe("retryDynamicImport", () => {
