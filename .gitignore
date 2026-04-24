@@ -50,3 +50,6 @@ audit_report.md
 .release-version
 .models
 .local-wiki/
+.mcp.json
+tests/benchmark/bench-limits-results-mac.jsonl
+.superpowers/
