@@ -1,17 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { extname, join } from "node:path";
+import { ANALYTICS_EVENTS, getBundleForTool, TOOL_BUNDLE_MAP, TOOLS } from "@snapotter/shared";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
 import type { z } from "zod";
 import { db, schema } from "../db/index.js";
+import { trackEvent } from "../lib/analytics.js";
 import { autoOrient } from "../lib/auto-orient.js";
+import { formatZodErrors } from "../lib/errors.js";
+import { isToolInstalled } from "../lib/feature-status.js";
 import { validateImageBuffer } from "../lib/file-validation.js";
 import { sanitizeFilename } from "../lib/filename.js";
+import { decodeToSharpCompat, needsCliDecode } from "../lib/format-decoders.js";
 import { decodeHeic } from "../lib/heic-converter.js";
 import type { WorkerInput, WorkerOutput } from "../lib/image-worker.js";
 import { sanitizeSvg } from "../lib/svg-sanitize.js";
+import { computeTimeout } from "../lib/timeout.js";
 import { getWorkerPool } from "../lib/worker-pool.js";
 import { createWorkspace } from "../lib/workspace.js";
 
@@ -106,6 +112,7 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
       let filename = "image";
       let settingsRaw: string | null = null;
       let fileId: string | null = null;
+      let fileCount = 0;
 
       // Parse multipart parts
       try {
@@ -113,6 +120,14 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
 
         for await (const part of parts) {
           if (part.type === "file") {
+            fileCount++;
+            if (fileCount > 1) {
+              // Drain remaining parts to avoid hanging the connection
+              for await (const _ of part.file) {
+                /* drain */
+              }
+              continue;
+            }
             // Consume the file stream into a buffer
             const chunks: Buffer[] = [];
             for await (const chunk of part.file) {
@@ -137,13 +152,19 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
         });
       }
 
+      if (fileCount > 1) {
+        return reply.status(400).send({
+          error: `This endpoint processes one image at a time. Use /api/v1/tools/${config.toolId}/batch for multiple files.`,
+        });
+      }
+
       // Require a file
       if (!fileBuffer || fileBuffer.length === 0) {
         return reply.status(400).send({ error: "No image file provided" });
       }
 
       // Validate the uploaded image
-      const validation = await validateImageBuffer(fileBuffer);
+      const validation = await validateImageBuffer(fileBuffer, filename);
       if (!validation.valid) {
         return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
       }
@@ -160,6 +181,21 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
         } catch (err) {
           return reply.status(422).send({
             error: "Failed to decode HEIC file. Ensure libheif-examples is installed.",
+            details: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      // Decode CLI-decoded formats (RAW, PSD, TGA, EXR, HDR) via external tools.
+      // The decoded buffer is PNG, so update the filename extension to match.
+      if (needsCliDecode(validation.format)) {
+        try {
+          fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format);
+          const ext = filename.match(/\.[^.]+$/)?.[0];
+          if (ext) filename = `${filename.slice(0, -ext.length)}.png`;
+        } catch (err) {
+          return reply.status(422).send({
+            error: `Failed to decode ${validation.format.toUpperCase()} file`,
             details: err instanceof Error ? err.message : String(err),
           });
         }
@@ -185,10 +221,7 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
         if (!result.success) {
           return reply.status(400).send({
             error: "Invalid settings",
-            details: result.error.issues.map((i) => ({
-              path: i.path.join("."),
-              message: i.message,
-            })),
+            details: formatZodErrors(result.error.issues),
           });
         }
         settings = result.data;
@@ -196,7 +229,21 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
         return reply.status(400).send({ error: "Settings must be valid JSON" });
       }
 
+      // Guard: check if the tool's AI feature bundle is installed
+      const bundleId = TOOL_BUNDLE_MAP[config.toolId];
+      if (bundleId && !isToolInstalled(config.toolId)) {
+        const bundle = getBundleForTool(config.toolId);
+        return reply.status(501).send({
+          error: "Feature not installed",
+          code: "FEATURE_NOT_INSTALLED",
+          feature: bundleId,
+          featureName: bundle?.name ?? bundleId,
+          estimatedSize: bundle?.estimatedSize ?? "unknown",
+        });
+      }
+
       // Process the image (worker thread or main thread)
+      const startTime = Date.now();
       try {
         let result: { buffer: Buffer; filename: string; contentType: string };
 
@@ -214,8 +261,11 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
               filename,
               inputFormat: validation.format,
             };
+            const meta = await sharp(fileBuffer).metadata();
+            const megapixels = ((meta.width ?? 0) * (meta.height ?? 0)) / 1_000_000;
+            const timeoutMs = computeTimeout(megapixels, "sharp");
             const workerResult: WorkerOutput = await pool.run(workerInput, {
-              signal: AbortSignal.timeout(30_000),
+              signal: AbortSignal.timeout(timeoutMs),
             });
             result = {
               buffer: Buffer.from(workerResult.buffer),
@@ -235,6 +285,15 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
           // AI tools: always main thread (they use Python bridge)
           const processBuffer = isSvg ? fileBuffer : await autoOrient(fileBuffer);
           result = await config.process(processBuffer, settings, filename);
+        }
+
+        // Add a tool-specific suffix to the filename so the download
+        // doesn't silently overwrite the user's original file.
+        // Skip if the tool already changed the filename (e.g. convert, split).
+        if (result.filename === filename) {
+          const ext = extname(filename);
+          const base = ext ? filename.slice(0, -ext.length) : filename;
+          result.filename = `${base}_${config.toolId}${ext}`;
         }
 
         // Create workspace and save output
@@ -324,6 +383,14 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
           }
         }
 
+        trackEvent(request, ANALYTICS_EVENTS.TOOL_USED, {
+          tool_id: config.toolId,
+          status: "completed",
+          duration_ms: Date.now() - startTime,
+          category: TOOLS.find((t) => t.id === config.toolId)?.category ?? "unknown",
+          is_ai_tool: getBundleForTool(config.toolId) !== null,
+        });
+
         return reply.send({
           jobId,
           downloadUrl: `/api/v1/download/${jobId}/${encodeURIComponent(result.filename)}`,
@@ -336,6 +403,13 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
         // Catch Sharp / processing errors and return a clean API error
         const message = err instanceof Error ? err.message : "Image processing failed";
         request.log.error({ err, toolId: config.toolId }, "Tool processing failed");
+        trackEvent(request, ANALYTICS_EVENTS.TOOL_USED, {
+          tool_id: config.toolId,
+          status: "failed",
+          duration_ms: Date.now() - startTime,
+          category: TOOLS.find((t) => t.id === config.toolId)?.category ?? "unknown",
+          is_ai_tool: getBundleForTool(config.toolId) !== null,
+        });
         return reply.status(422).send({
           error: "Processing failed",
           details: message,

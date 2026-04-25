@@ -3,33 +3,27 @@
 ## Quick Start
 
 ```bash
-docker run -d --name ashim -p 1349:1349 -v ashim-data:/data ghcr.io/ashim-hq/ashim:latest
+docker run -d --name SnapOtter -p 1349:1349 -v SnapOtter-data:/data snapotter/snapotter:latest \
+  && printf "\n  🦦 SnapOtter\n  ────────────────────────────────────────\n\n  ➜  Open   http://localhost:1349\n  ➜  Login  admin / admin\n  ➜  Docs   https://docs.snapotter.com\n\n"
 ```
 
-Open [http://localhost:1349](http://localhost:1349) in your browser.
+You will be asked to change your password on first login.
 
-::: tip Also on Docker Hub
+::: tip Also on GHCR
 ```bash
-docker run -d --name ashim -p 1349:1349 -v ashim-data:/data ashimhq/ashim:latest
+docker run -d --name SnapOtter -p 1349:1349 -v SnapOtter-data:/data ghcr.io/snapotter-hq/snapotter:latest \
+  && printf "\n  🦦 SnapOtter\n  ────────────────────────────────────────\n\n  ➜  Open   http://localhost:1349\n  ➜  Login  admin / admin\n  ➜  Docs   https://docs.snapotter.com\n\n"
 ```
 
 Both registries publish the same image on every release.
 :::
 
-**Default credentials:**
-
-| Field    | Value   |
-|----------|---------|
-| Username | `admin` |
-| Password | `admin` |
-
-You will be asked to change your password on first login.
-
 ::: tip NVIDIA GPU acceleration
 Add `--gpus all` for GPU-accelerated background removal, upscaling, OCR, face enhancement, and restoration:
 
 ```bash
-docker run -d --name ashim -p 1349:1349 --gpus all -v ashim-data:/data ashimhq/ashim:latest
+docker run -d --name SnapOtter -p 1349:1349 --gpus all -v SnapOtter-data:/data snapotter/snapotter:latest \
+  && printf "\n  🦦 SnapOtter\n  ────────────────────────────────────────\n\n  ➜  Open   http://localhost:1349\n  ➜  Login  admin / admin\n  ➜  Docs   https://docs.snapotter.com\n\n"
 ```
 
 Requires the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html). Falls back to CPU automatically. See [Docker Tags](/guide/docker-tags) for benchmarks.
@@ -39,12 +33,12 @@ Requires the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud
 
 ```yaml
 services:
-  ashim:
-    image: ghcr.io/ashim-hq/ashim:latest  # or ashimhq/ashim:latest
+  SnapOtter:
+    image: snapotter/snapotter:latest  # or ghcr.io/snapotter-hq/snapotter:latest
     ports:
       - "1349:1349"
     volumes:
-      - ashim-data:/data
+      - SnapOtter-data:/data
     environment:
       - AUTH_ENABLED=true
       - DEFAULT_USERNAME=admin
@@ -52,7 +46,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  ashim-data:
+  SnapOtter-data:
 ```
 
 See [Configuration](/guide/configuration) for all environment variables.
@@ -62,8 +56,8 @@ See [Configuration](/guide/configuration) for all environment variables.
 **Prerequisites:** Node.js 22+, pnpm 9+, Python 3.10+ (for AI features), Git.
 
 ```bash
-git clone https://github.com/ashim-hq/ashim.git
-cd ashim
+git clone https://github.com/snapotter-hq/snapotter.git
+cd snapotter
 pnpm install
 pnpm dev
 ```
@@ -73,7 +67,7 @@ pnpm dev
 
 ## What You Can Do
 
-### Image Processing (45+ Tools)
+### Image Processing (47 Tools)
 
 | Category | Tools |
 |----------|-------|
@@ -92,14 +86,14 @@ Chain tools into multi-step workflows and apply them to one image or a whole bat
 
 1. Open **Pipelines** in the sidebar.
 2. Add steps (any tool, any settings).
-3. Run on a single file - or up to 200 files at once.
+3. Run on a single file - or an entire batch at once.
 4. Save the pipeline for later reuse.
 
-Pipelines can have up to 20 steps.
+Pipelines have unlimited steps by default.
 
 ### File Library
 
-Every file you process can be saved to your **Files** library. ashim tracks the full version history so you can trace every processing step from the original upload to the final output.
+Every file you process can be saved to your **Files** library. SnapOtter tracks the full version history so you can trace every processing step from the original upload to the final output.
 
 ### REST API & API Keys
 

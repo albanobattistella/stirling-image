@@ -12,9 +12,10 @@ def emit_progress(percent, stage):
 # Resolve the LaMa ONNX model path.
 # Docker places it at /opt/models/lama/lama_fp32.onnx.
 # For local dev, check a user-writable cache dir.
-LAMA_MODEL_DIR = os.environ.get("LAMA_MODEL_DIR", "/opt/models/lama")
+_MODELS_BASE = os.environ.get("MODELS_PATH", "/opt/models")
+LAMA_MODEL_DIR = os.environ.get("LAMA_MODEL_DIR", os.path.join(_MODELS_BASE, "lama"))
 LAMA_MODEL_PATH = os.path.join(LAMA_MODEL_DIR, "lama_fp32.onnx")
-LAMA_LOCAL_CACHE = os.path.join(os.path.expanduser("~"), ".cache", "ashim", "lama")
+LAMA_LOCAL_CACHE = os.path.join(os.path.expanduser("~"), ".cache", "snapotter", "lama")
 LAMA_LOCAL_PATH = os.path.join(LAMA_LOCAL_CACHE, "lama_fp32.onnx")
 LAMA_HF_URL = "https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx"
 
@@ -98,7 +99,7 @@ def main():
 
         try:
             import cv2
-            import onnxruntime as ort
+            import onnxruntime
         except ImportError as e:
             print(json.dumps({
                 "success": False,
@@ -109,11 +110,8 @@ def main():
         emit_progress(10, "Loading model")
         model_path = _get_model_path()
 
-        # Configure ONNX Runtime session
-        from gpu import onnx_providers
-        providers = onnx_providers()
-
-        session = ort.InferenceSession(model_path, providers=providers)
+        from gpu import safe_onnx_session
+        session, _device = safe_onnx_session(model_path)
 
         emit_progress(20, "Loading images")
         img = Image.open(input_path).convert("RGB")

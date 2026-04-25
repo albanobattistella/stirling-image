@@ -1,17 +1,26 @@
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { colorize } from "@ashim/ai";
+import { colorize } from "@snapotter/ai";
+import { getBundleForTool, TOOL_BUNDLE_MAP } from "@snapotter/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
 import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
+import { formatZodErrors } from "../../lib/errors.js";
+import { isToolInstalled } from "../../lib/feature-status.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
+import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
 import { decodeHeic } from "../../lib/heic-converter.js";
 import { resolveOutputFormat } from "../../lib/output-format.js";
 import { createWorkspace } from "../../lib/workspace.js";
 import { updateSingleFileProgress } from "../progress.js";
 import { registerToolProcessFn } from "../tool-factory.js";
+
+const settingsSchema = z.object({
+  intensity: z.number().min(0).max(1).default(1.0),
+  model: z.enum(["auto", "ddcolor", "opencv"]).default("auto"),
+});
 
 /**
  * AI photo colorization route.
@@ -20,6 +29,18 @@ import { registerToolProcessFn } from "../tool-factory.js";
  */
 export function registerColorize(app: FastifyInstance) {
   app.post("/api/v1/tools/colorize", async (request: FastifyRequest, reply: FastifyReply) => {
+    const toolId = "colorize";
+    if (!isToolInstalled(toolId)) {
+      const bundle = getBundleForTool(toolId);
+      return reply.status(501).send({
+        error: "Feature not installed",
+        code: "FEATURE_NOT_INSTALLED",
+        feature: TOOL_BUNDLE_MAP[toolId],
+        featureName: bundle?.name ?? toolId,
+        estimatedSize: bundle?.estimatedSize ?? "unknown",
+      });
+    }
+
     let fileBuffer: Buffer | null = null;
     let filename = "image";
     let settingsRaw: string | null = null;
@@ -52,15 +73,27 @@ export function registerColorize(app: FastifyInstance) {
       return reply.status(400).send({ error: "No image file provided" });
     }
 
-    const validation = await validateImageBuffer(fileBuffer);
+    const validation = await validateImageBuffer(fileBuffer, filename);
     if (!validation.valid) {
       return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
     }
 
     try {
-      const settings = settingsRaw ? JSON.parse(settingsRaw) : {};
-      const intensity = Math.min(1, Math.max(0, Number(settings.intensity) || 1.0));
-      const model = settings.model || "auto";
+      let settings: z.infer<typeof settingsSchema>;
+      try {
+        const parsed = settingsRaw ? JSON.parse(settingsRaw) : {};
+        const result = settingsSchema.safeParse(parsed);
+        if (!result.success) {
+          return reply
+            .status(400)
+            .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
+        }
+        settings = result.data;
+      } catch {
+        return reply.status(400).send({ error: "Settings must be valid JSON" });
+      }
+
+      const { intensity, model } = settings;
 
       request.log.info(
         { toolId: "colorize", imageSize: fileBuffer.length, intensity, model },
@@ -70,6 +103,11 @@ export function registerColorize(app: FastifyInstance) {
       // Decode HEIC/HEIF input
       if (validation.format === "heif") {
         fileBuffer = await decodeHeic(fileBuffer);
+      }
+
+      // Decode CLI-decoded formats (RAW, TGA, PSD, EXR, HDR)
+      if (needsCliDecode(validation.format)) {
+        fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format);
       }
 
       // Auto-orient to fix EXIF rotation
@@ -140,6 +178,13 @@ export function registerColorize(app: FastifyInstance) {
           phase: "complete",
           percent: 100,
         });
+      }
+
+      if (model !== "auto" && result.method !== model) {
+        request.log.warn(
+          { toolId: "colorize", requested: model, actual: result.method },
+          `Colorize model mismatch: requested ${model} but used ${result.method}`,
+        );
       }
 
       return reply.send({

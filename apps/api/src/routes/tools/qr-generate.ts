@@ -4,11 +4,12 @@ import { join } from "node:path";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import QRCode from "qrcode";
 import { z } from "zod";
+import { formatZodErrors } from "../../lib/errors.js";
 import { createWorkspace } from "../../lib/workspace.js";
 
 const settingsSchema = z.object({
   text: z.string().min(1).max(2000),
-  size: z.number().min(100).max(2000).default(400),
+  size: z.number().min(100).max(10000).default(400),
   errorCorrection: z.enum(["L", "M", "Q", "H"]).default("M"),
   foreground: z
     .string()
@@ -37,10 +38,7 @@ export function registerQrGenerate(app: FastifyInstance) {
     if (!result.success) {
       return reply.status(400).send({
         error: "Invalid settings",
-        details: result.error.issues.map((i) => ({
-          path: i.path.join("."),
-          message: i.message,
-        })),
+        details: formatZodErrors(result.error.issues),
       });
     }
 

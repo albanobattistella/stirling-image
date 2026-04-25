@@ -1,4 +1,4 @@
-import { TOOLS } from "@ashim/shared";
+import { PYTHON_SIDECAR_TOOLS, TOOL_BUNDLE_MAP, TOOLS } from "@snapotter/shared";
 import {
   CheckCircle2,
   ChevronLeft,
@@ -16,16 +16,25 @@ import { type BgPreviewState, ImageViewer } from "@/components/common/image-view
 import { ReviewPanel } from "@/components/common/review-panel";
 import { SideBySideComparison } from "@/components/common/side-by-side-comparison";
 import { ThumbnailStrip } from "@/components/common/thumbnail-strip";
+import { FeatureInstallPrompt } from "@/components/features/feature-install-prompt";
 import { AppLayout } from "@/components/layout/app-layout";
 import { CropCanvas } from "@/components/tools/crop-canvas";
 import type { EraserCanvasRef } from "@/components/tools/eraser-canvas";
 import { EraserCanvas } from "@/components/tools/eraser-canvas";
 import type { PreviewTransform } from "@/components/tools/rotate-settings";
+import { useAuth } from "@/hooks/use-auth";
 import { useMobile } from "@/hooks/use-mobile";
 import { formatFileSize } from "@/lib/download";
 import { ICON_MAP } from "@/lib/icon-map";
 import { getToolRegistryEntry } from "@/lib/tool-registry";
+import { useBase64Store } from "@/stores/base64-store";
+import { useCollageStore } from "@/stores/collage-store";
+import { useDuplicateStore } from "@/stores/duplicate-store";
+import { useFeaturesStore } from "@/stores/features-store";
 import { useFileStore } from "@/stores/file-store";
+import { usePdfToImageStore } from "@/stores/pdf-to-image-store";
+import { useQrStore } from "@/stores/qr-store";
+import { useSplitStore } from "@/stores/split-store";
 
 /** Formats that browsers can render in <img> tags. */
 const BROWSER_PREVIEWABLE_EXTS = new Set([
@@ -36,7 +45,6 @@ const BROWSER_PREVIEWABLE_EXTS = new Set([
   "webp",
   "svg",
   "bmp",
-  "ico",
   "avif",
 ]);
 
@@ -106,6 +114,23 @@ export function ToolPage() {
     () => (toolId ? getToolRegistryEntry(toolId) : undefined),
     [toolId],
   );
+  const isAiTool = toolId ? (PYTHON_SIDECAR_TOOLS as readonly string[]).includes(toolId) : false;
+  const featuresLoaded = useFeaturesStore((s) => s.loaded);
+  const featureBundles = useFeaturesStore((s) => s.bundles);
+  const fetchFeatures = useFeaturesStore((s) => s.fetch);
+  const featureBundle = useMemo(() => {
+    if (!toolId) return null;
+    const bundleId = TOOL_BUNDLE_MAP[toolId];
+    if (!bundleId) return null;
+    return featureBundles.find((b) => b.id === bundleId) ?? null;
+  }, [toolId, featureBundles]);
+  const toolInstalled = featureBundle ? featureBundle.status === "installed" : !isAiTool;
+  const { hasPermission } = useAuth();
+  const isAdmin = hasPermission("settings:write");
+
+  useEffect(() => {
+    if (isAiTool) fetchFeatures();
+  }, [isAiTool, fetchFeatures]);
   const {
     files,
     entries,
@@ -182,11 +207,30 @@ export function ToolPage() {
   // Center of the painted mask as a 0-100 percentage — used to init the slider at the right spot
   const [eraserSliderInitPos, setEraserSliderInitPos] = useState<number | null>(null);
 
-  // Reset crop state when the image changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: toolId triggers intentional reset on tool navigation
   useEffect(() => {
+    useFileStore.getState().undoProcessing();
+
+    useBase64Store.getState().reset();
+    useCollageStore.getState().reset();
+    useDuplicateStore.getState().reset();
+    usePdfToImageStore.getState().reset();
+    useQrStore.getState().reset();
+    useSplitStore.getState().reset();
+
+    setPreviewTransform(null);
+    setPreviewFilter("");
+    setImageWrapperStyle(null);
+    setBgPreview(null);
     setCropCrop({ unit: "%", x: 0, y: 0, width: 100, height: 100 });
+    setCropAspect(undefined);
+    setCropShowGrid(true);
     setCropImgDimensions(null);
-  }, []);
+    setEraserHasStrokes(false);
+    setEraserBrushSize(30);
+    setEraserSliderInitPos(null);
+    setMobileSettingsOpen(true);
+  }, [toolId]);
 
   const handleFiles = useCallback(
     (newFiles: File[]) => {
@@ -206,7 +250,8 @@ export function ToolPage() {
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = true;
-    input.accept = "image/*,.heic,.heif,.hif";
+    input.accept =
+      "image/*,.heic,.heif,.hif,.jxl,.dng,.cr2,.nef,.arw,.orf,.rw2,.tga,.psd,.exr,.hdr";
     input.onchange = (e) => {
       const newFiles = Array.from((e.target as HTMLInputElement).files || []);
       if (newFiles.length > 0) addFiles(newFiles);
@@ -230,6 +275,24 @@ export function ToolPage() {
         <div className="flex items-center justify-center h-full text-muted-foreground">
           Tool not found
         </div>
+      </AppLayout>
+    );
+  }
+
+  if (isAiTool && !featuresLoaded) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-full text-muted-foreground">
+          Loading...
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (isAiTool && !toolInstalled && featureBundle) {
+    return (
+      <AppLayout>
+        <FeatureInstallPrompt bundle={featureBundle} isAdmin={isAdmin} />
       </AppLayout>
     );
   }

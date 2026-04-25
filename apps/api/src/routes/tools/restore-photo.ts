@@ -1,12 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { restorePhoto } from "@ashim/ai";
+import { restorePhoto } from "@snapotter/ai";
+import { getBundleForTool } from "@snapotter/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
 import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
+import { formatZodErrors } from "../../lib/errors.js";
+import { isToolInstalled } from "../../lib/feature-status.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
+import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
 import { decodeHeic } from "../../lib/heic-converter.js";
 import { resolveOutputFormat } from "../../lib/output-format.js";
 import { createWorkspace } from "../../lib/workspace.js";
@@ -30,6 +34,17 @@ const settingsSchema = z.object({
  */
 export function registerRestorePhoto(app: FastifyInstance) {
   app.post("/api/v1/tools/restore-photo", async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!isToolInstalled("restore-photo")) {
+      const bundle = getBundleForTool("restore-photo");
+      return reply.status(501).send({
+        error: "Feature not installed",
+        code: "FEATURE_NOT_INSTALLED",
+        feature: "photo-restoration",
+        featureName: bundle?.name ?? "Photo Restoration",
+        estimatedSize: bundle?.estimatedSize ?? "unknown",
+      });
+    }
+
     let fileBuffer: Buffer | null = null;
     let filename = "image";
     let settingsRaw: string | null = null;
@@ -62,13 +77,25 @@ export function registerRestorePhoto(app: FastifyInstance) {
       return reply.status(400).send({ error: "No image file provided" });
     }
 
-    const validation = await validateImageBuffer(fileBuffer);
+    const validation = await validateImageBuffer(fileBuffer, filename);
     if (!validation.valid) {
       return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
     }
 
     try {
-      const settings = settingsSchema.parse(settingsRaw ? JSON.parse(settingsRaw) : {});
+      let settings: z.infer<typeof settingsSchema>;
+      try {
+        const parsed = settingsRaw ? JSON.parse(settingsRaw) : {};
+        const result = settingsSchema.safeParse(parsed);
+        if (!result.success) {
+          return reply
+            .status(400)
+            .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
+        }
+        settings = result.data;
+      } catch {
+        return reply.status(400).send({ error: "Settings must be valid JSON" });
+      }
 
       request.log.info(
         { toolId: "restore-photo", imageSize: fileBuffer.length, mode: settings.mode },
@@ -78,6 +105,11 @@ export function registerRestorePhoto(app: FastifyInstance) {
       // Decode HEIC/HEIF input
       if (validation.format === "heif") {
         fileBuffer = await decodeHeic(fileBuffer);
+      }
+
+      // Decode CLI-decoded formats (RAW, TGA, PSD, EXR, HDR)
+      if (needsCliDecode(validation.format)) {
+        fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format);
       }
 
       // Auto-orient to fix EXIF rotation

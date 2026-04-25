@@ -167,7 +167,7 @@ export function ImageToPdfSettings() {
 
     const xhr = new XMLHttpRequest();
     xhrRef.current = xhr;
-    xhr.timeout = 180_000;
+    xhr.timeout = 300_000;
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
@@ -220,10 +220,9 @@ export function ImageToPdfSettings() {
     };
 
     xhr.open("POST", "/api/v1/tools/image-to-pdf");
-    const headers = formatHeaders();
-    for (const [key, value] of Object.entries(headers)) {
-      xhr.setRequestHeader(key, value as string);
-    }
+    formatHeaders().forEach((value, key) => {
+      xhr.setRequestHeader(key, value);
+    });
     xhr.send(formData);
   }, [files, pageSize, orientation, margin, setProcessing, setError]);
 

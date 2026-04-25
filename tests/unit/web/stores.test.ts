@@ -498,17 +498,17 @@ describe("API lib", () => {
   // -- Token management ----------------------------------------------------
 
   describe("token management", () => {
-    it("setToken stores in localStorage under 'ashim-token'", () => {
+    it("setToken stores in localStorage under 'snapotter-token'", () => {
       setToken("my-secret");
-      expect(localStorageMock.setItem).toHaveBeenCalledWith("ashim-token", "my-secret");
-      expect(storageMap.get("ashim-token")).toBe("my-secret");
+      expect(localStorageMock.setItem).toHaveBeenCalledWith("snapotter-token", "my-secret");
+      expect(storageMap.get("snapotter-token")).toBe("my-secret");
     });
 
-    it("clearToken removes 'ashim-token' from localStorage", () => {
+    it("clearToken removes 'snapotter-token' from localStorage", () => {
       setToken("to-remove");
       clearToken();
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith("ashim-token");
-      expect(storageMap.has("ashim-token")).toBe(false);
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith("snapotter-token");
+      expect(storageMap.has("snapotter-token")).toBe(false);
     });
 
     it("clearToken is idempotent (no throw when key missing)", () => {
@@ -741,6 +741,40 @@ describe("API lib", () => {
     });
   });
 
+  // -- api network error → connection store ---------------------------------
+
+  describe("api network error → connection store", () => {
+    it("triggers disconnected state on TypeError from fetch", async () => {
+      const { useConnectionStore } = await import("@/stores/connection-store");
+      useConnectionStore.setState({
+        status: "connected",
+        failedSince: null,
+        lastHealthCheck: null,
+      });
+
+      fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      await expect(apiGet("/v1/test")).rejects.toThrow("Failed to fetch");
+
+      expect(useConnectionStore.getState().status).toBe("disconnected");
+    });
+
+    it("does NOT trigger disconnected on HTTP errors", async () => {
+      const { useConnectionStore } = await import("@/stores/connection-store");
+      useConnectionStore.setState({
+        status: "connected",
+        failedSince: null,
+        lastHealthCheck: null,
+      });
+
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "Not found" }), { status: 404 }),
+      );
+      await expect(apiGet("/v1/test")).rejects.toThrow();
+
+      expect(useConnectionStore.getState().status).toBe("connected");
+    });
+  });
+
   // -- Cross-cutting: token is read fresh on every call --------------------
 
   describe("token freshness", () => {
@@ -763,5 +797,32 @@ describe("API lib", () => {
       await apiGet("/v1/c");
       expect(fetchMock.mock.calls[0][1].headers.get("Authorization")).toBeNull();
     });
+  });
+});
+
+// ==========================================================================
+// useAuth security
+// ==========================================================================
+
+describe("useAuth security — network error", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+  });
+
+  it("does NOT grant admin when API is unreachable", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    const { renderHook, act } = await import("@testing-library/react");
+    const { useAuth } = await import("@/hooks/use-auth");
+
+    const { result } = renderHook(() => useAuth());
+
+    // Flush the async checkAuth() call
+    await act(async () => {});
+
+    // loading stays true — setState was never called
+    expect(result.current.loading).toBe(true);
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.role).toBeNull();
   });
 });

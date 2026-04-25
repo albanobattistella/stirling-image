@@ -1,6 +1,6 @@
 # Developer guide
 
-How to set up a local development environment and contribute code to ashim.
+How to set up a local development environment and contribute code to SnapOtter.
 
 ## Prerequisites
 
@@ -14,8 +14,8 @@ Python 3.10+ is only needed if you are working on the AI/ML sidecar (background 
 ## Setup
 
 ```bash
-git clone https://github.com/ashim-hq/ashim.git
-cd ashim
+git clone https://github.com/snapotter-hq/snapotter.git
+cd snapotter
 pnpm install
 pnpm dev
 ```
@@ -72,7 +72,7 @@ pnpm test:coverage      # tests with coverage report
 
 ## Database
 
-SQLite via Drizzle ORM. The database file lives at `./data/ashim.db` by default.
+SQLite via Drizzle ORM. The database file lives at `./data/snapotter.db` by default.
 
 ```bash
 cd apps/api
@@ -195,13 +195,13 @@ Add a `data-testid` attribute to your action button (as shown above) so e2e test
 Build the full production image locally:
 
 ```bash
-docker build -f docker/Dockerfile -t ashim:latest .
+docker build -f docker/Dockerfile -t snapotter:latest .
 ```
 
 Use BuildKit cache mounts for faster rebuilds:
 
 ```bash
-DOCKER_BUILDKIT=1 docker build -f docker/Dockerfile -t ashim:latest .
+DOCKER_BUILDKIT=1 docker build -f docker/Dockerfile -t snapotter:latest .
 ```
 
 ## Environment variables
@@ -214,5 +214,5 @@ See the [Configuration guide](/guide/configuration) for the full list. Key ones 
 | `DEFAULT_USERNAME`          | `admin`   | Default admin username                         |
 | `DEFAULT_PASSWORD`          | `admin`   | Default admin password                         |
 | `SKIP_MUST_CHANGE_PASSWORD` | `false`   | Skip forced password change (CI/dev only)      |
-| `RATE_LIMIT_PER_MIN`       | `100`     | API rate limit per minute                      |
-| `MAX_UPLOAD_SIZE_MB`       | `100`     | Maximum upload size in MB                      |
+| `RATE_LIMIT_PER_MIN`       | `0`       | API rate limit per minute (0 = disabled)       |
+| `MAX_UPLOAD_SIZE_MB`       | `0`       | Maximum upload size in MB (0 = unlimited)      |

@@ -7,6 +7,8 @@ import PQueue from "p-queue";
 import sharp from "sharp";
 import { z } from "zod";
 import { env } from "../../config.js";
+import { resolveConcurrency } from "../../lib/env.js";
+import { formatZodErrors } from "../../lib/errors.js";
 import { sanitizeFilename } from "../../lib/filename.js";
 import { decodeHeic, encodeHeic } from "../../lib/heic-converter.js";
 import { isSvgBuffer, sanitizeSvg } from "../../lib/svg-sanitize.js";
@@ -16,9 +18,9 @@ import { updateJobProgress } from "../progress.js";
 const NON_PREVIEWABLE = new Set(["tiff", "heif"]);
 
 const settingsSchema = z.object({
-  width: z.number().min(1).max(16384).optional(),
-  height: z.number().min(1).max(16384).optional(),
-  dpi: z.number().min(36).max(1200).default(300),
+  width: z.number().min(1).max(65536).optional(),
+  height: z.number().min(1).max(65536).optional(),
+  dpi: z.number().min(36).max(2400).default(300),
   quality: z.number().min(1).max(100).default(90),
   backgroundColor: z
     .string()
@@ -134,7 +136,7 @@ export function registerSvgToRaster(app: FastifyInstance) {
       return reply.status(400).send({ error: "No SVG files provided" });
     }
 
-    if (files.length > env.MAX_BATCH_SIZE) {
+    if (env.MAX_BATCH_SIZE > 0 && files.length > env.MAX_BATCH_SIZE) {
       return reply.status(400).send({
         error: `Too many files. Maximum batch size is ${env.MAX_BATCH_SIZE}`,
       });
@@ -147,7 +149,7 @@ export function registerSvgToRaster(app: FastifyInstance) {
       if (!result.success) {
         return reply.status(400).send({
           error: "Invalid settings",
-          details: result.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+          details: formatZodErrors(result.error.issues),
         });
       }
       settings = result.data;
@@ -156,7 +158,7 @@ export function registerSvgToRaster(app: FastifyInstance) {
     }
 
     const jobId = clientJobId || randomUUID();
-    const queue = new PQueue({ concurrency: env.CONCURRENT_JOBS });
+    const queue = new PQueue({ concurrency: resolveConcurrency(env) });
     const results: ({ buffer: Buffer; filename: string } | null)[] = new Array(files.length).fill(
       null,
     );
@@ -365,7 +367,9 @@ export function registerSvgToRaster(app: FastifyInstance) {
       const parsed = settingsRaw ? JSON.parse(settingsRaw) : {};
       const result = settingsSchema.safeParse(parsed);
       if (!result.success) {
-        return reply.status(400).send({ error: "Invalid settings", details: result.error.issues });
+        return reply
+          .status(400)
+          .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
       }
       settings = result.data;
     } catch {

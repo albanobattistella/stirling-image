@@ -16,6 +16,7 @@ import { extname } from "node:path";
 import { and, desc, eq, like, sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
+import { z } from "zod";
 import { db, schema, sqlite } from "../db/index.js";
 import { auditLog } from "../lib/audit.js";
 import {
@@ -29,6 +30,7 @@ import {
 import { validateImageBuffer } from "../lib/file-validation.js";
 import { sanitizeFilename } from "../lib/filename.js";
 import { ensureSharpCompat } from "../lib/heic-converter.js";
+import { hasEffectivePermission } from "../permissions.js";
 import { getAuthUser, requireAuth } from "../plugins/auth.js";
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -102,7 +104,7 @@ export async function userFileRoutes(app: FastifyInstance): Promise<void> {
       const user = requireAuth(request, reply);
       if (!user) return;
 
-      const limit = Math.min(parseInt(request.query.limit ?? "50", 10) || 50, 200);
+      const limit = parseInt(request.query.limit ?? "50", 10) || 50;
       const offset = parseInt(request.query.offset ?? "0", 10) || 0;
       const search = request.query.search?.trim();
 
@@ -115,8 +117,8 @@ export async function userFileRoutes(app: FastifyInstance): Promise<void> {
       // Build the where clauses
       const conditions = [latestCondition];
 
-      // Non-admin users only see their own files; admins see all
-      if (user.role !== "admin") {
+      // Users without files:all only see their own files
+      if (!hasEffectivePermission(user, "files:all")) {
         conditions.push(eq(schema.userFiles.userId, user.id));
       }
 
@@ -176,7 +178,7 @@ export async function userFileRoutes(app: FastifyInstance): Promise<void> {
       if (buffer.length === 0) continue;
 
       // Validate image
-      const validation = await validateImageBuffer(buffer);
+      const validation = await validateImageBuffer(buffer, part.filename);
       if (!validation.valid) {
         return reply.status(400).send({
           error: `Invalid file "${part.filename}": ${validation.reason}`,
@@ -241,7 +243,7 @@ export async function userFileRoutes(app: FastifyInstance): Promise<void> {
 
       const file = db.select().from(schema.userFiles).where(eq(schema.userFiles.id, id)).get();
 
-      if (!file || (user.role !== "admin" && file.userId !== user.id)) {
+      if (!file || (file.userId !== user.id && !hasEffectivePermission(user, "files:all"))) {
         return reply.status(404).send({ error: "File not found" });
       }
 
@@ -321,7 +323,7 @@ export async function userFileRoutes(app: FastifyInstance): Promise<void> {
 
       const file = db.select().from(schema.userFiles).where(eq(schema.userFiles.id, id)).get();
 
-      if (!file || (user.role !== "admin" && file.userId !== user.id)) {
+      if (!file || (file.userId !== user.id && !hasEffectivePermission(user, "files:all"))) {
         return reply.status(404).send({ error: "File not found" });
       }
 
@@ -401,16 +403,16 @@ export async function userFileRoutes(app: FastifyInstance): Promise<void> {
     const user = requireAuth(request, reply);
     if (!user) return;
 
-    const body = request.body as { ids?: unknown } | null;
-
-    if (!Array.isArray(body?.ids) || body.ids.length === 0) {
-      return reply.status(400).send({ error: "ids must be a non-empty array" });
+    const deleteSchema = z.object({
+      ids: z.array(z.string()).min(1, "ids must be a non-empty array of strings"),
+    });
+    const parsed = deleteSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: parsed.error.issues.map((i) => i.message).join("; "),
+      });
     }
-
-    const ids = body.ids.filter((id): id is string => typeof id === "string");
-    if (ids.length === 0) {
-      return reply.status(400).send({ error: "ids must contain string values" });
-    }
+    const { ids } = parsed.data;
 
     let deletedCount = 0;
 
@@ -422,7 +424,8 @@ export async function userFileRoutes(app: FastifyInstance): Promise<void> {
     for (const id of ids) {
       // Ownership check: non-admin users can only delete their own files
       const file = db.select().from(schema.userFiles).where(eq(schema.userFiles.id, id)).get();
-      if (!file || (user.role !== "admin" && file.userId !== user.id)) continue;
+      if (!file || (file.userId !== user.id && !hasEffectivePermission(user, "files:all")))
+        continue;
       // Collect all files in the chain using a recursive CTE
       const chainRows = sqlite
         .prepare(`
@@ -503,7 +506,7 @@ export async function userFileRoutes(app: FastifyInstance): Promise<void> {
     }
 
     // Validate the image
-    const validation = await validateImageBuffer(fileBuffer);
+    const validation = await validateImageBuffer(fileBuffer, filename);
     if (!validation.valid) {
       return reply.status(400).send({
         error: `Invalid file: ${validation.reason}`,

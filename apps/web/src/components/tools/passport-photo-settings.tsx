@@ -3,7 +3,7 @@ import {
   type PassportDocumentSpec,
   type PassportRegion,
   type PassportSpec,
-} from "@ashim/shared";
+} from "@snapotter/shared";
 import {
   Check,
   ChevronDown,
@@ -442,7 +442,14 @@ export function PassportPhotoSettings() {
 
         if (!response.ok) {
           const body = await response.json().catch(() => null);
-          throw new Error(body?.details || body?.error || `Analysis failed: ${response.status}`);
+          const msg = body
+            ? typeof body.details === "string"
+              ? body.details
+              : typeof body.error === "string"
+                ? body.error
+                : `Analysis failed: ${response.status}`
+            : `Analysis failed: ${response.status}`;
+          throw new Error(msg);
         }
 
         const result = await response.json();
@@ -504,9 +511,14 @@ export function PassportPhotoSettings() {
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => null);
-        throw new Error(
-          errBody?.details || errBody?.error || `Generation failed: ${response.status}`,
-        );
+        const msg = errBody
+          ? typeof errBody.details === "string"
+            ? errBody.details
+            : typeof errBody.error === "string"
+              ? errBody.error
+              : `Generation failed: ${response.status}`
+          : `Generation failed: ${response.status}`;
+        throw new Error(msg);
       }
 
       const result: GenerateResult = await response.json();
@@ -846,6 +858,7 @@ export function PassportPhotoSettings() {
       {analyzeResult && !generating && !generateResult && (
         <button
           type="button"
+          data-testid="passport-photo-generate"
           onClick={handleGenerate}
           disabled={generating}
           className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -1049,8 +1062,8 @@ export function PassportPhotoPreview() {
       if (!dragStartRef.current) return;
       const dx = (e.clientX - dragStartRef.current.x) * 0.001;
       const dy = (e.clientY - dragStartRef.current.y) * 0.001;
-      setAdjustX(Math.max(-0.15, Math.min(0.15, dragStartRef.current.ax - dx)));
-      setAdjustY(Math.max(-0.15, Math.min(0.15, dragStartRef.current.ay - dy)));
+      setAdjustX(Math.max(-0.3, Math.min(0.3, dragStartRef.current.ax - dx)));
+      setAdjustY(Math.max(-0.3, Math.min(0.3, dragStartRef.current.ay - dy)));
     }
 
     function handleMouseUp() {
@@ -1070,7 +1083,7 @@ export function PassportPhotoPreview() {
   const handleWheel = useCallback(
     (e: React.WheelEvent<HTMLCanvasElement>) => {
       e.preventDefault();
-      setZoom(Math.max(0.5, Math.min(3, zoom + (e.deltaY > 0 ? -0.1 : 0.1))));
+      setZoom(Math.max(0.5, Math.min(5, zoom + (e.deltaY > 0 ? -0.1 : 0.1))));
     },
     [zoom, setZoom],
   );
@@ -1125,7 +1138,7 @@ export function PassportPhotoPreview() {
         </span>
         <button
           type="button"
-          onClick={() => setZoom(Math.min(3, zoom + 0.25))}
+          onClick={() => setZoom(Math.min(5, zoom + 0.25))}
           className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           title="Zoom in"
         >

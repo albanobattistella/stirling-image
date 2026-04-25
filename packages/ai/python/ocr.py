@@ -3,6 +3,17 @@ import sys
 import json
 import os
 
+# Prevent PaddlePaddle C++ runtime from probing for CUDA on CPU-only systems.
+# Without these, paddlepaddle-gpu can segfault during import on machines without
+# a GPU, because the C++ layer attempts GPU initialization before Python-level
+# device routing takes effect.  Must run before any PaddleOCR import.
+from gpu import gpu_available as _gpu_available
+if not _gpu_available():
+    if not os.environ.get("FLAGS_use_cuda"):
+        os.environ["FLAGS_use_cuda"] = "0"
+    if not os.environ.get("FLAGS_use_cudnn"):
+        os.environ["FLAGS_use_cudnn"] = "0"
+
 # Lazy-loaded VLM instance (stays resident in dispatcher process)
 _paddleocr_vl_instance = None
 
@@ -132,6 +143,7 @@ def run_paddleocr_v5(input_path, language):
             lang=paddle_lang,
             device=device,
             ocr_version="PP-OCRv5",
+            enable_mkldnn=False,
         )
         emit_progress(30, "Scanning")
         results = ocr.predict(input=input_path)
@@ -229,10 +241,13 @@ def main():
             emit_progress(10, "Detecting language")
             language = auto_detect_language(input_path)
 
+        engine_used = quality
+
         # Route to engine based on quality tier
         if quality == "fast":
             try:
                 text = run_tesseract(input_path, language, is_auto=was_auto)
+                engine_used = "tesseract"
             except FileNotFoundError:
                 print(json.dumps({"success": False, "error": "Tesseract is not installed"}))
                 sys.exit(1)
@@ -240,39 +255,55 @@ def main():
         elif quality == "balanced":
             try:
                 text = run_paddleocr_v5(input_path, language)
-            except ImportError:
-                print(json.dumps({"success": False, "error": "PaddleOCR is not installed"}))
+                engine_used = "paddleocr-v5"
+            except ImportError as e:
+                print(json.dumps({
+                    "success": False,
+                    "error": (
+                        f"PaddleOCR is not installed: {e}. "
+                        "Install the OCR feature or use quality=fast for Tesseract."
+                    ),
+                }))
                 sys.exit(1)
-            except Exception:
-                emit_progress(25, "Falling back")
-                try:
-                    text = run_tesseract(input_path, language, is_auto=was_auto)
-                except FileNotFoundError:
-                    print(json.dumps({"success": False, "error": "OCR engines unavailable"}))
-                    sys.exit(1)
+            except Exception as e:
+                print(json.dumps({
+                    "success": False,
+                    "error": (
+                        f"PaddleOCR PP-OCRv5 failed: {type(e).__name__}: {e}. "
+                        "Install the OCR feature or use quality=fast for Tesseract."
+                    ),
+                }))
+                sys.exit(1)
 
         elif quality == "best":
             try:
                 text = run_paddleocr_vl(input_path)
-            except ImportError:
-                emit_progress(20, "Falling back")
-                try:
-                    text = run_paddleocr_v5(input_path, language)
-                except Exception:
-                    text = run_tesseract(input_path, language, is_auto=was_auto)
-            except Exception:
-                emit_progress(20, "Falling back")
-                try:
-                    text = run_paddleocr_v5(input_path, language)
-                except Exception:
-                    text = run_tesseract(input_path, language, is_auto=was_auto)
+                engine_used = "paddleocr-vl"
+            except ImportError as e:
+                print(json.dumps({
+                    "success": False,
+                    "error": (
+                        f"PaddleOCR-VL is not available: {e}. "
+                        "Install the OCR feature or use quality=balanced for PP-OCRv5."
+                    ),
+                }))
+                sys.exit(1)
+            except Exception as e:
+                print(json.dumps({
+                    "success": False,
+                    "error": (
+                        f"PaddleOCR-VL failed: {type(e).__name__}: {e}. "
+                        "Install the OCR feature or use quality=balanced for PP-OCRv5."
+                    ),
+                }))
+                sys.exit(1)
 
         else:
             print(json.dumps({"success": False, "error": f"Unknown quality: {quality}"}))
             sys.exit(1)
 
         emit_progress(95, "Done")
-        print(json.dumps({"success": True, "text": text}))
+        print(json.dumps({"success": True, "text": text, "engine": engine_used}))
 
     except Exception as e:
         print(json.dumps({"success": False, "error": str(e)}))

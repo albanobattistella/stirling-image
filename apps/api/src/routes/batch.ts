@@ -8,13 +8,19 @@
  * Returns a ZIP file containing all processed images.
  */
 import { randomUUID } from "node:crypto";
+import { extname } from "node:path";
+import { getBundleForTool, TOOL_BUNDLE_MAP } from "@snapotter/shared";
 import archiver from "archiver";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import PQueue from "p-queue";
 import { env } from "../config.js";
 import { autoOrient } from "../lib/auto-orient.js";
+import { resolveConcurrency } from "../lib/env.js";
+import { formatZodErrors } from "../lib/errors.js";
+import { isToolInstalled } from "../lib/feature-status.js";
 import { validateImageBuffer } from "../lib/file-validation.js";
 import { sanitizeFilename } from "../lib/filename.js";
+import { decodeToSharpCompat, needsCliDecode } from "../lib/format-decoders.js";
 import { decodeHeic } from "../lib/heic-converter.js";
 import { type JobProgress, updateJobProgress } from "./progress.js";
 import { getToolConfig } from "./tool-factory.js";
@@ -34,6 +40,18 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       const toolConfig = getToolConfig(toolId);
       if (!toolConfig) {
         return reply.status(404).send({ error: `Tool "${toolId}" not found` });
+      }
+
+      // Guard: check if the tool's AI feature bundle is installed
+      if (!isToolInstalled(toolId)) {
+        const bundle = getBundleForTool(toolId);
+        return reply.status(501).send({
+          error: "Feature not installed",
+          code: "FEATURE_NOT_INSTALLED",
+          feature: TOOL_BUNDLE_MAP[toolId],
+          featureName: bundle?.name ?? toolId,
+          estimatedSize: bundle?.estimatedSize ?? "unknown",
+        });
       }
 
       // Parse multipart: collect all files and the settings field
@@ -74,7 +92,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       }
 
       // Enforce batch size limit
-      if (files.length > env.MAX_BATCH_SIZE) {
+      if (env.MAX_BATCH_SIZE > 0 && files.length > env.MAX_BATCH_SIZE) {
         return reply.status(400).send({
           error: `Too many files. Maximum batch size is ${env.MAX_BATCH_SIZE}`,
         });
@@ -88,12 +106,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
         if (!result.success) {
           return reply.status(400).send({
             error: "Invalid settings",
-            details: result.error.issues.map(
-              (i: { path: (string | number)[]; message: string }) => ({
-                path: i.path.join("."),
-                message: i.message,
-              }),
-            ),
+            details: formatZodErrors(result.error.issues),
           });
         }
         settings = result.data;
@@ -115,7 +128,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
       updateJobProgress({ ...progress });
 
       // Use p-queue for concurrency control
-      const queue = new PQueue({ concurrency: env.CONCURRENT_JOBS });
+      const queue = new PQueue({ concurrency: resolveConcurrency(env) });
 
       // All processed buffers are held in memory until ZIP streaming begins.
       // Peak memory scales with files.length * avg output size. MAX_BATCH_SIZE bounds this.
@@ -132,7 +145,7 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
             updateJobProgress({ ...progress });
 
             // Validate the image
-            const validation = await validateImageBuffer(file.buffer);
+            const validation = await validateImageBuffer(file.buffer, file.filename);
             if (!validation.valid) {
               progress.failedFiles++;
               progress.errors.push({
@@ -155,12 +168,25 @@ export async function registerBatchRoutes(app: FastifyInstance): Promise<void> {
                 const ext = processFilename.match(/\.[^.]+$/)?.[0];
                 if (ext) processFilename = `${processFilename.slice(0, -ext.length)}.png`;
               }
+              if (!skipPreprocess && needsCliDecode(validation.format)) {
+                processBuffer = await decodeToSharpCompat(processBuffer, validation.format);
+                const ext = processFilename.match(/\.[^.]+$/)?.[0];
+                if (ext) processFilename = `${processFilename.slice(0, -ext.length)}.png`;
+              }
               if (!skipPreprocess) {
                 processBuffer = await autoOrient(processBuffer);
               }
               const result = await toolConfig.process(processBuffer, settings, processFilename);
 
-              results[index] = { buffer: result.buffer, filename: result.filename };
+              // Add tool suffix so downloads don't overwrite originals
+              let outFilename = result.filename;
+              if (outFilename === processFilename) {
+                const ext = extname(processFilename);
+                const base = ext ? processFilename.slice(0, -ext.length) : processFilename;
+                outFilename = `${base}_${toolId}${ext}`;
+              }
+
+              results[index] = { buffer: result.buffer, filename: outFilename };
 
               progress.completedFiles++;
               updateJobProgress({ ...progress });

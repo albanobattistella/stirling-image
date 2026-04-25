@@ -2,10 +2,11 @@ import { basename } from "node:path";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
 import { z } from "zod";
+import { formatZodErrors } from "../../lib/errors.js";
 import { ensureSharpCompat } from "../../lib/heic-converter.js";
 
 const settingsSchema = z.object({
-  outputFormat: z.enum(["original", "jpeg", "png", "webp"]).default("original"),
+  outputFormat: z.enum(["original", "jpeg", "png", "webp", "avif"]).default("original"),
   quality: z.number().int().min(1).max(100).default(80),
   maxWidth: z.number().int().min(0).default(0),
   maxHeight: z.number().int().min(0).default(0),
@@ -89,7 +90,7 @@ export function registerImageToBase64(app: FastifyInstance) {
       if (!parsed.success) {
         return reply.status(400).send({
           error: "Invalid settings",
-          details: parsed.error.flatten().fieldErrors,
+          details: formatZodErrors(parsed.error.issues),
         });
       }
       const opts = parsed.data;
@@ -139,6 +140,10 @@ export function registerImageToBase64(app: FastifyInstance) {
               case "webp":
                 outputBuffer = await pipeline.webp({ quality: opts.quality }).toBuffer();
                 mimeType = "image/webp";
+                break;
+              case "avif":
+                outputBuffer = await pipeline.avif({ quality: opts.quality, effort: 4 }).toBuffer();
+                mimeType = "image/avif";
                 break;
               default:
                 outputBuffer = await pipeline.toBuffer();

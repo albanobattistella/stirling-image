@@ -19,8 +19,8 @@ import { dirname } from "node:path";
 mkdirSync(dirname(process.env.DB_PATH!), { recursive: true });
 mkdirSync(process.env.WORKSPACE_PATH!, { recursive: true });
 
-import { APP_VERSION } from "@ashim/shared";
 import cors from "@fastify/cors";
+import { APP_VERSION } from "@snapotter/shared";
 import { eq } from "drizzle-orm";
 // ---------------------------------------------------------------------------
 // 2. Import app modules. config.ts already captured our env vars.
@@ -29,20 +29,18 @@ import Fastify from "fastify";
 import { env } from "../../apps/api/src/config.js";
 import { db, schema } from "../../apps/api/src/db/index.js";
 import { runMigrations } from "../../apps/api/src/db/migrate.js";
-import {
-  authMiddleware,
-  authRoutes,
-  ensureDefaultAdmin,
-  requireAdmin,
-} from "../../apps/api/src/plugins/auth.js";
+import { requirePermission } from "../../apps/api/src/permissions.js";
+import { authMiddleware, authRoutes, ensureDefaultAdmin } from "../../apps/api/src/plugins/auth.js";
 import { registerUpload } from "../../apps/api/src/plugins/upload.js";
 import { apiKeyRoutes } from "../../apps/api/src/routes/api-keys.js";
+import { auditLogRoutes } from "../../apps/api/src/routes/audit-log.js";
 import { registerBatchRoutes } from "../../apps/api/src/routes/batch.js";
 import { brandingRoutes } from "../../apps/api/src/routes/branding.js";
 import { docsRoutes } from "../../apps/api/src/routes/docs.js";
 import { fileRoutes } from "../../apps/api/src/routes/files.js";
 import { registerPipelineRoutes } from "../../apps/api/src/routes/pipeline.js";
 import { registerProgressRoutes } from "../../apps/api/src/routes/progress.js";
+import { rolesRoutes } from "../../apps/api/src/routes/roles.js";
 import { settingsRoutes } from "../../apps/api/src/routes/settings.js";
 import { teamsRoutes } from "../../apps/api/src/routes/teams.js";
 import { registerToolRoutes } from "../../apps/api/src/routes/tools/index.js";
@@ -116,6 +114,12 @@ export async function buildTestApp(): Promise<TestApp> {
   // Teams routes
   await teamsRoutes(app);
 
+  // Audit log routes
+  await auditLogRoutes(app);
+
+  // Roles management routes
+  await rolesRoutes(app);
+
   // API docs (Scalar)
   await docsRoutes(app);
 
@@ -127,7 +131,7 @@ export async function buildTestApp(): Promise<TestApp> {
 
   // Admin health check (full diagnostics)
   app.get("/api/v1/admin/health", async (request, reply) => {
-    const admin = requireAdmin(request, reply);
+    const admin = requirePermission("system:health")(request, reply);
     if (!admin) return;
 
     let dbOk = false;

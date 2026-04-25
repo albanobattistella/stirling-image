@@ -1,11 +1,12 @@
 import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { z } from "zod";
 import { env } from "../config.js";
 import { db, schema } from "../db/index.js";
 import { auditLog } from "../lib/audit.js";
-import { getPermissions } from "../permissions.js";
+import { getPermissions, requirePermission } from "../permissions.js";
 
 const scryptAsync = promisify(scrypt);
 
@@ -14,7 +15,8 @@ const scryptAsync = promisify(scrypt);
 export interface AuthUser {
   id: string;
   username: string;
-  role: "admin" | "user";
+  role: string;
+  apiKeyPermissions?: string[];
 }
 
 const MAX_USERS = env.MAX_USERS;
@@ -68,6 +70,34 @@ function validateUsername(username: string): string | null {
   return null;
 }
 
+// ── Zod schemas for auth request bodies ──────────────────────────
+
+const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(1, "New password is required"),
+});
+
+const registerSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+  role: z.string().optional(),
+  team: z.string().optional(),
+});
+
+const updateUserSchema = z.object({
+  role: z.string().optional(),
+  team: z.string().optional(),
+});
+
+const resetPasswordSchema = z.object({
+  newPassword: z.string().min(1, "New password is required"),
+});
+
 // ── Request helpers ───────────────────────────────────────────────
 
 /** Extract the authenticated user attached by authMiddleware. */
@@ -98,7 +128,7 @@ export function requireAdmin(request: FastifyRequest, reply: FastifyReply): Auth
 
 // ── Session helpers ────────────────────────────────────────────────
 
-const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+const SESSION_DURATION_MS = env.SESSION_DURATION_HOURS * 60 * 60 * 1000;
 
 function createSessionToken(): string {
   return randomUUID();
@@ -137,10 +167,7 @@ export async function ensureDefaultAdmin(): Promise<void> {
 
 // ── Login attempt limit ──────────────────────────────────────────
 
-const DEFAULT_LOGIN_ATTEMPT_LIMIT = 10;
-
 function getLoginAttemptLimit(): number {
-  // Allow override via RATE_LIMIT_PER_MIN for test environments
   if (env.RATE_LIMIT_PER_MIN > 1000) return env.RATE_LIMIT_PER_MIN;
   const row = db
     .select()
@@ -151,7 +178,7 @@ function getLoginAttemptLimit(): number {
     const parsed = parseInt(row.value, 10);
     if (!Number.isNaN(parsed) && parsed > 0) return parsed;
   }
-  return DEFAULT_LOGIN_ATTEMPT_LIMIT;
+  return env.LOGIN_ATTEMPT_LIMIT;
 }
 
 // ── Auth routes ────────────────────────────────────────────────────
@@ -162,11 +189,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     "/api/auth/login",
     { config: { rateLimit: { max: getLoginAttemptLimit, timeWindow: "1 minute" } } },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const body = request.body as { username?: string; password?: string } | null;
+      if (!env.AUTH_ENABLED) {
+        return reply.status(403).send({ error: "Authentication is disabled" });
+      }
 
-      if (!body?.username || !body?.password) {
+      const parsed = loginSchema.safeParse(request.body);
+      if (!parsed.success) {
         return reply.status(400).send({ error: "Username and password are required" });
       }
+      const body = parsed.data;
 
       const user = db
         .select()
@@ -207,9 +238,12 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           id: user.id,
           username: user.username,
           role: user.role,
-          mustChangePassword: user.mustChangePassword,
-          permissions: getPermissions(user.role as "admin" | "user"),
+          mustChangePassword: env.SKIP_MUST_CHANGE_PASSWORD ? false : user.mustChangePassword,
+          permissions: getPermissions(user.role),
           teamName: teamRow?.name ?? user.team,
+          analyticsEnabled: user.analyticsEnabled ?? null,
+          analyticsConsentShownAt: user.analyticsConsentShownAt?.getTime() ?? null,
+          analyticsConsentRemindAt: user.analyticsConsentRemindAt?.getTime() ?? null,
         },
         expiresAt: expiresAt.toISOString(),
       });
@@ -229,6 +263,22 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/auth/session
   app.get("/api/auth/session", async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!env.AUTH_ENABLED) {
+      return reply.send({
+        user: {
+          id: "anonymous",
+          username: "anonymous",
+          role: "user",
+          mustChangePassword: false,
+          permissions: getPermissions("user"),
+          analyticsEnabled: null,
+          analyticsConsentShownAt: null,
+          analyticsConsentRemindAt: null,
+        },
+        expiresAt: null,
+      });
+    }
+
     const token = extractToken(request);
     if (!token) {
       return reply.status(401).send({ error: "No session token provided" });
@@ -237,7 +287,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, token)).get();
 
     if (!session || session.expiresAt < new Date()) {
-      // Clean up expired session if it exists
       if (session) {
         db.delete(schema.sessions).where(eq(schema.sessions.id, token)).run();
       }
@@ -255,8 +304,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         id: user.id,
         username: user.username,
         role: user.role,
-        mustChangePassword: user.mustChangePassword,
-        permissions: getPermissions(user.role as "admin" | "user"),
+        mustChangePassword: env.SKIP_MUST_CHANGE_PASSWORD ? false : user.mustChangePassword,
+        permissions: getPermissions(user.role),
+        analyticsEnabled: user.analyticsEnabled ?? null,
+        analyticsConsentShownAt: user.analyticsConsentShownAt?.getTime() ?? null,
+        analyticsConsentRemindAt: user.analyticsConsentRemindAt?.getTime() ?? null,
       },
       expiresAt: session.expiresAt.toISOString(),
     });
@@ -267,17 +319,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const authUser = requireAuth(request, reply);
     if (!authUser) return;
 
-    const body = request.body as {
-      currentPassword?: string;
-      newPassword?: string;
-    } | null;
-
-    if (!body?.currentPassword || !body?.newPassword) {
+    const parsed = changePasswordSchema.safeParse(request.body);
+    if (!parsed.success) {
       return reply.status(400).send({
         error: "Current password and new password are required",
         code: "VALIDATION_ERROR",
       });
     }
+    const body = parsed.data;
 
     const pwError = validatePasswordStrength(body.newPassword);
     if (pwError) {
@@ -330,7 +379,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/auth/users (admin only)
   app.get("/api/auth/users", async (request: FastifyRequest, reply: FastifyReply) => {
-    const admin = requireAdmin(request, reply);
+    const admin = requirePermission("users:manage")(request, reply);
     if (!admin) return;
 
     const users = db
@@ -360,21 +409,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   // POST /api/auth/register (admin only)
   app.post("/api/auth/register", async (request: FastifyRequest, reply: FastifyReply) => {
-    const admin = requireAdmin(request, reply);
+    const admin = requirePermission("users:manage")(request, reply);
     if (!admin) return;
 
-    const body = request.body as {
-      username?: string;
-      password?: string;
-      role?: string;
-    } | null;
-
-    if (!body?.username || !body?.password) {
+    const parsed = registerSchema.safeParse(request.body);
+    if (!parsed.success) {
       return reply.status(400).send({
         error: "Username and password are required",
         code: "VALIDATION_ERROR",
       });
     }
+    const body = parsed.data;
 
     const usernameError = validateUsername(body.username);
     if (usernameError) {
@@ -392,10 +437,36 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    const role = body.role === "admin" ? "admin" : "user";
+    const validBuiltinRoles = ["admin", "editor", "user"];
+    let role: string = "user";
+    if (body.role) {
+      if (validBuiltinRoles.includes(body.role)) {
+        role = body.role;
+      } else {
+        const customRole = db
+          .select()
+          .from(schema.roles)
+          .where(eq(schema.roles.name, body.role))
+          .get();
+        if (customRole) {
+          role = body.role;
+        }
+      }
+    }
 
-    // Resolve team — frontend sends team name (e.g. "Default"), not ID
-    const requestedTeam = (body as { team?: string }).team;
+    // Escalation prevention
+    const roleHierarchy: Record<string, number> = { admin: 3, editor: 2, user: 1 };
+    const actorLevel = roleHierarchy[admin.role] ?? 0;
+    const targetLevel = roleHierarchy[role] ?? 0;
+    if (targetLevel > actorLevel) {
+      return reply.status(403).send({
+        error: "Cannot create a user with a higher role than your own",
+        code: "ESCALATION_DENIED",
+      });
+    }
+
+    // Resolve team -- frontend sends team name (e.g. "Default"), not ID
+    const requestedTeam = body.team;
     let teamId: string;
     let teamName: string;
 
@@ -438,13 +509,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    // Check user limit
-    const userCount = db.select().from(schema.users).all().length;
-    if (userCount >= MAX_USERS) {
-      return reply.status(403).send({
-        error: `User limit reached (${MAX_USERS} max)`,
-        code: "USER_LIMIT_REACHED",
-      });
+    // Check user limit (0 = unlimited)
+    if (MAX_USERS > 0) {
+      const userCount = db.select().from(schema.users).all().length;
+      if (userCount >= MAX_USERS) {
+        return reply.status(403).send({
+          error: `User limit reached (${MAX_USERS} max)`,
+          code: "USER_LIMIT_REACHED",
+        });
+      }
     }
 
     const id = randomUUID();
@@ -480,11 +553,18 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.put(
     "/api/auth/users/:id",
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const admin = requireAdmin(request, reply);
+      const admin = requirePermission("users:manage")(request, reply);
       if (!admin) return;
 
       const { id } = request.params;
-      const body = request.body as { role?: string; team?: string } | null;
+      const parsed = updateUserSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          error: parsed.error.issues.map((i) => i.message).join("; "),
+          code: "VALIDATION_ERROR",
+        });
+      }
+      const body = parsed.data;
 
       const user = db.select().from(schema.users).where(eq(schema.users.id, id)).get();
 
@@ -492,22 +572,57 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         return reply.status(404).send({ error: "User not found", code: "NOT_FOUND" });
       }
 
-      const updates: { role?: "admin" | "user"; team?: string; updatedAt: Date } = {
+      const updates: { role?: string; team?: string; updatedAt: Date } = {
         updatedAt: new Date(),
       };
 
-      if (body?.role === "admin" || body?.role === "user") {
-        // Prevent removing your own admin role
-        if (id === admin.id && body.role !== "admin") {
-          return reply.status(400).send({
-            error: "Cannot remove your own admin role",
-            code: "SELF_DEMOTE",
+      // Escalation prevention
+      if (body.role) {
+        const roleHierarchy: Record<string, number> = { admin: 3, editor: 2, user: 1 };
+        const actorLevel = roleHierarchy[admin.role] ?? 0;
+        const targetLevel = roleHierarchy[body.role] ?? 0;
+        if (targetLevel > actorLevel) {
+          return reply.status(403).send({
+            error: "Cannot assign a role higher than your own",
+            code: "ESCALATION_DENIED",
           });
         }
-        updates.role = body.role;
       }
 
-      if (typeof body?.team === "string" && body.team.trim()) {
+      if (body.role) {
+        const validBuiltinRoles = ["admin", "editor", "user"];
+        const isValid =
+          validBuiltinRoles.includes(body.role) ||
+          db.select().from(schema.roles).where(eq(schema.roles.name, body.role)).get();
+        if (isValid) {
+          // Prevent removing your own admin role
+          if (id === admin.id && body.role !== "admin") {
+            return reply.status(400).send({
+              error: "Cannot remove your own admin role",
+              code: "SELF_DEMOTE",
+            });
+          }
+
+          // Last admin protection
+          if (user.role === "admin" && body.role !== "admin") {
+            const adminCount = db
+              .select({ count: sql<number>`COUNT(*)` })
+              .from(schema.users)
+              .where(eq(schema.users.role, "admin"))
+              .get();
+            if (adminCount && adminCount.count <= 1) {
+              return reply.status(400).send({
+                error: "Cannot demote the last admin",
+                code: "LAST_ADMIN",
+              });
+            }
+          }
+
+          updates.role = body.role;
+        }
+      }
+
+      if (body.team?.trim()) {
         // Look up by name first, then fall back to ID
         const teamByName = db
           .select()
@@ -540,18 +655,18 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     "/api/auth/users/:id/reset-password",
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const admin = requireAdmin(request, reply);
+      const admin = requirePermission("users:manage")(request, reply);
       if (!admin) return;
 
       const { id } = request.params;
-      const body = request.body as { newPassword?: string } | null;
-
-      if (!body?.newPassword) {
+      const parsed = resetPasswordSchema.safeParse(request.body);
+      if (!parsed.success) {
         return reply.status(400).send({
           error: "New password is required",
           code: "VALIDATION_ERROR",
         });
       }
+      const body = parsed.data;
 
       const pwError = validatePasswordStrength(body.newPassword);
       if (pwError) {
@@ -594,7 +709,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.delete(
     "/api/auth/users/:id",
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const admin = requireAdmin(request, reply);
+      const admin = requirePermission("users:manage")(request, reply);
       if (!admin) return;
 
       const { id } = request.params;
@@ -662,16 +777,14 @@ function isPublicRoute(url: string): boolean {
 
 export async function authMiddleware(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", async (request: FastifyRequest, reply: FastifyReply) => {
-    // When auth is disabled, attach the first admin user so requireAuth/requireAdmin pass
+    // When auth is disabled, attach a synthetic non-admin user so tools work
+    // but admin-only routes (user management, settings write, etc.) stay locked
     if (!env.AUTH_ENABLED) {
-      const adminUser = db.select().from(schema.users).where(eq(schema.users.role, "admin")).get();
-      if (adminUser) {
-        (request as FastifyRequest & { user?: AuthUser }).user = {
-          id: adminUser.id,
-          username: adminUser.username,
-          role: "admin",
-        };
-      }
+      (request as FastifyRequest & { user?: AuthUser }).user = {
+        id: "anonymous",
+        username: "anonymous",
+        role: "user",
+      };
       return;
     }
 
@@ -712,6 +825,11 @@ export async function authMiddleware(app: FastifyInstance): Promise<void> {
         for (const key of keysToCheck) {
           const matches = await verifyPassword(token, key.keyHash);
           if (matches) {
+            // Check expiration
+            if (key.expiresAt && key.expiresAt < new Date()) {
+              // Key expired — skip it
+              continue;
+            }
             // Backfill prefix for legacy keys
             if (!key.keyPrefix) {
               db.update(schema.apiKeys)
@@ -731,10 +849,14 @@ export async function authMiddleware(app: FastifyInstance): Promise<void> {
               .where(eq(schema.users.id, key.userId))
               .get();
             if (apiUser) {
+              const keyPermissions = key.permissions
+                ? JSON.parse(key.permissions as string)
+                : undefined;
               (request as FastifyRequest & { user?: AuthUser }).user = {
                 id: apiUser.id,
                 username: apiUser.username,
-                role: apiUser.role as "admin" | "user",
+                role: apiUser.role,
+                apiKeyPermissions: keyPermissions,
               };
               return;
             }
@@ -759,7 +881,7 @@ export async function authMiddleware(app: FastifyInstance): Promise<void> {
     (request as FastifyRequest & { user?: AuthUser }).user = {
       id: user.id,
       username: user.username,
-      role: user.role as "admin" | "user",
+      role: user.role,
     };
 
     // Enforce mustChangePassword — block non-auth API calls

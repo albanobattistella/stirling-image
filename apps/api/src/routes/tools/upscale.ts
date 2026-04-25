@@ -1,16 +1,29 @@
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { upscale } from "@ashim/ai";
+import { upscale } from "@snapotter/ai";
+import { getBundleForTool, TOOL_BUNDLE_MAP } from "@snapotter/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
 import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
+import { formatZodErrors } from "../../lib/errors.js";
+import { isToolInstalled } from "../../lib/feature-status.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
+import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
 import { decodeHeic, encodeHeic } from "../../lib/heic-converter.js";
 import { createWorkspace } from "../../lib/workspace.js";
 import { updateSingleFileProgress } from "../progress.js";
 import { registerToolProcessFn } from "../tool-factory.js";
+
+const settingsSchema = z.object({
+  scale: z.union([z.number(), z.string()]).transform(Number).default(2),
+  model: z.string().default("auto"),
+  faceEnhance: z.boolean().default(false),
+  denoise: z.union([z.number(), z.string()]).transform(Number).default(0),
+  format: z.string().default("png"),
+  quality: z.union([z.number(), z.string()]).transform(Number).default(95),
+});
 
 /**
  * AI image upscaling route.
@@ -18,6 +31,18 @@ import { registerToolProcessFn } from "../tool-factory.js";
  */
 export function registerUpscale(app: FastifyInstance) {
   app.post("/api/v1/tools/upscale", async (request: FastifyRequest, reply: FastifyReply) => {
+    const toolId = "upscale";
+    if (!isToolInstalled(toolId)) {
+      const bundle = getBundleForTool(toolId);
+      return reply.status(501).send({
+        error: "Feature not installed",
+        code: "FEATURE_NOT_INSTALLED",
+        feature: TOOL_BUNDLE_MAP[toolId],
+        featureName: bundle?.name ?? toolId,
+        estimatedSize: bundle?.estimatedSize ?? "unknown",
+      });
+    }
+
     let fileBuffer: Buffer | null = null;
     let filename = "image";
     let settingsRaw: string | null = null;
@@ -50,19 +75,32 @@ export function registerUpscale(app: FastifyInstance) {
       return reply.status(400).send({ error: "No image file provided" });
     }
 
-    const validation = await validateImageBuffer(fileBuffer);
+    const validation = await validateImageBuffer(fileBuffer, filename);
     if (!validation.valid) {
       return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
     }
 
     try {
-      const settings = settingsRaw ? JSON.parse(settingsRaw) : {};
-      const scale = Number(settings.scale) || 2;
-      const model = settings.model || "auto";
-      const faceEnhance = Boolean(settings.faceEnhance);
-      const denoise = Number(settings.denoise) || 0;
-      const format = settings.format || "png";
-      const outputQuality = Number(settings.quality) || 95;
+      let settings: z.infer<typeof settingsSchema>;
+      try {
+        const parsed = settingsRaw ? JSON.parse(settingsRaw) : {};
+        const result = settingsSchema.safeParse(parsed);
+        if (!result.success) {
+          return reply
+            .status(400)
+            .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
+        }
+        settings = result.data;
+      } catch {
+        return reply.status(400).send({ error: "Settings must be valid JSON" });
+      }
+
+      const scale = settings.scale;
+      const model = settings.model;
+      const faceEnhance = settings.faceEnhance;
+      const denoise = settings.denoise;
+      const format = settings.format;
+      const outputQuality = settings.quality;
       request.log.info(
         { toolId: "upscale", imageSize: fileBuffer.length, scale, model, format },
         "Starting upscale",
@@ -71,6 +109,11 @@ export function registerUpscale(app: FastifyInstance) {
       // Decode HEIC/HEIF input via system decoder
       if (validation.format === "heif") {
         fileBuffer = await decodeHeic(fileBuffer);
+      }
+
+      // Decode CLI-decoded formats (RAW, TGA, PSD, EXR, HDR)
+      if (needsCliDecode(validation.format)) {
+        fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format);
       }
 
       // Auto-orient to fix EXIF rotation before upscaling
@@ -164,6 +207,13 @@ export function registerUpscale(app: FastifyInstance) {
           phase: "complete",
           percent: 100,
         });
+      }
+
+      if (model !== "auto" && result.method !== model) {
+        request.log.warn(
+          { toolId: "upscale", requested: model, actual: result.method },
+          `Upscale model mismatch: requested ${model} but used ${result.method}`,
+        );
       }
 
       return reply.send({

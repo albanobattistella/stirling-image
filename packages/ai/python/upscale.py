@@ -1,24 +1,26 @@
-"""Image upscaling with Real-ESRGAN fallback to Lanczos."""
+"""Image upscaling with Real-ESRGAN."""
 import sys
 import json
 import os
+import types
 
-# Patch for basicsr compatibility with torchvision >= 0.18.
-# torchvision removed transforms.functional_tensor, merging it into
-# transforms.functional. basicsr still imports the old path, so we
-# create a shim module to redirect the import.
+# basicsr imports torchvision.transforms.functional_tensor which was removed
+# in torchvision >= 0.17. This shim must exist before basicsr is imported.
 try:
     import torchvision.transforms.functional_tensor  # noqa: F401
 except (ImportError, ModuleNotFoundError):
     try:
-        import types
         import torchvision.transforms.functional as _F
+        import torchvision.transforms
 
         _shim = types.ModuleType("torchvision.transforms.functional_tensor")
-        _shim.rgb_to_grayscale = _F.rgb_to_grayscale
+        for _attr in dir(_F):
+            if not _attr.startswith("_"):
+                setattr(_shim, _attr, getattr(_F, _attr))
         sys.modules["torchvision.transforms.functional_tensor"] = _shim
+        torchvision.transforms.functional_tensor = _shim
     except ImportError:
-        pass  # torchvision not installed at all, Real-ESRGAN unavailable
+        pass
 
 
 def emit_progress(percent, stage):
@@ -26,14 +28,16 @@ def emit_progress(percent, stage):
     print(json.dumps({"progress": percent, "stage": stage}), file=sys.stderr, flush=True)
 
 
+_MODELS_BASE = os.environ.get("MODELS_PATH", "/opt/models")
+
 REALESRGAN_MODEL_PATH = os.environ.get(
     "REALESRGAN_MODEL_PATH",
-    "/opt/models/realesrgan/RealESRGAN_x4plus.pth",
+    os.path.join(_MODELS_BASE, "realesrgan", "RealESRGAN_x4plus.pth"),
 )
 
 GFPGAN_MODEL_PATH = os.environ.get(
     "GFPGAN_MODEL_PATH",
-    "/opt/models/gfpgan/GFPGANv1.3.pth",
+    os.path.join(_MODELS_BASE, "gfpgan", "GFPGANv1.3.pth"),
 )
 
 
@@ -92,8 +96,14 @@ def main():
                 # Libraries like basicsr, realesrgan, gfpgan, and torch print
                 # download progress and init messages to stdout which would
                 # corrupt our JSON result.
-                stdout_fd = os.dup(1)
-                os.dup2(2, 1)
+                stdout_fd = None
+                try:
+                    stdout_fd = os.dup(1)
+                    os.dup2(2, 1)
+                except OSError:
+                    # os.dup may fail on Windows with piped stdio
+                    stdout_fd = None
+                sys.stdout = sys.stderr
 
                 try:
                     from basicsr.archs.rrdbnet_arch import RRDBNet
@@ -135,49 +145,58 @@ def main():
                     result = Image.fromarray(output_array)
                     method = "realesrgan"
 
-                    # Face enhancement with GFPGAN
                     if face_enhance:
                         emit_progress(82, "Enhancing faces")
-                        try:
-                            from gfpgan import GFPGANer
+                        from gfpgan import GFPGANer
 
-                            if os.path.exists(GFPGAN_MODEL_PATH):
-                                face_enhancer = GFPGANer(
-                                    model_path=GFPGAN_MODEL_PATH,
-                                    upscale=scale,
-                                    arch="clean",
-                                    channel_multiplier=2,
-                                    bg_upsampler=upsampler,
-                                )
-                                _, _, face_output = face_enhancer.enhance(
-                                    img_array,
-                                    has_aligned=False,
-                                    only_center_face=False,
-                                    paste_back=True,
-                                )
-                                result = Image.fromarray(face_output)
-                                emit_progress(88, "Face enhancement complete")
-                            else:
-                                emit_progress(88, "Face model not found, skipping")
-                        except (ImportError, RuntimeError, OSError):
-                            emit_progress(88, "Face enhancement unavailable, skipping")
+                        if not os.path.exists(GFPGAN_MODEL_PATH):
+                            raise FileNotFoundError(
+                                f"GFPGAN model not found at {GFPGAN_MODEL_PATH}. "
+                                "Install the upscale-enhance feature or disable faceEnhance."
+                            )
+                        face_enhancer = GFPGANer(
+                            model_path=GFPGAN_MODEL_PATH,
+                            upscale=scale,
+                            arch="clean",
+                            channel_multiplier=2,
+                            bg_upsampler=upsampler,
+                        )
+                        _, _, face_output = face_enhancer.enhance(
+                            img_array,
+                            has_aligned=False,
+                            only_center_face=False,
+                            paste_back=True,
+                        )
+                        result = Image.fromarray(face_output)
+                        emit_progress(88, "Face enhancement complete")
 
                 finally:
                     # Restore stdout after ALL AI processing
-                    os.dup2(stdout_fd, 1)
-                    os.close(stdout_fd)
+                    if stdout_fd is not None:
+                        os.dup2(stdout_fd, 1)
+                        os.close(stdout_fd)
+                    sys.stdout = sys.__stdout__
 
-            except (ImportError, FileNotFoundError, RuntimeError, OSError):
-                # RealESRGAN unavailable or failed
-                if model_choice == "realesrgan":
-                    emit_progress(15, "AI model not available, using fast resize")
-                result = None
+            except (ImportError, FileNotFoundError, RuntimeError, OSError) as e:
+                import traceback
+                print(f"[upscale] Real-ESRGAN failed: {e}", file=sys.stderr, flush=True)
+                traceback.print_exc(file=sys.stderr)
+                print(json.dumps({
+                    "success": False,
+                    "error": (
+                        f"Real-ESRGAN is not available: {e}. "
+                        "Install the upscale-enhance feature or use model=lanczos for basic upscaling."
+                    ),
+                }))
+                sys.exit(1)
 
-        # Fall back to Lanczos
-        if result is None:
+        if result is None and model_choice == "lanczos":
             emit_progress(50, "Upscaling with Lanczos")
             result = img.resize(new_size, Image.LANCZOS)
             method = "lanczos"
+
+        if result is None:
+            raise RuntimeError(f"Requested model '{model_choice}' is not available")
 
         # Denoise
         if denoise_strength > 0:

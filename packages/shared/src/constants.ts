@@ -4,11 +4,11 @@ export const CATEGORIES: CategoryInfo[] = [
   { id: "essentials", name: "Essentials", icon: "Layers", color: "#3B82F6" },
   { id: "optimization", name: "Optimization", icon: "Zap", color: "#10B981" },
   { id: "adjustments", name: "Adjustments", icon: "SlidersHorizontal", color: "#8B5CF6" },
-  { id: "ai", name: "AI Tools", icon: "Sparkles", color: "#F59E0B" },
   { id: "watermark", name: "Watermark & Overlay", icon: "Stamp", color: "#EF4444" },
   { id: "utilities", name: "Utilities", icon: "Wrench", color: "#6366F1" },
   { id: "layout", name: "Layout & Composition", icon: "LayoutGrid", color: "#EC4899" },
   { id: "format", name: "Format & Conversion", icon: "FileType", color: "#14B8A6" },
+  { id: "ai", name: "AI Tools", icon: "Sparkles", color: "#F59E0B" },
 ];
 
 export const TOOLS: Tool[] = [
@@ -232,6 +232,14 @@ export const TOOLS: Tool[] = [
     category: "ai",
     icon: "UserCheck",
     route: "/passport-photo",
+  },
+  {
+    id: "content-aware-resize",
+    name: "Content-Aware Resize",
+    description: "Seam carving resize that preserves important content with face protection",
+    category: "ai",
+    icon: "Scaling",
+    route: "/content-aware-resize",
   },
   // Watermark & Overlay
   {
@@ -1180,7 +1188,7 @@ export const PRINT_LAYOUTS: PrintLayout[] = [
   { id: "none", label: "None", width: 0, height: 0 },
 ];
 
-export const APP_VERSION = "1.15.2";
+export const APP_VERSION = "1.15.11";
 
 /**
  * Tool IDs that require the Python sidecar (AI/ML tools).
@@ -1195,6 +1203,7 @@ export const PYTHON_SIDECAR_TOOLS = [
   "colorize",
   "enhance-faces",
   "noise-removal",
+  "smart-crop",
   "red-eye-removal",
   "restore-photo",
   "passport-photo",

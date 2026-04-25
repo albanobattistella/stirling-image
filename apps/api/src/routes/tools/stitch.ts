@@ -4,26 +4,26 @@ import { basename, join } from "node:path";
 import type { FastifyInstance } from "fastify";
 import sharp from "sharp";
 import { z } from "zod";
+import { env } from "../../config.js";
 import { autoOrient } from "../../lib/auto-orient.js";
+import { formatZodErrors } from "../../lib/errors.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
 import { ensureSharpCompat } from "../../lib/heic-converter.js";
 import { createWorkspace } from "../../lib/workspace.js";
 
-const MAX_CANVAS_PIXELS = 100_000_000;
-
 const settingsSchema = z.object({
   direction: z.enum(["horizontal", "vertical", "grid"]).default("horizontal"),
-  gridColumns: z.number().int().min(2).max(10).default(2),
+  gridColumns: z.number().int().min(2).max(100).default(2),
   resizeMode: z.enum(["fit", "original", "stretch", "crop"]).default("fit"),
   alignment: z.enum(["start", "center", "end"]).default("center"),
-  gap: z.number().min(0).max(200).default(0),
-  border: z.number().min(0).max(50).default(0),
-  cornerRadius: z.number().min(0).max(50).default(0),
+  gap: z.number().min(0).max(1000).default(0),
+  border: z.number().min(0).max(500).default(0),
+  cornerRadius: z.number().min(0).max(500).default(0),
   backgroundColor: z
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/)
     .default("#FFFFFF"),
-  format: z.enum(["png", "jpeg", "webp"]).default("png"),
+  format: z.enum(["png", "jpeg", "webp", "avif"]).default("png"),
   quality: z.number().min(1).max(100).default(90),
 });
 
@@ -77,7 +77,7 @@ export function registerStitch(app: FastifyInstance) {
     }
 
     for (const file of files) {
-      const validation = await validateImageBuffer(file.buffer);
+      const validation = await validateImageBuffer(file.buffer, file.filename);
       if (!validation.valid) {
         return reply
           .status(400)
@@ -91,7 +91,9 @@ export function registerStitch(app: FastifyInstance) {
       const parsed = settingsRaw ? JSON.parse(settingsRaw) : {};
       const result = settingsSchema.safeParse(parsed);
       if (!result.success) {
-        return reply.status(400).send({ error: "Invalid settings", details: result.error.issues });
+        return reply
+          .status(400)
+          .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
       }
       settings = result.data;
     } catch {
@@ -177,9 +179,10 @@ export function registerStitch(app: FastifyInstance) {
         }
       }
 
-      if (canvasWidth * canvasHeight > MAX_CANVAS_PIXELS) {
+      const maxCanvasPixels = env.MAX_CANVAS_PIXELS > 0 ? env.MAX_CANVAS_PIXELS : Infinity;
+      if (canvasWidth * canvasHeight > maxCanvasPixels) {
         return reply.status(422).send({
-          error: `Canvas too large: ${canvasWidth}x${canvasHeight} (${Math.round((canvasWidth * canvasHeight) / 1_000_000)}MP exceeds 100MP limit)`,
+          error: `Canvas too large: ${canvasWidth}x${canvasHeight} (${Math.round((canvasWidth * canvasHeight) / 1_000_000)}MP exceeds ${Math.round(maxCanvasPixels / 1_000_000)}MP limit)`,
         });
       }
 
@@ -197,6 +200,8 @@ export function registerStitch(app: FastifyInstance) {
         pipeline = pipeline.jpeg({ quality: settings.quality });
       } else if (settings.format === "webp") {
         pipeline = pipeline.webp({ quality: settings.quality });
+      } else if (settings.format === "avif") {
+        pipeline = pipeline.avif({ quality: settings.quality, effort: 4 });
       } else {
         pipeline = pipeline.png();
       }
@@ -227,6 +232,8 @@ export function registerStitch(app: FastifyInstance) {
             .toBuffer();
         } else if (settings.format === "webp") {
           result = await sharp(result).webp({ quality: settings.quality }).toBuffer();
+        } else if (settings.format === "avif") {
+          result = await sharp(result).avif({ quality: settings.quality, effort: 4 }).toBuffer();
         }
       }
 

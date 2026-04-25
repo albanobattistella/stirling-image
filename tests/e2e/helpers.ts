@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 import { test as base, expect, type Page } from "@playwright/test";
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,9 @@ export function getTestImagePath(): string {
 
   _testImagePath = path.join(dir, "test-image.png");
 
+  // Re-use an existing file (e.g. pre-created before the test run)
+  if (fs.existsSync(_testImagePath)) return _testImagePath;
+
   try {
     const script = [
       "const sharp = require('sharp');",
@@ -35,14 +39,61 @@ export function getTestImagePath(): string {
     execFileSync("node", ["-e", script], {
       cwd: process.cwd(),
       timeout: 5000,
+      stdio: ["pipe", "pipe", "pipe"],
     });
   } catch {
-    // Fallback: write a minimal 1x1 PNG manually
-    const minimalPng = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==",
-      "base64",
+    // Fallback: build a valid 100x100 RGBA PNG without sharp
+    // zlib imported at top of file
+    const width = 100;
+    const height = 100;
+    const raw = Buffer.alloc((1 + width * 4) * height);
+    for (let y = 0; y < height; y++) {
+      const off = y * (1 + width * 4);
+      raw[off] = 0; // filter: none
+      for (let x = 0; x < width; x++) {
+        const px = off + 1 + x * 4;
+        raw[px] = 255; // R
+        raw[px + 3] = 255; // A
+      }
+    }
+    const deflated = zlib.deflateSync(raw);
+
+    const crc32 = (buf: Buffer) => {
+      let c = 0xffffffff;
+      const t = new Int32Array(256);
+      for (let i = 0; i < 256; i++) {
+        let v = i;
+        for (let j = 0; j < 8; j++) v = v & 1 ? 0xedb88320 ^ (v >>> 1) : v >>> 1;
+        t[i] = v;
+      }
+      for (let i = 0; i < buf.length; i++) c = t[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+      return (c ^ 0xffffffff) >>> 0;
+    };
+
+    const chunk = (type: string, data: Buffer) => {
+      const tb = Buffer.from(type);
+      const len = Buffer.alloc(4);
+      len.writeUInt32BE(data.length);
+      const crcBuf = Buffer.alloc(4);
+      crcBuf.writeUInt32BE(crc32(Buffer.concat([tb, data])));
+      return Buffer.concat([len, tb, data, crcBuf]);
+    };
+
+    const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(width, 0);
+    ihdr.writeUInt32BE(height, 4);
+    ihdr[8] = 8; // bit depth
+    ihdr[9] = 6; // RGBA
+    fs.writeFileSync(
+      _testImagePath,
+      Buffer.concat([
+        sig,
+        chunk("IHDR", ihdr),
+        chunk("IDAT", deflated),
+        chunk("IEND", Buffer.alloc(0)),
+      ]),
     );
-    fs.writeFileSync(_testImagePath, minimalPng);
   }
 
   return _testImagePath;

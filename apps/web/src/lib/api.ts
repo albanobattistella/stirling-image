@@ -1,10 +1,52 @@
+import { useConnectionStore } from "@/stores/connection-store";
+
 const API_BASE = "/api";
+
+export interface FeatureNotInstalledError {
+  type: "feature_not_installed";
+  feature: string;
+  featureName: string;
+  estimatedSize: string;
+}
+
+export function parseApiError(
+  body: Record<string, unknown>,
+  fallbackStatus: number,
+): string | FeatureNotInstalledError {
+  if (body.code === "FEATURE_NOT_INSTALLED") {
+    return {
+      type: "feature_not_installed",
+      feature: body.feature as string,
+      featureName: body.featureName as string,
+      estimatedSize: body.estimatedSize as string,
+    };
+  }
+
+  const error = typeof body.error === "string" ? body.error : "";
+  const details = body.details;
+  if (!details) {
+    return error || (body.message as string) || `Processing failed: ${fallbackStatus}`;
+  }
+  let detailsStr: string;
+  if (typeof details === "string") {
+    detailsStr = details;
+  } else if (Array.isArray(details)) {
+    detailsStr = details
+      .map((d) =>
+        typeof d === "string" ? d : (d as Record<string, unknown>)?.message || JSON.stringify(d),
+      )
+      .join("; ");
+  } else {
+    detailsStr = JSON.stringify(details);
+  }
+  return error ? `${error}: ${detailsStr}` : detailsStr;
+}
 
 // ── Auth Headers ───────────────────────────────────────────────
 
 function getToken(): string {
   try {
-    return localStorage.getItem("ashim-token") || "";
+    return localStorage.getItem("snapotter-token") || "";
   } catch {
     return "";
   }
@@ -17,6 +59,16 @@ export function formatHeaders(init?: HeadersInit): Headers {
   const token = getToken();
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
+  }
+  if (!token) {
+    try {
+      const consent = localStorage.getItem("snapotter-analytics-consent");
+      if (consent === "true" || consent === "false") {
+        headers.set("X-Analytics-Consent", consent);
+      }
+    } catch {
+      // localStorage unavailable
+    }
   }
   return headers;
 }
@@ -34,48 +86,82 @@ async function throwWithMessage(res: Response): Promise<never> {
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: formatHeaders(),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      headers: formatHeaders(),
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      useConnectionStore.getState().setDisconnected();
+    }
+    throw error;
+  }
   if (!res.ok) await throwWithMessage(res);
   return res.json();
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: formatHeaders({ "Content-Type": "application/json" }),
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const headers =
+    body !== undefined ? formatHeaders({ "Content-Type": "application/json" }) : formatHeaders();
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      useConnectionStore.getState().setDisconnected();
+    }
+    throw error;
+  }
   if (!res.ok) await throwWithMessage(res);
   return res.json();
 }
 
 export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "PUT",
-    headers: formatHeaders({ "Content-Type": "application/json" }),
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "PUT",
+      headers: formatHeaders({ "Content-Type": "application/json" }),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      useConnectionStore.getState().setDisconnected();
+    }
+    throw error;
+  }
   if (!res.ok) await throwWithMessage(res);
   return res.json();
 }
 
 export async function apiDelete<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "DELETE",
-    headers: formatHeaders(),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "DELETE",
+      headers: formatHeaders(),
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      useConnectionStore.getState().setDisconnected();
+    }
+    throw error;
+  }
   if (!res.ok) await throwWithMessage(res);
   return res.json();
 }
 
 export function setToken(token: string) {
-  localStorage.setItem("ashim-token", token);
+  localStorage.setItem("snapotter-token", token);
 }
 
 export function clearToken() {
-  localStorage.removeItem("ashim-token");
+  localStorage.removeItem("snapotter-token");
 }
 
 // ── File Upload / Download ──────────────────────────────────────
@@ -86,11 +172,19 @@ export async function apiUpload(files: File[]): Promise<{
 }> {
   const formData = new FormData();
   for (const f of files) formData.append("files", f);
-  const res = await fetch("/api/v1/upload", {
-    method: "POST",
-    headers: formatHeaders(),
-    body: formData,
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/v1/upload", {
+      method: "POST",
+      headers: formatHeaders(),
+      body: formData,
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      useConnectionStore.getState().setDisconnected();
+    }
+    throw error;
+  }
   if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
   return res.json();
 }
@@ -148,21 +242,37 @@ export async function apiUploadUserFiles(
 ): Promise<{ files: Array<{ id: string; originalName: string; size: number; version: number }> }> {
   const formData = new FormData();
   for (const f of files) formData.append("files", f);
-  const res = await fetch("/api/v1/files/upload", {
-    method: "POST",
-    headers: formatHeaders(),
-    body: formData,
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/v1/files/upload", {
+      method: "POST",
+      headers: formatHeaders(),
+      body: formData,
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      useConnectionStore.getState().setDisconnected();
+    }
+    throw error;
+  }
   if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
   return res.json();
 }
 
 export async function apiDeleteUserFiles(ids: string[]): Promise<{ deleted: number }> {
-  const res = await fetch("/api/v1/files", {
-    method: "DELETE",
-    headers: formatHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ ids }),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/v1/files", {
+      method: "DELETE",
+      headers: formatHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ ids }),
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      useConnectionStore.getState().setDisconnected();
+    }
+    throw error;
+  }
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
   return res.json();
 }
@@ -176,9 +286,17 @@ export function getFileDownloadUrl(id: string): string {
 }
 
 export async function apiDownloadBlob(jobId: string, filename: string): Promise<Blob> {
-  const res = await fetch(getDownloadUrl(jobId, filename), {
-    headers: formatHeaders(),
-  });
+  let res: Response;
+  try {
+    res = await fetch(getDownloadUrl(jobId, filename), {
+      headers: formatHeaders(),
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      useConnectionStore.getState().setDisconnected();
+    }
+    throw error;
+  }
   if (!res.ok) throw new Error(`Download failed: ${res.status}`);
   return res.blob();
 }

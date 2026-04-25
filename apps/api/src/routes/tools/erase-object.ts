@@ -1,11 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { inpaint } from "@ashim/ai";
+import { inpaint } from "@snapotter/ai";
+import { getBundleForTool, TOOL_BUNDLE_MAP } from "@snapotter/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
+import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
+import { isToolInstalled } from "../../lib/feature-status.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
+import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
 import { decodeHeic, encodeHeic } from "../../lib/heic-converter.js";
 import { createWorkspace } from "../../lib/workspace.js";
 import { updateSingleFileProgress } from "../progress.js";
@@ -24,12 +28,31 @@ const EXT_MAP: Record<string, string> = {
 
 const BROWSER_PREVIEWABLE = new Set(["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp"]);
 
+const settingsSchema = z.object({
+  format: z
+    .enum(["png", "jpg", "jpeg", "webp", "tiff", "gif", "avif", "heic", "heif"])
+    .default("png"),
+  quality: z.number().int().min(1).max(100).default(95),
+});
+
 /**
  * Object eraser / inpainting route.
  * Accepts an image and a mask image, erases masked areas using LaMa.
  */
 export function registerEraseObject(app: FastifyInstance) {
   app.post("/api/v1/tools/erase-object", async (request: FastifyRequest, reply: FastifyReply) => {
+    const toolId = "erase-object";
+    if (!isToolInstalled(toolId)) {
+      const bundle = getBundleForTool(toolId);
+      return reply.status(501).send({
+        error: "Feature not installed",
+        code: "FEATURE_NOT_INSTALLED",
+        feature: TOOL_BUNDLE_MAP[toolId],
+        featureName: bundle?.name ?? toolId,
+        estimatedSize: bundle?.estimatedSize ?? "unknown",
+      });
+    }
+
     let imageBuffer: Buffer | null = null;
     let maskBuffer: Buffer | null = null;
     let filename = "image";
@@ -76,16 +99,29 @@ export function registerEraseObject(app: FastifyInstance) {
       });
     }
 
-    const imageValidation = await validateImageBuffer(imageBuffer);
+    const imageValidation = await validateImageBuffer(imageBuffer, filename);
     if (!imageValidation.valid) {
       return reply.status(400).send({ error: `Invalid image: ${imageValidation.reason}` });
     }
-    const maskValidation = await validateImageBuffer(maskBuffer);
+    const maskValidation = await validateImageBuffer(maskBuffer, "mask.png");
     if (!maskValidation.valid) {
       return reply.status(400).send({ error: `Invalid mask: ${maskValidation.reason}` });
     }
 
     try {
+      // Validate format and quality via Zod
+      const settingsResult = settingsSchema.safeParse({ format, quality });
+      if (!settingsResult.success) {
+        return reply.status(400).send({
+          error: "Invalid settings",
+          details: settingsResult.error.issues
+            .map((i) => (i.path.length > 0 ? `${i.path.join(".")}: ${i.message}` : i.message))
+            .join("; "),
+        });
+      }
+      format = settingsResult.data.format;
+      quality = settingsResult.data.quality;
+
       request.log.info(
         {
           toolId: "erase-object",
@@ -99,6 +135,11 @@ export function registerEraseObject(app: FastifyInstance) {
       // Decode HEIC/HEIF input via system decoder
       if (imageValidation.format === "heif") {
         imageBuffer = await decodeHeic(imageBuffer);
+      }
+
+      // Decode CLI-decoded formats (RAW, TGA, PSD, EXR, HDR)
+      if (needsCliDecode(imageValidation.format)) {
+        imageBuffer = await decodeToSharpCompat(imageBuffer, imageValidation.format);
       }
 
       // Auto-orient to fix EXIF rotation

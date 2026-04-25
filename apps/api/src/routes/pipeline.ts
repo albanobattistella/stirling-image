@@ -9,6 +9,7 @@
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { ANALYTICS_EVENTS, getBundleForTool, TOOL_BUNDLE_MAP } from "@snapotter/shared";
 import archiver from "archiver";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -16,11 +17,17 @@ import PQueue from "p-queue";
 import { z } from "zod";
 import { env } from "../config.js";
 import { db, schema } from "../db/index.js";
+import { trackEvent } from "../lib/analytics.js";
 import { autoOrient } from "../lib/auto-orient.js";
+import { resolveConcurrency } from "../lib/env.js";
+import { formatZodErrors } from "../lib/errors.js";
+import { isToolInstalled } from "../lib/feature-status.js";
 import { validateImageBuffer } from "../lib/file-validation.js";
 import { sanitizeFilename } from "../lib/filename.js";
+import { decodeToSharpCompat, needsCliDecode } from "../lib/format-decoders.js";
 import { decodeHeic } from "../lib/heic-converter.js";
 import { createWorkspace } from "../lib/workspace.js";
+import { hasEffectivePermission } from "../permissions.js";
 import { requireAuth } from "../plugins/auth.js";
 import { type JobProgress, updateJobProgress } from "./progress.js";
 import { getRegisteredToolIds, getToolConfig } from "./tool-factory.js";
@@ -32,21 +39,23 @@ const pipelineStepSchema = z.object({
 });
 
 /** Schema for a full pipeline definition. */
+const stepsSchema =
+  env.MAX_PIPELINE_STEPS > 0
+    ? z
+        .array(pipelineStepSchema)
+        .min(1, "Pipeline must have at least one step")
+        .max(env.MAX_PIPELINE_STEPS, "Pipeline exceeds maximum steps")
+    : z.array(pipelineStepSchema).min(1, "Pipeline must have at least one step");
+
 const pipelineDefinitionSchema = z.object({
-  steps: z
-    .array(pipelineStepSchema)
-    .min(1, "Pipeline must have at least one step")
-    .max(20, "Pipeline cannot exceed 20 steps"),
+  steps: stepsSchema,
 });
 
 /** Schema for saving a pipeline. */
 const savePipelineSchema = z.object({
   name: z.string().min(1, "Pipeline name is required").max(100),
   description: z.string().max(500).optional(),
-  steps: z
-    .array(pipelineStepSchema)
-    .min(1, "Pipeline must have at least one step")
-    .max(20, "Pipeline cannot exceed 20 steps"),
+  steps: stepsSchema,
 });
 
 export async function registerPipelineRoutes(app: FastifyInstance): Promise<void> {
@@ -93,7 +102,7 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
     }
 
     // Validate the initial image
-    const validation = await validateImageBuffer(fileBuffer);
+    const validation = await validateImageBuffer(fileBuffer, filename);
     if (!validation.valid) {
       return reply.status(400).send({
         error: `Invalid image: ${validation.reason}`,
@@ -115,6 +124,20 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
       }
     }
 
+    // Decode CLI-decoded formats (RAW, TGA, PSD, EXR, HDR)
+    if (needsCliDecode(validation.format)) {
+      try {
+        fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format);
+        const ext = filename.match(/\.[^.]+$/)?.[0];
+        if (ext) filename = `${filename.slice(0, -ext.length)}.png`;
+      } catch (err) {
+        return reply.status(422).send({
+          error: `Failed to decode ${validation.format} file`,
+          details: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     // Normalize EXIF orientation before passing to pipeline steps
     fileBuffer = await autoOrient(fileBuffer);
 
@@ -130,10 +153,7 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
       if (!result.success) {
         return reply.status(400).send({
           error: "Invalid pipeline definition",
-          details: result.error.issues.map((i) => ({
-            path: i.path.join("."),
-            message: i.message,
-          })),
+          details: formatZodErrors(result.error.issues),
         });
       }
       pipeline = result.data;
@@ -158,6 +178,17 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
         });
       }
 
+      // Guard: check if the tool's AI feature bundle is installed
+      if (!isToolInstalled(resolvedToolId)) {
+        const bundle = getBundleForTool(resolvedToolId);
+        return reply.status(501).send({
+          error: `Step ${i + 1} (${step.toolId}): Feature "${bundle?.name}" is not installed`,
+          code: "FEATURE_NOT_INSTALLED",
+          feature: TOOL_BUNDLE_MAP[resolvedToolId],
+          featureName: bundle?.name ?? resolvedToolId,
+        });
+      }
+
       // Validate the settings for this tool
       const settingsResult = toolConfig.settingsSchema.safeParse(step.settings);
       if (!settingsResult.success) {
@@ -174,6 +205,7 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
     }
 
     // Execute the pipeline: pass the buffer through each step sequentially
+    const startTime = Date.now();
     let currentBuffer = fileBuffer;
     let currentFilename = filename;
     const stepResults: Array<{ step: number; toolId: string; size: number }> = [];
@@ -214,6 +246,13 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Pipeline processing failed";
+      trackEvent(request, ANALYTICS_EVENTS.PIPELINE_EXECUTED, {
+        step_count: pipeline.steps.length,
+        tool_ids: pipeline.steps.map((s: { toolId: string }) => s.toolId),
+        is_batch: false,
+        duration_ms: Date.now() - startTime,
+        status: "failed",
+      });
       return reply.status(422).send({
         error: message,
         completedSteps: stepResults,
@@ -229,6 +268,14 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
     // Also save the original input for reference
     const inputPath = join(workspacePath, "input", filename);
     await writeFile(inputPath, fileBuffer);
+
+    trackEvent(request, ANALYTICS_EVENTS.PIPELINE_EXECUTED, {
+      step_count: pipeline.steps.length,
+      tool_ids: pipeline.steps.map((s: { toolId: string }) => s.toolId),
+      is_batch: false,
+      duration_ms: Date.now() - startTime,
+      status: "completed",
+    });
 
     return reply.send({
       jobId,
@@ -306,10 +353,9 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
 
     // Admins see all pipelines; regular users see their own + legacy (no owner)
     const allRows = db.select().from(schema.pipelines).all();
-    const rows =
-      user.role === "admin"
-        ? allRows
-        : allRows.filter((row) => !row.userId || row.userId === user.id);
+    const rows = hasEffectivePermission(user, "pipelines:all")
+      ? allRows
+      : allRows.filter((row) => !row.userId || row.userId === user.id);
 
     const pipelines = rows.map((row) => ({
       id: row.id,
@@ -342,7 +388,11 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
       }
 
       // Only the owner (or admin) can delete; legacy pipelines (no owner) can be deleted by anyone
-      if (existing.userId && existing.userId !== user.id && user.role !== "admin") {
+      if (
+        existing.userId &&
+        existing.userId !== user.id &&
+        !hasEffectivePermission(user, "pipelines:all")
+      ) {
         return reply.status(403).send({ error: "Not authorized to delete this pipeline" });
       }
 
@@ -413,7 +463,7 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
     }
 
     // Enforce batch size limit
-    if (files.length > env.MAX_BATCH_SIZE) {
+    if (env.MAX_BATCH_SIZE > 0 && files.length > env.MAX_BATCH_SIZE) {
       return reply.status(400).send({
         error: `Too many files. Maximum batch size is ${env.MAX_BATCH_SIZE}`,
       });
@@ -431,10 +481,7 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
       if (!result.success) {
         return reply.status(400).send({
           error: "Invalid pipeline definition",
-          details: result.error.issues.map((i) => ({
-            path: i.path.join("."),
-            message: i.message,
-          })),
+          details: formatZodErrors(result.error.issues),
         });
       }
       pipeline = result.data;
@@ -449,6 +496,17 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
       if (!toolConfig) {
         return reply.status(400).send({
           error: `Step ${i + 1}: Tool "${step.toolId}" not found`,
+        });
+      }
+
+      // Guard: check if the tool's AI feature bundle is installed
+      if (!isToolInstalled(step.toolId)) {
+        const bundle = getBundleForTool(step.toolId);
+        return reply.status(501).send({
+          error: `Step ${i + 1} (${step.toolId}): Feature "${bundle?.name}" is not installed`,
+          code: "FEATURE_NOT_INSTALLED",
+          feature: TOOL_BUNDLE_MAP[step.toolId],
+          featureName: bundle?.name ?? step.toolId,
         });
       }
 
@@ -467,6 +525,7 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
     }
 
     // ── Progress tracking ────────────────────────────────────────────
+    const batchStartTime = Date.now();
     const jobId = clientJobId || randomUUID();
 
     const progress: JobProgress = {
@@ -480,7 +539,7 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
     updateJobProgress({ ...progress });
 
     // ── Process files through the pipeline with concurrency control ──
-    const queue = new PQueue({ concurrency: env.CONCURRENT_JOBS });
+    const queue = new PQueue({ concurrency: resolveConcurrency(env) });
 
     const results: ({ buffer: Buffer; filename: string } | null)[] = new Array(files.length).fill(
       null,
@@ -493,7 +552,7 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
           updateJobProgress({ ...progress });
 
           // Validate the image
-          const validation = await validateImageBuffer(file.buffer);
+          const validation = await validateImageBuffer(file.buffer, file.filename);
           if (!validation.valid) {
             progress.failedFiles++;
             progress.errors.push({
@@ -512,6 +571,13 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
             // Decode HEIC/HEIF if needed
             if (validation.format === "heif") {
               currentBuffer = await decodeHeic(currentBuffer);
+              const ext = currentFilename.match(/\.[^.]+$/)?.[0];
+              if (ext) currentFilename = `${currentFilename.slice(0, -ext.length)}.png`;
+            }
+
+            // Decode CLI-decoded formats (RAW, TGA, PSD, EXR, HDR)
+            if (needsCliDecode(validation.format)) {
+              currentBuffer = await decodeToSharpCompat(currentBuffer, validation.format);
               const ext = currentFilename.match(/\.[^.]+$/)?.[0];
               if (ext) currentFilename = `${currentFilename.slice(0, -ext.length)}.png`;
             }
@@ -603,11 +669,28 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
 
     // If every file failed, return an error instead of an empty ZIP
     if (progress.status === "failed") {
+      trackEvent(request, ANALYTICS_EVENTS.PIPELINE_EXECUTED, {
+        step_count: pipeline.steps.length,
+        tool_ids: pipeline.steps.map((s: { toolId: string }) => s.toolId),
+        is_batch: true,
+        file_count: files.length,
+        duration_ms: Date.now() - batchStartTime,
+        status: "failed",
+      });
       return reply.status(422).send({
         error: "All files failed processing",
         errors: progress.errors,
       });
     }
+
+    trackEvent(request, ANALYTICS_EVENTS.PIPELINE_EXECUTED, {
+      step_count: pipeline.steps.length,
+      tool_ids: pipeline.steps.map((s: { toolId: string }) => s.toolId),
+      is_batch: true,
+      file_count: files.length,
+      duration_ms: Date.now() - batchStartTime,
+      status: "completed",
+    });
 
     // ── Stream ZIP response ──────────────────────────────────────────
     reply.hijack();

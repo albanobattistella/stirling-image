@@ -1,18 +1,40 @@
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { blurFaces } from "@ashim/ai";
+import { blurFaces } from "@snapotter/ai";
+import { getBundleForTool, TOOL_BUNDLE_MAP } from "@snapotter/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
+import { formatZodErrors } from "../../lib/errors.js";
+import { isToolInstalled } from "../../lib/feature-status.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
+import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
+import { decodeHeic, ensureSharpCompat } from "../../lib/heic-converter.js";
 import { createWorkspace } from "../../lib/workspace.js";
 import { updateSingleFileProgress } from "../progress.js";
 import { registerToolProcessFn } from "../tool-factory.js";
 
+const settingsSchema = z.object({
+  blurRadius: z.number().min(1).max(100).default(30),
+  sensitivity: z.number().min(0).max(1).default(0.5),
+});
+
 /** Face detection and blurring route. */
 export function registerBlurFaces(app: FastifyInstance) {
   app.post("/api/v1/tools/blur-faces", async (request: FastifyRequest, reply: FastifyReply) => {
+    const toolId = "blur-faces";
+    if (!isToolInstalled(toolId)) {
+      const bundle = getBundleForTool(toolId);
+      return reply.status(501).send({
+        error: "Feature not installed",
+        code: "FEATURE_NOT_INSTALLED",
+        feature: TOOL_BUNDLE_MAP[toolId],
+        featureName: bundle?.name ?? toolId,
+        estimatedSize: bundle?.estimatedSize ?? "unknown",
+      });
+    }
+
     let fileBuffer: Buffer | null = null;
     let filename = "image";
     let settingsRaw: string | null = null;
@@ -45,24 +67,46 @@ export function registerBlurFaces(app: FastifyInstance) {
       return reply.status(400).send({ error: "No image file provided" });
     }
 
-    const validation = await validateImageBuffer(fileBuffer);
+    const validation = await validateImageBuffer(fileBuffer, filename);
     if (!validation.valid) {
       return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
     }
 
     try {
-      const settings = settingsRaw ? JSON.parse(settingsRaw) : {};
+      let settings: z.infer<typeof settingsSchema>;
+      try {
+        const parsed = settingsRaw ? JSON.parse(settingsRaw) : {};
+        const result = settingsSchema.safeParse(parsed);
+        if (!result.success) {
+          return reply
+            .status(400)
+            .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
+        }
+        settings = result.data;
+      } catch {
+        return reply.status(400).send({ error: "Settings must be valid JSON" });
+      }
+
+      if (validation.format === "heif") {
+        fileBuffer = await decodeHeic(fileBuffer);
+      }
+
+      // Decode CLI-decoded formats (RAW, TGA, PSD, EXR, HDR)
+      if (needsCliDecode(validation.format)) {
+        fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format);
+      }
+
+      const { blurRadius, sensitivity } = settings;
       request.log.info(
         {
           toolId: "blur-faces",
           imageSize: fileBuffer.length,
-          blurRadius: settings.blurRadius,
-          sensitivity: settings.sensitivity,
+          blurRadius,
+          sensitivity,
         },
         "Starting face blur",
       );
 
-      // Auto-orient to fix EXIF rotation before face detection
       fileBuffer = await autoOrient(fileBuffer);
 
       const jobId = randomUUID();
@@ -89,8 +133,8 @@ export function registerBlurFaces(app: FastifyInstance) {
         fileBuffer,
         join(workspacePath, "output"),
         {
-          blurRadius: settings.blurRadius ?? 30,
-          sensitivity: settings.sensitivity ?? 0.5,
+          blurRadius,
+          sensitivity,
         },
         onProgress,
       );
@@ -115,6 +159,9 @@ export function registerBlurFaces(app: FastifyInstance) {
         processedSize: result.buffer.length,
         facesDetected: result.facesDetected,
         faces: result.faces,
+        ...(result.facesDetected === 0 && {
+          warning: "No faces detected in this image. Try increasing detection sensitivity.",
+        }),
       });
     } catch (err) {
       request.log.error({ err, toolId: "blur-faces" }, "Face blur failed");
@@ -135,7 +182,7 @@ export function registerBlurFaces(app: FastifyInstance) {
     }),
     process: async (inputBuffer, settings, filename) => {
       const s = settings as { blurRadius?: number; sensitivity?: number };
-      const orientedBuffer = await autoOrient(inputBuffer);
+      const orientedBuffer = await autoOrient(await ensureSharpCompat(inputBuffer));
       const jobId = randomUUID();
       const workspacePath = await createWorkspace(jobId);
       const result = await blurFaces(orientedBuffer, join(workspacePath, "output"), {

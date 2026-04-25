@@ -1,20 +1,26 @@
 import { create } from "zustand";
 import { COLLAGE_TEMPLATES, getDefaultTemplate } from "@/lib/collage-templates";
+import { fetchDecodedPreview, needsServerPreview, revokePreviewUrl } from "@/lib/image-preview";
 
 export type AspectRatio = "free" | "1:1" | "4:3" | "3:2" | "16:9" | "9:16" | "4:5";
-export type OutputFormat = "png" | "jpeg" | "webp";
+export type OutputFormat = "png" | "jpeg" | "webp" | "avif";
 export type Phase = "upload" | "editing" | "processing" | "result";
 
 export interface CollageImage {
   id: string;
   file: File;
   blobUrl: string;
+  previewBlobUrl?: string;
+  previewLoading: boolean;
 }
+
+export type ObjectFit = "cover" | "contain";
 
 export interface CellTransform {
   panX: number; // percentage -100..100
   panY: number; // percentage -100..100
   zoom: number; // 1.0 to 3.0
+  objectFit: ObjectFit;
 }
 
 interface CollageState {
@@ -44,6 +50,7 @@ interface CollageState {
   // UI state
   selectedCell: number | null;
   phase: Phase;
+  progress: number;
   resultUrl: string | null;
   resultSize: number | null;
   originalSize: number | null;
@@ -68,12 +75,13 @@ interface CollageState {
   setQuality: (v: number) => void;
   setSelectedCell: (v: number | null) => void;
   setPhase: (v: Phase) => void;
+  setProgress: (v: number) => void;
   setResult: (url: string, size: number, originalSize: number, jobId: string) => void;
   setError: (e: string | null) => void;
   reset: () => void;
 }
 
-const DEFAULT_TRANSFORM: CellTransform = { panX: 0, panY: 0, zoom: 1 };
+const DEFAULT_TRANSFORM: CellTransform = { panX: 0, panY: 0, zoom: 1, objectFit: "cover" };
 
 let nextImageId = 0;
 
@@ -99,6 +107,7 @@ export const useCollageStore = create<CollageState>((set, get) => ({
   quality: 90,
   selectedCell: null,
   phase: "upload",
+  progress: 0,
   resultUrl: null,
   resultSize: null,
   originalSize: null,
@@ -110,6 +119,7 @@ export const useCollageStore = create<CollageState>((set, get) => ({
       id: `img-${++nextImageId}`,
       file: f,
       blobUrl: URL.createObjectURL(f),
+      previewLoading: needsServerPreview(f),
     }));
     const state = get();
     const allImages = [...state.images, ...newImages];
@@ -127,12 +137,33 @@ export const useCollageStore = create<CollageState>((set, get) => ({
       resultSize: null,
       error: null,
     });
+
+    for (const img of newImages) {
+      if (img.previewLoading) {
+        const imgId = img.id;
+        fetchDecodedPreview(img.file).then((url) => {
+          const current = get();
+          const idx = current.images.findIndex((i) => i.id === imgId);
+          if (idx === -1) return;
+          const updated = [...current.images];
+          updated[idx] = {
+            ...updated[idx],
+            previewLoading: false,
+            ...(url ? { previewBlobUrl: url } : {}),
+          };
+          set({ images: updated });
+        });
+      }
+    }
   },
 
   removeImage: (index) => {
     const state = get();
     const img = state.images[index];
-    if (img) URL.revokeObjectURL(img.blobUrl);
+    if (img) {
+      URL.revokeObjectURL(img.blobUrl);
+      if (img.previewBlobUrl) revokePreviewUrl(img.previewBlobUrl);
+    }
     const newImages = state.images.filter((_, i) => i !== index);
     if (newImages.length === 0) {
       get().reset();
@@ -152,7 +183,10 @@ export const useCollageStore = create<CollageState>((set, get) => ({
 
   clearImages: () => {
     const state = get();
-    for (const img of state.images) URL.revokeObjectURL(img.blobUrl);
+    for (const img of state.images) {
+      URL.revokeObjectURL(img.blobUrl);
+      if (img.previewBlobUrl) revokePreviewUrl(img.previewBlobUrl);
+    }
     set({
       images: [],
       cellAssignments: [],
@@ -232,12 +266,16 @@ export const useCollageStore = create<CollageState>((set, get) => ({
   setQuality: (v) => set({ quality: v, resultUrl: null }),
   setSelectedCell: (v) => set({ selectedCell: v }),
   setPhase: (v) => set({ phase: v }),
+  setProgress: (v) => set({ progress: v }),
   setResult: (url, size, originalSize, jobId) =>
     set({ resultUrl: url, resultSize: size, originalSize, jobId, phase: "result", error: null }),
   setError: (e) => set({ error: e, phase: "editing" }),
   reset: () => {
     const state = get();
-    for (const img of state.images) URL.revokeObjectURL(img.blobUrl);
+    for (const img of state.images) {
+      URL.revokeObjectURL(img.blobUrl);
+      if (img.previewBlobUrl) revokePreviewUrl(img.previewBlobUrl);
+    }
     nextImageId = 0;
     set({
       images: [],
@@ -253,6 +291,7 @@ export const useCollageStore = create<CollageState>((set, get) => ({
       quality: 90,
       selectedCell: null,
       phase: "upload",
+      progress: 0,
       resultUrl: null,
       resultSize: null,
       originalSize: null,

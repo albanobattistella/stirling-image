@@ -32,11 +32,26 @@ function extractPythonError(error: unknown): string {
           if (trimmed && !trimmed.startsWith("Traceback")) {
             return trimmed;
           }
+          // Extract the last meaningful line from a Python Traceback
+          if (trimmed) {
+            const lines = trimmed
+              .split("\n")
+              .map((l) => l.trim())
+              .filter(Boolean);
+            const lastLine = lines[lines.length - 1];
+            if (lastLine && lastLine !== "Traceback (most recent call last):") {
+              return lastLine;
+            }
+          }
         }
       }
     }
     if (execError.message) return execError.message;
+    // Return empty string for {stdout, stderr} objects with no useful content
+    // so the caller's fallback message (e.g. exit code) kicks in.
+    return "";
   }
+  if (error instanceof Error) return error.message;
   return String(error);
 }
 
@@ -85,6 +100,7 @@ function startDispatcher(): ChildProcess | null {
           if (parsed.ready === true) {
             dispatcherReady = true;
             dispatcherGpuAvailable = parsed.gpu === true;
+            console.log(`[bridge] Python dispatcher ready (GPU: ${parsed.gpu === true})`);
             continue;
           }
 
@@ -97,7 +113,11 @@ function startDispatcher(): ChildProcess | null {
             }
           }
         } catch {
-          // Not JSON - collect as error output for pending requests
+          // Not JSON - forward diagnostic messages to Node.js logger,
+          // collect the rest as error output for pending requests.
+          if (trimmed.startsWith("[")) {
+            console.log(`[python] ${trimmed}`);
+          }
           for (const req of pendingRequests.values()) {
             req.stderrLines.push(trimmed);
           }
@@ -121,14 +141,17 @@ function startDispatcher(): ChildProcess | null {
           if (pending) {
             pendingRequests.delete(reqId);
             if (response.exitCode !== 0) {
-              pending.reject(
-                new Error(
-                  extractPythonError({
-                    stdout: response.stdout,
-                    stderr: pending.stderrLines.join("\n"),
-                  }) || `Python script exited with code ${response.exitCode}`,
-                ),
-              );
+              const errText =
+                extractPythonError({
+                  stdout: response.stdout,
+                  stderr: pending.stderrLines.join("\n"),
+                }) ||
+                (response.exitCode === 137
+                  ? "Process killed (out of memory) — try a lighter model or smaller image"
+                  : response.exitCode === 139
+                    ? "Process crashed (segmentation fault)"
+                    : `Python script exited with code ${response.exitCode}`);
+              pending.reject(new Error(errText));
             } else {
               pending.resolve({
                 stdout: response.stdout || "",
@@ -143,6 +166,7 @@ function startDispatcher(): ChildProcess | null {
     });
 
     child.on("error", (err: NodeJS.ErrnoException) => {
+      console.error(`[bridge] Dispatcher error: ${err.message} (code: ${err.code})`);
       if (err.code === "ENOENT") {
         // Venv python not found - mark as failed, will fall back to per-request
         dispatcherFailed = true;
@@ -194,7 +218,11 @@ function dispatcherRun(
   if (!proc || !proc.stdin || !dispatcherReady) return null;
 
   const id = randomUUID();
-  const timeout = options.timeout ?? 300000;
+  const timeout =
+    options.timeout ??
+    (process.env.PROCESSING_TIMEOUT_S && parseInt(process.env.PROCESSING_TIMEOUT_S, 10) > 0
+      ? parseInt(process.env.PROCESSING_TIMEOUT_S, 10) * 1000
+      : 600000);
 
   return new Promise((resolvePromise, rejectPromise) => {
     const timer = setTimeout(() => {
@@ -254,7 +282,11 @@ function runPythonPerRequest(
   } = {},
 ): Promise<{ stdout: string; stderr: string }> {
   const scriptPath = resolve(PYTHON_DIR, scriptName);
-  const timeout = options.timeout ?? 300000;
+  const timeout =
+    options.timeout ??
+    (process.env.PROCESSING_TIMEOUT_S && parseInt(process.env.PROCESSING_TIMEOUT_S, 10) > 0
+      ? parseInt(process.env.PROCESSING_TIMEOUT_S, 10) * 1000
+      : 600000);
 
   return new Promise((resolvePromise, rejectPromise) => {
     const trySpawn = (pythonBin: string, isFallback: boolean) => {
@@ -307,7 +339,7 @@ function runPythonPerRequest(
         }
       });
 
-      child.on("close", (code) => {
+      child.on("close", (code, signal) => {
         clearTimeout(timer);
 
         if (stderrBuffer.trim()) {
@@ -322,7 +354,16 @@ function runPythonPerRequest(
         const stderr = stderrLines.join("\n");
 
         if (code !== 0) {
+          // When the process was killed by a signal, use a clear message
+          // instead of surfacing unrelated stderr (e.g. CUDA warnings).
+          const signalMsg =
+            signal === "SIGKILL" || code === 137
+              ? "Process killed (out of memory) — try a lighter model or smaller image"
+              : signal === "SIGSEGV" || code === 139
+                ? "Process crashed (segmentation fault)"
+                : null;
           const errorText =
+            signalMsg ||
             extractPythonError({ stdout: stdout.trim(), stderr }) ||
             `Python script exited with code ${code}`;
           rejectPromise(new Error(errorText));
@@ -357,11 +398,14 @@ export function runPythonWithProgress(
   const dispatcherPromise = dispatcherRun(scriptName, args, options);
   if (dispatcherPromise) {
     return dispatcherPromise.catch((err: Error) => {
-      // Dispatcher crashed mid-request (e.g. OOM when loading a large model).
-      // Retry in an isolated per-request process which starts clean and has
-      // more available memory than the warm dispatcher.
       if (err.message === "Python dispatcher exited unexpectedly") {
-        return runPythonPerRequest(scriptName, args, options);
+        console.warn(
+          `[bridge] Dispatcher crashed during ${scriptName}, retrying with per-request process`,
+        );
+        return runPythonPerRequest(scriptName, args, options).then((result) => ({
+          ...result,
+          stderr: `${result.stderr}\n[bridge] retried after dispatcher crash`,
+        }));
       }
       throw err;
     });
@@ -369,4 +413,11 @@ export function runPythonWithProgress(
 
   // Fall back to per-request spawning
   return runPythonPerRequest(scriptName, args, options);
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: matches JSON.parse return type
+export function parseStdoutJson(stdout: string): any {
+  const match = stdout.match(/\{[\s\S]*\}$/);
+  if (!match) throw new Error("No JSON response from Python script");
+  return JSON.parse(match[0]);
 }

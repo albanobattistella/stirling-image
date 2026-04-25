@@ -8,8 +8,12 @@
 
 import { eq } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { z } from "zod";
 import { db, schema } from "../db/index.js";
-import { requireAdmin, requireAuth } from "../plugins/auth.js";
+import { requirePermission } from "../permissions.js";
+import { requireAuth } from "../plugins/auth.js";
+
+const settingsBodySchema = z.record(z.string().min(1), z.unknown());
 
 const HTML_TAG_PATTERN = /<[a-z/!][^>]*>/i;
 
@@ -31,17 +35,17 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
 
   // PUT /api/v1/settings — Save settings (admin only)
   app.put("/api/v1/settings", async (request: FastifyRequest, reply: FastifyReply) => {
-    const admin = requireAdmin(request, reply);
+    const admin = requirePermission("settings:write")(request, reply);
     if (!admin) return;
 
-    const body = request.body as Record<string, unknown> | null;
-
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
+    const parsed = settingsBodySchema.safeParse(request.body);
+    if (!parsed.success) {
       return reply.status(400).send({
         error: "Request body must be a JSON object with key-value pairs",
         code: "VALIDATION_ERROR",
       });
     }
+    const body = parsed.data;
 
     // Pass 1: validate all entries before writing any
     const entries: Array<{ key: string; strValue: string }> = [];

@@ -2,9 +2,9 @@
 layout: home
 
 hero:
-  name: "ashim"
+  name: "SnapOtter"
   text: "A Self Hosted Image Manipulator"
-  tagline: 45+ tools. Local AI. No cloud. Your images stay on your machine.
+  tagline: 47 tools. Local AI. No cloud. Your images stay on your machine.
   actions:
     - theme: brand
       text: Get started
@@ -14,12 +14,12 @@ hero:
       link: /api/rest
 
 features:
-  - title: 45+ Image Tools
+  - title: 47 Image Tools
     details: Resize, crop, compress, convert, watermark, color adjust, vectorize, create GIFs, build collages, generate passport photos, find duplicates, and more.
   - title: Local AI
-    details: 13 AI-powered tools - remove backgrounds, upscale, restore and colorize old photos, erase objects, blur faces, enhance faces, extract text (OCR). All on your hardware, no internet required.
+    details: 14 AI-powered tools - remove backgrounds, upscale, enhance images, restore and colorize old photos, erase objects, blur faces, enhance faces, extract text (OCR). All on your hardware, no internet required.
   - title: Pipelines
-    details: Chain tools into reusable workflows with up to 20 steps. Batch process up to 200 images at once with a single request.
+    details: Chain tools into reusable workflows with unlimited steps. Batch process unlimited images at once with a single request.
   - title: REST API
     details: Every tool available via API with API key auth. Interactive docs at /api/docs, plus /llms.txt and /llms-full.txt for AI agents.
   - title: File Library
@@ -31,7 +31,8 @@ features:
 <div class="quick-start-banner">
 
 ```bash
-docker run -d --name ashim -p 1349:1349 -v ashim-data:/data ghcr.io/ashim-hq/ashim:latest
+docker run -d --name SnapOtter -p 1349:1349 -v SnapOtter-data:/data snapotter/snapotter:latest \
+  && printf "\n  🦦 SnapOtter\n  ────────────────────────────────────────\n\n  ➜  Open   http://localhost:1349\n  ➜  Login  admin / admin\n  ➜  Docs   https://docs.snapotter.com\n\n"
 ```
 
 </div>

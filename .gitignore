@@ -9,6 +9,8 @@ data/
 tmp/
 .env
 .env.local
+.env.cloudflare
+.env.*
 .DS_Store
 .playwright-mcp/
 .vite/
@@ -21,6 +23,9 @@ __pycache__/
 *.pyc
 
 # Build artifacts
+.next/
+**/.vitepress/cache/
+out/
 coverage/
 *.tsbuildinfo
 
@@ -33,7 +38,8 @@ blob-report/
 CLAUDE.md
 .claude/
 .superpowers/
-docs/superpowers/
+docs/*
+!docs/COMMUNITY_GUIDE.md
 PRD.md
 
 # Ad-hoc test screenshots and reports
@@ -46,4 +52,7 @@ audit_report.md
 .worktrees/
 .release-version
 .models
-docs/specs/
+.local-wiki/
+.mcp.json
+tests/benchmark/bench-limits-results-mac.jsonl
+.superpowers/

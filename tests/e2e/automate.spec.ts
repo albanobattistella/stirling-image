@@ -10,16 +10,16 @@ test.describe("Automate Page", () => {
    */
   async function gotoAutomate(page: import("@playwright/test").Page) {
     const heading = page.getByRole("heading", {
-      name: /automate/i,
+      name: /pipeline builder|automate/i,
     });
 
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt === 0) {
-        await page.goto("/automate", { waitUntil: "networkidle" });
+        await page.goto("/automate", { waitUntil: "load" });
       } else {
         // On retry, wait then reload
         await page.waitForTimeout(500);
-        await page.goto("/automate", { waitUntil: "networkidle" });
+        await page.goto("/automate", { waitUntil: "load" });
       }
 
       try {
@@ -31,7 +31,7 @@ test.describe("Automate Page", () => {
     }
 
     // Final attempt - let it throw if it fails
-    await page.goto("/automate", { waitUntil: "networkidle" });
+    await page.goto("/automate", { waitUntil: "load" });
     await expect(heading).toBeVisible({ timeout: 10_000 });
   }
 
@@ -48,8 +48,6 @@ test.describe("Automate Page", () => {
     name: string,
     expectedCount: number,
   ) {
-    await page.getByRole("button", { name: /add step/i }).click();
-    await expect(page.getByText("Add a step")).toBeVisible();
     await page.getByPlaceholder("Search tools...").fill(name);
     await page
       .getByRole("button", { name: new RegExp(name, "i") })
@@ -74,12 +72,16 @@ test.describe("Automate Page", () => {
 
   test("automate page renders pipeline builder", async ({ loggedInPage: page }) => {
     await gotoAutomate(page);
-    await expect(page.getByText(/chain tools into a pipeline/i).first()).toBeVisible();
+    await expect(
+      page.getByText(/add tools from the palette|chain tools into a pipeline/i).first(),
+    ).toBeVisible();
   });
 
   test("shows empty state message when no steps", async ({ loggedInPage: page }) => {
     await gotoAutomate(page);
-    await expect(page.getByText(/add steps to build your pipeline/i)).toBeVisible();
+    await expect(
+      page.getByText(/add tools from the palette|add steps to build your pipeline/i),
+    ).toBeVisible();
   });
 
   test("shows dropzone when no file uploaded", async ({ loggedInPage: page }) => {
@@ -89,9 +91,9 @@ test.describe("Automate Page", () => {
     await expect(page.getByRole("button", { name: /upload from computer/i })).toBeVisible();
   });
 
-  test("has Add Step button", async ({ loggedInPage: page }) => {
+  test("has tool palette search", async ({ loggedInPage: page }) => {
     await gotoAutomate(page);
-    await expect(page.getByRole("button", { name: /add step/i })).toBeVisible();
+    await expect(page.getByPlaceholder("Search tools...")).toBeVisible();
   });
 
   test("has Process button (disabled when no steps or file)", async ({ loggedInPage: page }) => {
@@ -107,26 +109,27 @@ test.describe("Automate Page", () => {
   test("has Save Pipeline button (disabled when no steps)", async ({ loggedInPage: page }) => {
     await gotoAutomate(page);
     // Save Pipeline button is only rendered when steps > 0, so it should not exist yet
-    await expect(page.getByRole("button", { name: "Save Pipeline" })).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "Save" })).not.toBeVisible();
 
     // Add a step so the button appears
     await addToolStep(page, "Resize", 1);
-    await expect(page.getByRole("button", { name: "Save Pipeline" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save" })).toBeVisible();
   });
 
   // --- Add Step ---
 
-  test("clicking Add Step opens tool picker", async ({ loggedInPage: page }) => {
+  test("tool palette is visible with search", async ({ loggedInPage: page }) => {
     await gotoAutomate(page);
-    await page.getByRole("button", { name: /add step/i }).click();
-    await expect(page.getByText("Add a step")).toBeVisible();
+    await expect(page.getByPlaceholder("Search tools...")).toBeVisible();
   });
 
   test("selecting a tool from picker adds a step", async ({ loggedInPage: page }) => {
     await gotoAutomate(page);
     await addToolStep(page, "Resize", 1);
     // Verify empty state is gone
-    await expect(page.getByText(/add steps to build your pipeline/i)).not.toBeVisible();
+    await expect(
+      page.getByText(/add tools from the palette|add steps to build your pipeline/i),
+    ).not.toBeVisible();
   });
 
   test("can add multiple steps", async ({ loggedInPage: page }) => {
@@ -162,7 +165,7 @@ test.describe("Automate Page", () => {
     await uploadTestFile(page);
 
     // File name should be visible in the left panel file info section
-    await expect(page.getByText("test-image.png")).toBeVisible();
+    await expect(page.getByText("test-image.png").first()).toBeVisible();
   });
 
   // --- Save Pipeline ---
@@ -171,28 +174,51 @@ test.describe("Automate Page", () => {
     await gotoAutomate(page);
     await addToolStep(page, "Resize", 1);
 
-    await expect(page.getByRole("button", { name: "Save Pipeline" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save" })).toBeVisible();
   });
 
   test("clicking Save Pipeline shows name input form", async ({ loggedInPage: page }) => {
     await gotoAutomate(page);
     await addToolStep(page, "Resize", 1);
 
-    await page.getByRole("button", { name: "Save Pipeline" }).click();
+    await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByPlaceholder("Pipeline name")).toBeVisible();
   });
 
   test("can save a pipeline and see it as a chip", async ({ loggedInPage: page }) => {
+    // Clean up stale E2E pipelines from previous runs to avoid overflow hiding new ones
+    const apiUrl = process.env.API_URL || "http://localhost:13490";
+    const loginRes = await fetch(`${apiUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "admin", password: "admin" }),
+    });
+    const { token } = await loginRes.json();
+    const listRes = await fetch(`${apiUrl}/api/v1/pipeline/list`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const { pipelines } = await listRes.json();
+    for (const p of pipelines.filter((p: { name: string }) => p.name.startsWith("E2E Pipeline"))) {
+      await fetch(`${apiUrl}/api/v1/pipeline/${p.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+
     await gotoAutomate(page);
     await addToolStep(page, "Resize", 1);
     await addToolStep(page, "Compress", 2);
 
     const uniqueName = `E2E Pipeline ${Date.now()}`;
-    await page.getByRole("button", { name: "Save Pipeline" }).click();
+    await page.getByRole("button", { name: "Save" }).click();
     await page.getByPlaceholder("Pipeline name").fill(uniqueName);
     await page.getByRole("button", { name: "Save", exact: true }).click();
 
-    // The saved pipeline should appear as a chip in the saved pipelines strip
+    // The name input should disappear after save completes
+    await expect(page.getByPlaceholder("Pipeline name")).not.toBeVisible({
+      timeout: 5_000,
+    });
+    // The saved pipeline should appear by name
     await expect(page.getByText(uniqueName).first()).toBeVisible({
       timeout: 5_000,
     });
@@ -210,7 +236,7 @@ test.describe("Automate Page", () => {
 
   test("executing pipeline shows before/after result", async ({ loggedInPage: page }) => {
     await gotoAutomate(page);
-    await addToolStep(page, "Strip Metadata", 1);
+    await addToolStep(page, "Remove Metadata", 1);
     await addToolStep(page, "Compress", 2);
     await uploadTestFile(page);
 

@@ -11,8 +11,10 @@ def emit_progress(percent, stage):
 
 # ── Model path for new mp.tasks API ─────────────────────────────────
 
+_MODELS_BASE = os.environ.get("MODELS_PATH", "/opt/models")
+
 _FACE_MESH_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
-_DOCKER_MODEL_PATH = "/opt/models/mediapipe/face_landmarker.task"
+_DOCKER_MODEL_PATH = os.path.join(_MODELS_BASE, "mediapipe", "face_landmarker.task")
 _LOCAL_MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", ".models")
 _LOCAL_MODEL_PATH = os.path.join(_LOCAL_MODEL_DIR, "face_landmarker.task")
 
@@ -30,7 +32,7 @@ def _ensure_face_mesh_model():
     return _LOCAL_MODEL_PATH
 
 
-def _mesh_with_solutions(img_array, max_faces=10, min_confidence=0.5):
+def _mesh_with_solutions(img_array, max_faces=50, min_confidence=0.5):
     """FaceMesh using legacy mp.solutions API (mediapipe < 0.10.30).
 
     Returns list of landmark lists. Each landmark has .x, .y attributes.
@@ -52,7 +54,7 @@ def _mesh_with_solutions(img_array, max_faces=10, min_confidence=0.5):
     return [face.landmark for face in results.multi_face_landmarks]
 
 
-def _mesh_with_tasks(img_array, max_faces=10, min_confidence=0.5):
+def _mesh_with_tasks(img_array, max_faces=50, min_confidence=0.5):
     """FaceMesh using new mp.tasks API (mediapipe >= 0.10.30).
 
     Returns list of landmark lists. Each landmark has .x, .y attributes.
@@ -77,7 +79,7 @@ def _mesh_with_tasks(img_array, max_faces=10, min_confidence=0.5):
     return result.face_landmarks
 
 
-def _detect_face_mesh(img_array, max_faces=10, min_confidence=0.5):
+def _detect_face_mesh(img_array, max_faces=50, min_confidence=0.5):
     """Detect face mesh, trying legacy API first then falling back to tasks API."""
     try:
         return _mesh_with_solutions(img_array, max_faces, min_confidence)

@@ -1,20 +1,24 @@
-import { APP_VERSION, CATEGORIES, TOOLS } from "@ashim/shared";
+import { APP_VERSION, CATEGORIES, TOOLS } from "@snapotter/shared";
 import {
   Check,
   Copy,
   Eye,
   EyeOff,
+  FileText,
   Info,
   Key,
   Loader2,
+  Lock,
   LogOut,
   Monitor,
   MoreVertical,
   Pencil,
+  Plus,
   RotateCcw,
   Search,
   Settings,
   Shield,
+  Sparkles,
   Trash2,
   UserPlus,
   Users,
@@ -22,11 +26,14 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiDelete, apiGet, apiPost, apiPut, clearToken, formatHeaders } from "@/lib/api";
 import { cn, copyToClipboard } from "@/lib/utils";
-import { GemLogo } from "../common/gem-logo";
+import { useAnalyticsStore } from "@/stores/analytics-store";
+import { useSettingsStore } from "@/stores/settings-store";
+import { OtterLogo } from "../common/otter-logo";
+import { AiFeaturesSection } from "./ai-features-section";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -39,8 +46,12 @@ type Section =
   | "security"
   | "people"
   | "teams"
+  | "roles"
+  | "audit-log"
   | "api-keys"
+  | "ai-features"
   | "tools"
+  | "analytics"
   | "about";
 
 interface NavItem {
@@ -56,8 +67,12 @@ const NAV_ITEMS: NavItem[] = [
   { id: "security", label: "Security", icon: Shield },
   { id: "people", label: "People", icon: Users, requiredPermission: "users:manage" },
   { id: "teams", label: "Teams", icon: UsersRound, requiredPermission: "teams:manage" },
+  { id: "roles", label: "Roles", icon: Shield, requiredPermission: "users:manage" },
+  { id: "audit-log", label: "Audit Log", icon: FileText, requiredPermission: "audit:read" },
   { id: "api-keys", label: "API Keys", icon: Key },
+  { id: "ai-features", label: "AI Features", icon: Sparkles, requiredPermission: "settings:write" },
   { id: "tools", label: "Tools", icon: Wrench },
+  { id: "analytics", label: "Product Analytics", icon: Eye },
   { id: "about", label: "About", icon: Info },
 ];
 
@@ -130,8 +145,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
           {section === "security" && <SecuritySection />}
           {section === "people" && <PeopleSection />}
           {section === "teams" && <TeamsSection />}
+          {section === "roles" && <RolesSection />}
+          {section === "audit-log" && <AuditLogSection />}
           {section === "api-keys" && <ApiKeysSection />}
+          {section === "ai-features" && <AiFeaturesSection />}
           {section === "tools" && <ToolsSection />}
+          {section === "analytics" && <AnalyticsSection />}
           {section === "about" && <AboutSection />}
         </div>
       </div>
@@ -152,6 +171,17 @@ interface ApiKeyEntry {
   name: string;
   prefix: string;
   createdAt: string;
+  permissions: string[] | null;
+  expiresAt: string | null;
+}
+
+interface RoleEntry {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  isBuiltin: boolean;
+  userCount: number;
 }
 
 interface UserEntry {
@@ -172,28 +202,56 @@ interface TeamEntry {
 /* ────────────────────── General ────────────────────── */
 
 function GeneralSection() {
+  const { authEnabled } = useAuth();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [defaultToolView, setDefaultToolView] = useState("sidebar");
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    apiGet<{ user: SessionUser }>("/auth/session")
-      .then((data) => setUser(data.user))
-      .catch(() => {
-        // Fallback to localStorage if session endpoint fails
-        setUser({
-          id: 0,
-          username: localStorage.getItem("ashim-username") || "",
-          role: "unknown",
-        });
-      })
-      .finally(() => setLoading(false));
+    Promise.all([
+      apiGet<{ user: SessionUser }>("/auth/session")
+        .then((data) => setUser(data.user))
+        .catch(() => {
+          setUser({
+            id: 0,
+            username: localStorage.getItem("snapotter-username") || "",
+            role: "unknown",
+          });
+        }),
+      apiGet<{ settings: Record<string, string> }>("/v1/settings")
+        .then((data) => {
+          if (data.settings.defaultToolView) {
+            setDefaultToolView(data.settings.defaultToolView);
+          }
+        })
+        .catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, []);
 
   const handleLogout = () => {
     clearToken();
-    localStorage.removeItem("ashim-username");
+    localStorage.removeItem("snapotter-username");
     window.location.href = "/login";
   };
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      await apiPut("/v1/settings", { defaultToolView });
+      setSaveMsg("Settings saved.");
+      useSettingsStore.setState({
+        defaultToolView: defaultToolView as "sidebar" | "fullscreen",
+      });
+    } catch {
+      setSaveMsg("Failed to save settings.");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveMsg(null), 3000);
+    }
+  }, [defaultToolView]);
 
   const username = user?.username || "admin";
   const role = user?.role || "unknown";
@@ -220,28 +278,58 @@ function GeneralSection() {
             <p className="text-xs text-muted-foreground capitalize">{role}</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-        >
-          <LogOut className="h-3.5 w-3.5" />
-          Log out
-        </button>
+        {authEnabled && (
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Log out
+          </button>
+        )}
       </div>
 
       {/* Default view */}
       <SettingRow label="Default Tool View" description="How tools are displayed on the home page">
-        <select className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm text-foreground">
+        <select
+          value={defaultToolView}
+          onChange={(e) => setDefaultToolView(e.target.value)}
+          className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm text-foreground"
+        >
           <option value="sidebar">Sidebar</option>
           <option value="fullscreen">Fullscreen Grid</option>
         </select>
       </SettingRow>
 
       {/* Version */}
-      <SettingRow label="App Version" description="Current version of ashim">
+      <SettingRow label="App Version" description="Current version of SnapOtter">
         <span className="text-sm font-mono text-muted-foreground">{APP_VERSION}</span>
       </SettingRow>
+
+      <div className="flex items-center gap-3 pt-2">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          Save Settings
+        </button>
+        {saveMsg && (
+          <span
+            className={cn(
+              "text-sm",
+              saveMsg.includes("Failed")
+                ? "text-destructive"
+                : "text-green-600 dark:text-green-400",
+            )}
+          >
+            {saveMsg}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -260,7 +348,7 @@ function SystemSection() {
       .catch(() => {
         // Fallback defaults if endpoint not ready
         setSettings({
-          appName: "ashim",
+          appName: "SnapOtter",
           fileUploadLimitMb: "100",
           defaultTheme: "system",
           defaultLocale: "en",
@@ -643,6 +731,7 @@ function PeopleSection() {
     null,
   );
   const [teams, setTeams] = useState<TeamEntry[]>([]);
+  const [availableRoles, setAvailableRoles] = useState<RoleEntry[]>([]);
 
   const loadTeams = useCallback(async () => {
     try {
@@ -668,6 +757,9 @@ function PeopleSection() {
   useEffect(() => {
     loadUsers();
     loadTeams();
+    apiGet<{ roles: RoleEntry[] }>("/v1/roles")
+      .then((data) => setAvailableRoles(data.roles))
+      .catch(() => setAvailableRoles([]));
   }, [loadUsers, loadTeams]);
 
   // Close dropdown when clicking outside
@@ -682,7 +774,7 @@ function PeopleSection() {
     u.username.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const atLimit = users.length >= maxUsers;
+  const atLimit = maxUsers > 0 && users.length >= maxUsers;
 
   const handleAddUser = useCallback(
     async (e: React.FormEvent) => {
@@ -794,7 +886,9 @@ function PeopleSection() {
 
       {/* User count */}
       <p className="text-sm text-muted-foreground">
-        {users.length} / {maxUsers} users
+        {maxUsers > 0
+          ? `${users.length} / ${maxUsers} users`
+          : `${users.length} ${users.length === 1 ? "user" : "users"}`}
       </p>
 
       {/* Action message */}
@@ -873,8 +967,20 @@ function PeopleSection() {
               onChange={(e) => setNewRole(e.target.value)}
               className="px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground"
             >
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
+              {availableRoles.length > 0 ? (
+                availableRoles.map((r) => (
+                  <option key={r.name} value={r.name}>
+                    {r.name.charAt(0).toUpperCase() + r.name.slice(1)} —{" "}
+                    {r.description || "No description"}
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="user">User — Basic tool access</option>
+                  <option value="editor">Editor — All files &amp; pipelines</option>
+                  <option value="admin">Admin — Full access</option>
+                </>
+              )}
             </select>
             <select
               value={newTeam}
@@ -923,8 +1029,20 @@ function PeopleSection() {
               onChange={(e) => setEditRole(e.target.value)}
               className="px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground"
             >
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
+              {availableRoles.length > 0 ? (
+                availableRoles.map((r) => (
+                  <option key={r.name} value={r.name}>
+                    {r.name.charAt(0).toUpperCase() + r.name.slice(1)} —{" "}
+                    {r.description || "No description"}
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="user">User — Basic tool access</option>
+                  <option value="editor">Editor — All files &amp; pipelines</option>
+                  <option value="admin">Admin — Full access</option>
+                </>
+              )}
             </select>
             <select
               value={editTeam}
@@ -1117,6 +1235,10 @@ function ApiKeysSection() {
   const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [keyName, setKeyName] = useState("");
+  const [showScoping, setShowScoping] = useState(false);
+  const [scopedPerms, setScopedPerms] = useState<string[]>([]);
+  const [expiresAt, setExpiresAt] = useState("");
+  const { permissions } = useAuth();
 
   const loadKeys = useCallback(async () => {
     try {
@@ -1137,18 +1259,26 @@ function ApiKeysSection() {
     setGenerating(true);
     setNewKey(null);
     try {
-      const data = await apiPost<{ key: string }>("/v1/api-keys", {
-        name: keyName || "default",
-      });
+      const payload: Record<string, unknown> = { name: keyName || "default" };
+      if (showScoping && scopedPerms.length > 0) {
+        payload.permissions = scopedPerms;
+      }
+      if (expiresAt) {
+        payload.expiresAt = new Date(expiresAt).toISOString();
+      }
+      const data = await apiPost<{ key: string }>("/v1/api-keys", payload);
       setNewKey(data.key);
       setKeyName("");
+      setScopedPerms([]);
+      setShowScoping(false);
+      setExpiresAt("");
       await loadKeys();
     } catch {
       // Silently fail
     } finally {
       setGenerating(false);
     }
-  }, [keyName, loadKeys]);
+  }, [keyName, showScoping, scopedPerms, expiresAt, loadKeys]);
 
   const copyKey = useCallback(async (key: string) => {
     const ok = await copyToClipboard(key);
@@ -1184,7 +1314,7 @@ function ApiKeysSection() {
       <div>
         <h3 className="text-lg font-semibold text-foreground">API Keys</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage API keys for programmatic access to ashim.
+          Manage API keys for programmatic access to SnapOtter.
         </p>
       </div>
 
@@ -1206,6 +1336,62 @@ function ApiKeysSection() {
           {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
           Generate API Key
         </button>
+      </div>
+
+      {/* Permission scoping */}
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setShowScoping(!showScoping)}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {showScoping ? "Remove permission scoping" : "Restrict permissions (optional)"}
+        </button>
+
+        {showScoping && (
+          <div className="flex flex-wrap gap-2 p-3 rounded-lg border border-border bg-muted/20">
+            {permissions.map((perm) => (
+              <label key={perm} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={scopedPerms.includes(perm)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setScopedPerms([...scopedPerms, perm]);
+                    } else {
+                      setScopedPerms(scopedPerms.filter((p) => p !== perm));
+                    }
+                  }}
+                  className="rounded border-border"
+                />
+                <span className="font-mono">{perm}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Expiration date */}
+      <div className="flex items-center gap-2">
+        <label className="text-xs text-muted-foreground flex items-center gap-2">
+          Expires:
+          <input
+            type="datetime-local"
+            value={expiresAt}
+            onChange={(e) => setExpiresAt(e.target.value)}
+            className="px-2 py-1 rounded border border-border bg-background text-xs text-foreground"
+            min={new Date().toISOString().slice(0, 16)}
+          />
+        </label>
+        {expiresAt && (
+          <button
+            type="button"
+            onClick={() => setExpiresAt("")}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Newly generated key display */}
@@ -1244,6 +1430,16 @@ function ApiKeysSection() {
                 <p className="text-xs text-muted-foreground font-mono">
                   {k.prefix}... &middot; Created {new Date(k.createdAt).toLocaleDateString()}
                 </p>
+                {k.permissions && (
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                    Scoped: {k.permissions.join(", ")}
+                  </p>
+                )}
+                {k.expiresAt && (
+                  <span className="text-xs text-amber-500">
+                    Expires {new Date(k.expiresAt).toLocaleDateString()}
+                  </span>
+                )}
               </div>
               <button
                 type="button"
@@ -1540,6 +1736,552 @@ function TeamsSection() {
   );
 }
 
+/* ────────────────────── Roles ────────────────────── */
+
+const PERMISSION_GROUPS = [
+  { label: "Tools", permissions: ["tools:use"] },
+  { label: "Files", permissions: ["files:own", "files:all"] },
+  { label: "API Keys", permissions: ["apikeys:own", "apikeys:all"] },
+  { label: "Pipelines", permissions: ["pipelines:own", "pipelines:all"] },
+  { label: "Settings", permissions: ["settings:read", "settings:write"] },
+  { label: "Users", permissions: ["users:manage"] },
+  { label: "Teams", permissions: ["teams:manage"] },
+  { label: "Branding", permissions: ["branding:manage"] },
+  {
+    label: "System",
+    permissions: ["features:manage", "system:health", "audit:read"],
+  },
+];
+
+function RolesSection() {
+  const [roles, setRoles] = useState<RoleEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newPermissions, setNewPermissions] = useState<string[]>([]);
+  const [editingRole, setEditingRole] = useState<RoleEntry | null>(null);
+  const [editPermissions, setEditPermissions] = useState<string[]>([]);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [actionMsg, setActionMsg] = useState<{ type: "success" | "error"; text: string } | null>(
+    null,
+  );
+
+  const loadRoles = useCallback(async () => {
+    try {
+      const data = await apiGet<{ roles: RoleEntry[] }>("/v1/roles");
+      setRoles(data.roles);
+    } catch {
+      setRoles([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRoles();
+  }, [loadRoles]);
+
+  const handleCreate = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newName.trim()) return;
+      try {
+        await apiPost("/v1/roles", {
+          name: newName.trim().toLowerCase(),
+          description: newDescription.trim(),
+          permissions: newPermissions,
+        });
+        setNewName("");
+        setNewDescription("");
+        setNewPermissions([]);
+        setShowCreateForm(false);
+        setActionMsg({ type: "success", text: "Role created successfully" });
+        await loadRoles();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to create role";
+        setActionMsg({
+          type: "error",
+          text: msg.includes("409") ? "A role with that name already exists" : msg,
+        });
+      }
+      setTimeout(() => setActionMsg(null), 3000);
+    },
+    [newName, newDescription, newPermissions, loadRoles],
+  );
+
+  const handleUpdate = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingRole) return;
+      try {
+        await apiPut(`/v1/roles/${editingRole.id}`, {
+          name: editName.trim().toLowerCase(),
+          description: editDescription.trim(),
+          permissions: editPermissions,
+        });
+        setEditingRole(null);
+        setActionMsg({ type: "success", text: "Role updated" });
+        await loadRoles();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to update role";
+        setActionMsg({ type: "error", text: msg });
+      }
+      setTimeout(() => setActionMsg(null), 3000);
+    },
+    [editingRole, editName, editDescription, editPermissions, loadRoles],
+  );
+
+  const handleDelete = useCallback(
+    async (role: RoleEntry) => {
+      const msg =
+        role.userCount > 0
+          ? `Delete role "${role.name}"? ${role.userCount} user${role.userCount !== 1 ? "s" : ""} will need to be reassigned.`
+          : `Delete role "${role.name}"?`;
+      if (!confirm(msg)) return;
+      try {
+        await apiDelete(`/v1/roles/${role.id}`);
+        setActionMsg({ type: "success", text: `Role "${role.name}" deleted` });
+        await loadRoles();
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : "Failed to delete role";
+        setActionMsg({ type: "error", text: errMsg });
+      }
+      setTimeout(() => setActionMsg(null), 3000);
+    },
+    [loadRoles],
+  );
+
+  const togglePermission = (perm: string, list: string[], setter: (v: string[]) => void) => {
+    setter(list.includes(perm) ? list.filter((p) => p !== perm) : [...list, perm]);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-lg font-semibold text-foreground">Roles</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Manage roles and their permissions. Built-in roles cannot be modified.
+        </p>
+      </div>
+
+      {actionMsg && (
+        <div
+          className={cn(
+            "text-sm px-3 py-2 rounded-lg",
+            actionMsg.type === "error"
+              ? "bg-destructive/10 text-destructive"
+              : "bg-green-500/10 text-green-600 dark:text-green-400",
+          )}
+        >
+          {actionMsg.text}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setShowCreateForm(!showCreateForm)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          Create Custom Role
+        </button>
+      </div>
+
+      {/* Create role form */}
+      {showCreateForm && (
+        <form
+          onSubmit={handleCreate}
+          className="p-4 rounded-lg border border-border bg-muted/20 space-y-3"
+        >
+          <h4 className="text-sm font-medium text-foreground">New Role</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Role name"
+              required
+              className="px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground"
+            />
+            <input
+              type="text"
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              placeholder="Description (optional)"
+              className="px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground"
+            />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2">Permissions</p>
+            <div className="grid grid-cols-2 gap-3">
+              {PERMISSION_GROUPS.map((group) => (
+                <div key={group.label} className="space-y-1">
+                  <p className="text-xs font-semibold text-foreground">{group.label}</p>
+                  {group.permissions.map((perm) => (
+                    <label key={perm} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newPermissions.includes(perm)}
+                        onChange={() => togglePermission(perm, newPermissions, setNewPermissions)}
+                        className="rounded border-border"
+                      />
+                      <span className="font-mono">{perm}</span>
+                    </label>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              Create
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowCreateForm(false);
+                setNewName("");
+                setNewDescription("");
+                setNewPermissions([]);
+              }}
+              className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Edit role form */}
+      {editingRole && (
+        <form
+          onSubmit={handleUpdate}
+          className="p-4 rounded-lg border border-primary/30 bg-primary/5 space-y-3"
+        >
+          <h4 className="text-sm font-medium text-foreground">Edit Role: {editingRole.name}</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder="Role name"
+              required
+              className="px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground"
+            />
+            <input
+              type="text"
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              placeholder="Description (optional)"
+              className="px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground"
+            />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2">Permissions</p>
+            <div className="grid grid-cols-2 gap-3">
+              {PERMISSION_GROUPS.map((group) => (
+                <div key={group.label} className="space-y-1">
+                  <p className="text-xs font-semibold text-foreground">{group.label}</p>
+                  {group.permissions.map((perm) => (
+                    <label key={perm} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editPermissions.includes(perm)}
+                        onChange={() => togglePermission(perm, editPermissions, setEditPermissions)}
+                        className="rounded border-border"
+                      />
+                      <span className="font-mono">{perm}</span>
+                    </label>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingRole(null)}
+              className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-muted transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Role cards */}
+      <div className="space-y-3">
+        {roles.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No roles found.</p>
+        ) : (
+          roles.map((role) => (
+            <div
+              key={role.id}
+              className="p-4 rounded-lg border border-border bg-muted/20 space-y-2"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-foreground capitalize">
+                    {role.name}
+                  </span>
+                  {role.isBuiltin && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-xs font-medium text-muted-foreground">
+                      <Lock className="h-3 w-3" />
+                      Built-in
+                    </span>
+                  )}
+                  <span className="inline-block px-2 py-0.5 rounded-full bg-primary/10 text-xs font-medium text-primary">
+                    {role.userCount} user{role.userCount !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                {!role.isBuiltin && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingRole(role);
+                        setEditName(role.name);
+                        setEditDescription(role.description);
+                        setEditPermissions([...role.permissions]);
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                      title="Edit role"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(role)}
+                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                      title="Delete role"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              {role.description && (
+                <p className="text-xs text-muted-foreground">{role.description}</p>
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                {role.permissions.map((perm) => (
+                  <span
+                    key={perm}
+                    className="inline-block px-2 py-0.5 rounded-full bg-muted text-xs font-mono text-muted-foreground"
+                  >
+                    {perm}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────── Audit Log ────────────────────── */
+
+const AUDIT_ACTIONS = [
+  "LOGIN_SUCCESS",
+  "LOGIN_FAILED",
+  "USER_CREATED",
+  "USER_UPDATED",
+  "USER_DELETED",
+  "PASSWORD_CHANGED",
+  "PASSWORD_RESET",
+  "API_KEY_CREATED",
+  "API_KEY_DELETED",
+  "ROLE_CREATED",
+  "ROLE_UPDATED",
+  "ROLE_DELETED",
+  "SETTINGS_UPDATED",
+] as const;
+
+interface AuditEntry {
+  id: string;
+  actorUsername: string;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+function AuditLogSection() {
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [actionFilter, setActionFilter] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const limit = 25;
+
+  const fetchEntries = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (actionFilter) params.set("action", actionFilter);
+      const data = await apiGet<{ entries: AuditEntry[]; total: number }>(
+        `/v1/audit-log?${params}`,
+      );
+      setEntries(data.entries);
+      setTotal(data.total);
+    } catch {
+      setEntries([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, actionFilter]);
+
+  useEffect(() => {
+    fetchEntries();
+  }, [fetchEntries]);
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const handleFilterChange = (value: string) => {
+    setActionFilter(value);
+    setPage(1);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-foreground">Audit Log</h3>
+        <select
+          value={actionFilter}
+          onChange={(e) => handleFilterChange(e.target.value)}
+          className="text-sm border border-border rounded-lg px-2 py-1.5 bg-background text-foreground"
+        >
+          <option value="">All actions</option>
+          {AUDIT_ACTIONS.map((a) => (
+            <option key={a} value={a}>
+              {a.replaceAll("_", " ")}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : entries.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-8">No audit log entries.</p>
+      ) : (
+        <div className="border border-border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Time</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">User</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Action</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Target</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => (
+                <Fragment key={entry.id}>
+                  <tr
+                    className="border-b border-border last:border-0 hover:bg-muted/20 cursor-pointer transition-colors"
+                    onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
+                  >
+                    <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
+                      {formatRelativeTime(entry.createdAt)}
+                    </td>
+                    <td className="px-3 py-2 text-foreground">{entry.actorUsername}</td>
+                    <td className="px-3 py-2">
+                      <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                        {entry.action}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {entry.targetType
+                        ? `${entry.targetType}${entry.targetId ? ` #${entry.targetId}` : ""}`
+                        : "—"}
+                    </td>
+                  </tr>
+                  {expandedId === entry.id && entry.details && (
+                    <tr className="border-b border-border last:border-0">
+                      <td colSpan={4} className="px-3 py-2 bg-muted/10">
+                        <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono overflow-x-auto">
+                          {JSON.stringify(entry.details, null, 2)}
+                        </pre>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">
+            Page {page} of {totalPages} ({total} entries)
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+              className="px-3 py-1 rounded-lg border border-border text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="px-3 py-1 rounded-lg border border-border text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ────────────────────── Tools ────────────────────── */
 
 function ToolsSection() {
@@ -1695,6 +2437,69 @@ function ToolsSection() {
   );
 }
 
+/* ────────────────────── Analytics ────────────────────── */
+
+function AnalyticsSection() {
+  const { consent, config, configLoaded, fetchConfig, toggleAnalytics } = useAnalyticsStore();
+
+  useEffect(() => {
+    fetchConfig();
+  }, [fetchConfig]);
+
+  if (!configLoaded) return null;
+
+  const disabled = !config?.enabled;
+  const enabled = consent.analyticsEnabled === true;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-sm font-medium text-foreground">Product Analytics</h3>
+        <p className="text-xs text-muted-foreground mt-1">
+          Share anonymous usage data to help improve SnapOtter.
+        </p>
+        <p className="text-xs text-muted-foreground">Your images never leave your machine.</p>
+      </div>
+
+      {disabled ? (
+        <p className="text-xs text-muted-foreground italic">
+          Product analytics has been disabled by the server administrator.
+        </p>
+      ) : (
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-foreground">
+            {enabled ? "Analytics enabled" : "Analytics disabled"}
+          </span>
+          <button
+            type="button"
+            onClick={() => toggleAnalytics(!enabled)}
+            className={cn(
+              "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+              enabled ? "bg-primary" : "bg-muted-foreground/30",
+            )}
+          >
+            <span
+              className={cn(
+                "inline-block h-4 w-4 rounded-full bg-white transition-transform",
+                enabled ? "translate-x-6" : "translate-x-1",
+              )}
+            />
+          </button>
+        </div>
+      )}
+
+      <a
+        href="/privacy"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs text-primary hover:underline"
+      >
+        Learn more
+      </a>
+    </div>
+  );
+}
+
 /* ────────────────────── About ────────────────────── */
 
 function AboutSection() {
@@ -1706,13 +2511,13 @@ function AboutSection() {
 
       <div className="p-4 rounded-lg border border-border bg-muted/20 space-y-3">
         <div className="flex items-center gap-3">
-          <GemLogo className="h-8 w-8 text-primary" />
+          <OtterLogo className="h-8 w-8 text-primary" />
           <div className="text-2xl font-bold text-foreground">
-            <span className="text-primary">ashim</span>
+            <span className="text-primary">SnapOtter</span>
           </div>
         </div>
         <p className="text-sm text-muted-foreground">
-          A self-hosted, privacy-first image processing suite with 30+ tools. Resize, compress,
+          A self-hosted, privacy-first image processing suite with 47 tools. Resize, compress,
           convert, watermark, and automate your image workflows without sending data to the cloud.
         </p>
         <div className="flex items-center gap-4 text-sm">
@@ -1725,7 +2530,7 @@ function AboutSection() {
         <h4 className="text-sm font-medium text-foreground">Links</h4>
         <div className="flex flex-col gap-1.5">
           <a
-            href="https://github.com/ashim-hq/ashim"
+            href="https://github.com/snapotter-hq/snapotter"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-primary hover:underline"
@@ -1733,7 +2538,7 @@ function AboutSection() {
             GitHub Repository
           </a>
           <a
-            href="https://ashim-hq.github.io/ashim/"
+            href="https://docs.snapotter.com/"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-primary hover:underline"

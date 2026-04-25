@@ -1,4 +1,4 @@
-import { sharpenAdvanced } from "@ashim/image-engine";
+import { sharpenAdvanced } from "@snapotter/image-engine";
 import type { FastifyInstance } from "fastify";
 import sharp from "sharp";
 import { z } from "zod";
@@ -15,7 +15,7 @@ const settingsSchema = z.object({
   y2: z.number().min(0).max(50).default(12),
   y3: z.number().min(0).max(50).default(20),
   // Unsharp Mask
-  amount: z.number().min(0).max(500).default(100),
+  amount: z.number().min(0).max(1000).default(100),
   radius: z.number().min(0.1).max(5).default(1.0),
   threshold: z.number().min(0).max(255).default(0),
   // High-Pass

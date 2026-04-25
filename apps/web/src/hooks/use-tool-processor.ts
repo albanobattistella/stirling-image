@@ -1,6 +1,6 @@
-import { PYTHON_SIDECAR_TOOLS } from "@ashim/shared";
+import { PYTHON_SIDECAR_TOOLS } from "@snapotter/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatHeaders } from "@/lib/api";
+import { formatHeaders, parseApiError } from "@/lib/api";
 import { generateId } from "@/lib/utils";
 import { useFileStore } from "@/stores/file-store";
 
@@ -11,6 +11,7 @@ interface ProcessResult {
   originalSize: number;
   processedSize: number;
   savedFileId?: string;
+  warning?: string;
 }
 
 export interface ToolProgress {
@@ -39,6 +40,7 @@ export function useToolProcessor(toolId: string) {
     useFileStore();
 
   const [progress, setProgress] = useState<ToolProgress>(IDLE_PROGRESS);
+  const [warning, setWarning] = useState<string | null>(null);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -69,6 +71,7 @@ export function useToolProcessor(toolId: string) {
       const capturedIndex = useFileStore.getState().selectedIndex;
 
       setError(null);
+      setWarning(null);
       // Mark the target entry as processing and clear any old result
       useFileStore.getState().updateEntry(capturedIndex, {
         processedUrl: null,
@@ -150,8 +153,8 @@ export function useToolProcessor(toolId: string) {
       const xhr = new XMLHttpRequest();
       xhrRef.current = xhr;
 
-      // Timeout: 60s for fast tools, 3 min for medium (seam carving), 5 min for AI
-      xhr.timeout = isAiTool ? 300_000 : isMediumTool ? 180_000 : 60_000;
+      // Timeout: 2 min for fast tools, 5 min for medium (seam carving), 10 min for AI
+      xhr.timeout = isAiTool ? 600_000 : isMediumTool ? 300_000 : 120_000;
 
       // For AI tools: upload = 0-15%, processing = 15-100% (SSE-driven)
       // For medium tools: upload = 0-40%, processing = 40-95% (gradual fill)
@@ -216,6 +219,7 @@ export function useToolProcessor(toolId: string) {
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const result: ProcessResult = JSON.parse(xhr.responseText);
+            setWarning(result.warning ?? null);
             // Write result to the entry that was being processed (captured at
             // request time), not whatever entry happens to be selected now.
             useFileStore.getState().updateEntry(capturedIndex, {
@@ -233,10 +237,14 @@ export function useToolProcessor(toolId: string) {
         } else {
           try {
             const body = JSON.parse(xhr.responseText);
-            const msg = body.details
-              ? `${body.error}: ${body.details}`
-              : body.error || `Processing failed: ${xhr.status}`;
-            setError(msg);
+            const parsed = parseApiError(body, xhr.status);
+            if (typeof parsed === "object" && parsed.type === "feature_not_installed") {
+              setError(
+                `Feature "${parsed.featureName}" is not installed. Enable it in Settings → AI Features.`,
+              );
+            } else {
+              setError(parsed as string);
+            }
           } catch {
             setError(`Processing failed: ${xhr.status}`);
           }
@@ -253,7 +261,7 @@ export function useToolProcessor(toolId: string) {
           eventSourceRef.current.close();
           eventSourceRef.current = null;
         }
-        setError("Network error - check your connection");
+        setError("Processing was interrupted \u2014 retry when reconnected");
         setProcessing(false);
         setProgress(IDLE_PROGRESS);
       };
@@ -357,9 +365,12 @@ export function useToolProcessor(toolId: string) {
           let errorMsg: string;
           try {
             const body = JSON.parse(text);
-            errorMsg = body.details
-              ? `${body.error}: ${body.details}`
-              : body.error || `Batch processing failed: ${response.status}`;
+            const parsed = parseApiError(body, response.status);
+            if (typeof parsed === "object" && parsed.type === "feature_not_installed") {
+              errorMsg = `Feature "${parsed.featureName}" is not installed. Enable it in Settings → AI Features.`;
+            } else {
+              errorMsg = parsed as string;
+            }
           } catch {
             errorMsg = `Batch processing failed: ${response.status}`;
           }
@@ -422,6 +433,7 @@ export function useToolProcessor(toolId: string) {
     processAllFiles,
     processing,
     error,
+    warning,
     downloadUrl: processedUrl,
     originalSize,
     processedSize,

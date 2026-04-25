@@ -3,9 +3,10 @@ import { basename, extname } from "node:path";
 import archiver from "archiver";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { formatZodErrors } from "../../lib/errors.js";
 
 const settingsSchema = z.object({
-  pattern: z.string().min(1).max(200).default("image-{{index}}"),
+  pattern: z.string().min(1).max(1000).default("image-{{index}}"),
   startIndex: z.number().min(0).default(1),
 });
 
@@ -53,7 +54,9 @@ export function registerBulkRename(app: FastifyInstance) {
       const parsed = settingsRaw ? JSON.parse(settingsRaw) : {};
       const result = settingsSchema.safeParse(parsed);
       if (!result.success) {
-        return reply.status(400).send({ error: "Invalid settings", details: result.error.issues });
+        return reply
+          .status(400)
+          .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
       }
       settings = result.data;
     } catch {

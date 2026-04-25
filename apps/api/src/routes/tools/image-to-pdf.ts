@@ -6,13 +6,14 @@ import PDFDocument from "pdfkit";
 import sharp from "sharp";
 import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
+import { formatZodErrors } from "../../lib/errors.js";
 import { ensureSharpCompat } from "../../lib/heic-converter.js";
 import { createWorkspace } from "../../lib/workspace.js";
 
 const settingsSchema = z.object({
   pageSize: z.enum(["A4", "Letter", "A3", "A5"]).default("A4"),
   orientation: z.enum(["portrait", "landscape"]).default("portrait"),
-  margin: z.number().min(0).max(100).default(20),
+  margin: z.number().min(0).max(500).default(20),
 });
 
 const PAGE_SIZES: Record<string, [number, number]> = {
@@ -62,7 +63,9 @@ export function registerImageToPdf(app: FastifyInstance) {
       const parsed = settingsRaw ? JSON.parse(settingsRaw) : {};
       const result = settingsSchema.safeParse(parsed);
       if (!result.success) {
-        return reply.status(400).send({ error: "Invalid settings", details: result.error.issues });
+        return reply
+          .status(400)
+          .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
       }
       settings = result.data;
     } catch {

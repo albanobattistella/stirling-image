@@ -1,12 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { removeBackground } from "@ashim/ai";
+import { removeBackground } from "@snapotter/ai";
+import { getBundleForTool, TOOL_BUNDLE_MAP } from "@snapotter/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
 import { applyEffects } from "../../lib/bg-effects.js";
+import { formatZodErrors } from "../../lib/errors.js";
+import { isToolInstalled } from "../../lib/feature-status.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
+import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
 import { decodeHeic } from "../../lib/heic-converter.js";
 import { createWorkspace, getWorkspacePath } from "../../lib/workspace.js";
 import { updateSingleFileProgress } from "../progress.js";
@@ -41,6 +45,18 @@ export function registerRemoveBackground(app: FastifyInstance) {
   app.post(
     "/api/v1/tools/remove-background",
     async (request: FastifyRequest, reply: FastifyReply) => {
+      const toolId = "remove-background";
+      if (!isToolInstalled(toolId)) {
+        const bundle = getBundleForTool(toolId);
+        return reply.status(501).send({
+          error: "Feature not installed",
+          code: "FEATURE_NOT_INSTALLED",
+          feature: TOOL_BUNDLE_MAP[toolId],
+          featureName: bundle?.name ?? toolId,
+          estimatedSize: bundle?.estimatedSize ?? "unknown",
+        });
+      }
+
       let fileBuffer: Buffer | null = null;
       let filename = "image";
       let settingsRaw: string | null = null;
@@ -71,17 +87,36 @@ export function registerRemoveBackground(app: FastifyInstance) {
         return reply.status(400).send({ error: "No image file provided" });
       }
 
-      const validation = await validateImageBuffer(fileBuffer);
+      const validation = await validateImageBuffer(fileBuffer, filename);
       if (!validation.valid) {
         return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
       }
 
       try {
-        const settings = settingsRaw ? JSON.parse(settingsRaw) : {};
+        let settings: z.infer<typeof settingsSchema>;
+        try {
+          const parsed = settingsRaw ? JSON.parse(settingsRaw) : {};
+          const result = settingsSchema.safeParse(parsed);
+          if (!result.success) {
+            return reply
+              .status(400)
+              .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
+          }
+          settings = result.data;
+        } catch {
+          return reply.status(400).send({ error: "Settings must be valid JSON" });
+        }
 
         // Decode HEIC/HEIF before processing
         if (validation.format === "heif") {
           fileBuffer = await decodeHeic(fileBuffer);
+          const ext = filename.match(/\.[^.]+$/)?.[0];
+          if (ext) filename = `${filename.slice(0, -ext.length)}.png`;
+        }
+
+        // Decode CLI-decoded formats (RAW, TGA, PSD, EXR, HDR)
+        if (needsCliDecode(validation.format)) {
+          fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format);
           const ext = filename.match(/\.[^.]+$/)?.[0];
           if (ext) filename = `${filename.slice(0, -ext.length)}.png`;
         }
@@ -145,6 +180,7 @@ export function registerRemoveBackground(app: FastifyInstance) {
           originalSize: fileBuffer.length,
           processedSize: transparentResult.length,
           filename,
+          model: settings.model,
         });
       } catch (err) {
         request.log.error({ err, toolId: "remove-background" }, "Background removal failed");
@@ -162,6 +198,7 @@ export function registerRemoveBackground(app: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       let settingsRaw: string | null = null;
       let bgImageBuffer: Buffer | null = null;
+      let bgFilename = "background";
 
       try {
         const parts = request.parts();
@@ -170,6 +207,7 @@ export function registerRemoveBackground(app: FastifyInstance) {
             const chunks: Buffer[] = [];
             for await (const chunk of part.file) chunks.push(chunk);
             bgImageBuffer = Buffer.concat(chunks);
+            bgFilename = part.filename ?? "background";
           } else if (part.type === "field" && part.fieldname === "settings") {
             settingsRaw = part.value as string;
           }
@@ -185,13 +223,37 @@ export function registerRemoveBackground(app: FastifyInstance) {
         return reply.status(400).send({ error: "No settings provided" });
       }
 
-      try {
-        const settings = JSON.parse(settingsRaw);
-        const { jobId, filename } = settings;
+      const effectsSchema = z.object({
+        jobId: z.string().min(1),
+        filename: z.string().min(1),
+        backgroundType: z.enum(["transparent", "color", "gradient", "blur", "image"]).optional(),
+        backgroundColor: z.string().optional(),
+        gradientColor1: z.string().optional(),
+        gradientColor2: z.string().optional(),
+        gradientAngle: z.number().optional(),
+        blurEnabled: z.boolean().optional(),
+        blurIntensity: z.number().min(0).max(100).optional(),
+        shadowEnabled: z.boolean().optional(),
+        shadowOpacity: z.number().min(0).max(100).optional(),
+      });
 
-        if (!jobId || !filename) {
-          return reply.status(400).send({ error: "jobId and filename are required" });
+      try {
+        let settings: z.infer<typeof effectsSchema>;
+        try {
+          const parsed = JSON.parse(settingsRaw);
+          const result = effectsSchema.safeParse(parsed);
+          if (!result.success) {
+            return reply.status(400).send({
+              error: "Invalid settings",
+              details: formatZodErrors(result.error.issues),
+            });
+          }
+          settings = result.data;
+        } catch {
+          return reply.status(400).send({ error: "Settings must be valid JSON" });
         }
+
+        const { jobId, filename } = settings;
 
         const workspacePath = getWorkspacePath(jobId);
 
@@ -206,9 +268,12 @@ export function registerRemoveBackground(app: FastifyInstance) {
 
         // Decode HEIC/HEIF background image if needed
         if (bgImageBuffer) {
-          const bgValidation = await validateImageBuffer(bgImageBuffer);
+          const bgValidation = await validateImageBuffer(bgImageBuffer, bgFilename);
           if (bgValidation.valid && bgValidation.format === "heif") {
             bgImageBuffer = await decodeHeic(bgImageBuffer);
+          }
+          if (bgValidation.valid && needsCliDecode(bgValidation.format)) {
+            bgImageBuffer = await decodeToSharpCompat(bgImageBuffer, bgValidation.format);
           }
         }
 

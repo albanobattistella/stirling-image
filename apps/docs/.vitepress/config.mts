@@ -2,23 +2,25 @@ import { defineConfig } from "vitepress";
 import llmstxt from "vitepress-plugin-llms";
 
 export default defineConfig({
-  title: "ashim",
-  description: "Documentation for ashim - A Self Hosted Image Manipulator. 45+ tools, local AI, pipelines, REST API.",
-  base: "/ashim/",
+  title: "SnapOtter",
+  description:
+    "Documentation for SnapOtter - A Self Hosted Image Manipulator. 47 tools, local AI, pipelines, REST API.",
+  base: "/",
+  appearance: { initialValue: "light" },
   srcDir: ".",
   outDir: "./.vitepress/dist",
   ignoreDeadLinks: [/localhost/],
 
   head: [
     ["meta", { name: "theme-color", content: "#3b82f6" }],
-    ["link", { rel: "icon", type: "image/svg+xml", href: "/ashim/favicon.svg" }],
-    ["link", { rel: "llms-txt", href: "/ashim/llms.txt" }],
+    ["link", { rel: "icon", type: "image/png", href: "/favicon.png" }],
+    ["link", { rel: "llms-txt", href: "/llms.txt" }],
   ],
 
   vite: {
     plugins: [
       llmstxt({
-        domain: "https://ashim-hq.github.io",
+        domain: "https://docs.snapotter.com",
         customLLMsTxtTemplate: `# {title}
 
 {description}
@@ -41,12 +43,12 @@ export default defineConfig({
 
 ## Source
 
-- [GitHub](https://github.com/ashim-hq/ashim)
+- [GitHub](https://github.com/snapotter-hq/snapotter)
 - License: AGPLv3 (commercial license also available)
 `,
         customTemplateVariables: {
           description:
-            "Self-hosted, open-source image processing platform with 45+ tools including AI/ML. Runs in a single Docker container with GPU auto-detection.",
+            "SnapOtter is a self-hosted, open-source image processing platform with 47 tools including AI/ML. Runs in a single Docker container with GPU auto-detection.",
           details:
             "Resize, compress, convert, remove backgrounds, upscale, run OCR, and more - without sending images to external services.",
         },
@@ -55,7 +57,7 @@ export default defineConfig({
   },
 
   themeConfig: {
-    logo: "/logo.svg",
+    logo: "/logo.png",
 
     nav: [
       { text: "Home", link: "/" },
@@ -72,6 +74,7 @@ export default defineConfig({
           { text: "Configuration", link: "/guide/configuration" },
           { text: "Database", link: "/guide/database" },
           { text: "Deployment", link: "/guide/deployment" },
+          { text: "Hardware requirements", link: "/guide/deployment#hardware-requirements" },
           { text: "Docker tags", link: "/guide/docker-tags" },
           { text: "Developer guide", link: "/guide/developer" },
           { text: "Translation guide", link: "/guide/translations" },
@@ -94,13 +97,13 @@ export default defineConfig({
 
     footer: {
       message:
-        'Released under the <a href="https://github.com/ashim-hq/ashim/blob/main/LICENSE">AGPLv3 License</a>.',
+        'Released under the <a href="https://github.com/snapotter-hq/snapotter/blob/main/LICENSE">AGPLv3 License</a>.',
       copyright:
-        'AI-friendly docs available at <a href="/ashim/llms.txt">/llms.txt</a> · <a href="/ashim/llms-full.txt">/llms-full.txt</a>',
+        'AI-friendly docs available at <a href="/llms.txt">/llms.txt</a> · <a href="/llms-full.txt">/llms-full.txt</a>',
     },
 
     editLink: {
-      pattern: "https://github.com/ashim-hq/ashim/edit/main/apps/docs/:path",
+      pattern: "https://github.com/snapotter-hq/snapotter/edit/main/apps/docs/:path",
       text: "Edit this page on GitHub",
     },
   },

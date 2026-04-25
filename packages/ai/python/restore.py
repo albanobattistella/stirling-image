@@ -10,9 +10,14 @@ Multi-step pipeline for restoring old and damaged photos:
 import sys
 import json
 import os
-import numpy as np
-import cv2
-from PIL import Image
+
+try:
+    import numpy as np
+    import cv2
+    from PIL import Image
+except ImportError as _e:
+    print(json.dumps({"error": f"Missing dependency: {_e}. Install opencv-python-headless, numpy, and Pillow."}))
+    sys.exit(1)
 
 
 def emit_progress(percent, stage):
@@ -22,20 +27,22 @@ def emit_progress(percent, stage):
 
 # ── Model paths ───────────────────────────────────────────────────────
 
-LAMA_MODEL_DIR = os.environ.get("LAMA_MODEL_DIR", "/opt/models/lama")
+_MODELS_BASE = os.environ.get("MODELS_PATH", "/opt/models")
+
+LAMA_MODEL_DIR = os.environ.get("LAMA_MODEL_DIR", os.path.join(_MODELS_BASE, "lama"))
 LAMA_MODEL_PATH = os.path.join(LAMA_MODEL_DIR, "lama_fp32.onnx")
-LAMA_LOCAL_CACHE = os.path.join(os.path.expanduser("~"), ".cache", "ashim", "lama")
+LAMA_LOCAL_CACHE = os.path.join(os.path.expanduser("~"), ".cache", "snapotter", "lama")
 LAMA_LOCAL_PATH = os.path.join(LAMA_LOCAL_CACHE, "lama_fp32.onnx")
 
-CODEFORMER_MODEL_DIR = os.environ.get("CODEFORMER_MODEL_DIR", "/opt/models/codeformer")
+CODEFORMER_MODEL_DIR = os.environ.get("CODEFORMER_MODEL_DIR", os.path.join(_MODELS_BASE, "codeformer"))
 CODEFORMER_MODEL_PATH = os.path.join(CODEFORMER_MODEL_DIR, "codeformer.onnx")
 CODEFORMER_LOCAL_CACHE = os.path.join(
-    os.path.expanduser("~"), ".cache", "ashim", "codeformer"
+    os.path.expanduser("~"), ".cache", "snapotter", "codeformer"
 )
 CODEFORMER_LOCAL_PATH = os.path.join(CODEFORMER_LOCAL_CACHE, "codeformer.onnx")
 
 DDCOLOR_MODEL_PATH = os.environ.get(
-    "DDCOLOR_MODEL_PATH", "/opt/models/ddcolor/ddcolor.onnx"
+    "DDCOLOR_MODEL_PATH", os.path.join(_MODELS_BASE, "ddcolor", "ddcolor.onnx")
 )
 
 LAMA_MODEL_SIZE = 512
@@ -145,14 +152,10 @@ def inpaint_damage(img_bgr, mask):
     Returns:
         Restored BGR image with damage inpainted.
     """
-    import onnxruntime as ort
+    from gpu import safe_onnx_session
 
     model_path = _get_lama_path()
-    providers = ["CPUExecutionProvider"]
-    if "CUDAExecutionProvider" in ort.get_available_providers():
-        providers.insert(0, "CUDAExecutionProvider")
-
-    session = ort.InferenceSession(model_path, providers=providers)
+    session, _device = safe_onnx_session(model_path)
 
     orig_h, orig_w = img_bgr.shape[:2]
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
@@ -220,7 +223,7 @@ def _get_codeformer_path():
 # ── Model path for new mp.tasks API ─────────────────────────────────
 
 _FACE_DETECT_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite"
-_FACE_DETECT_DOCKER_PATH = "/opt/models/mediapipe/blaze_face_short_range.tflite"
+_FACE_DETECT_DOCKER_PATH = os.path.join(_MODELS_BASE, "mediapipe", "blaze_face_short_range.tflite")
 _FACE_DETECT_LOCAL_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", ".models")
 _FACE_DETECT_LOCAL_PATH = os.path.join(_FACE_DETECT_LOCAL_DIR, "blaze_face_short_range.tflite")
 
@@ -254,40 +257,53 @@ def enhance_faces(img_bgr, fidelity=0.7):
         Tuple of (enhanced BGR image, number of faces found).
     """
     import mediapipe as mp
-    import onnxruntime as ort
+    from gpu import safe_onnx_session
 
-    # Detect faces
+    # Detect faces — downscale large images for reliable MediaPipe detection
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
     ih, iw = img_bgr.shape[:2]
 
+    max_dim = 1920
+    longest = max(ih, iw)
+    if longest > max_dim:
+        det_scale = max_dim / longest
+        det_rgb = cv2.resize(
+            img_rgb,
+            (int(iw * det_scale), int(ih * det_scale)),
+            interpolation=cv2.INTER_AREA,
+        )
+        inv_scale = 1.0 / det_scale
+    else:
+        det_rgb = img_rgb
+        inv_scale = 1.0
+
     try:
         mp_face = mp.solutions.face_detection
-        detections = []
+        all_detections = []
         for model_sel in [0, 1]:
             detector = mp_face.FaceDetection(
                 model_selection=model_sel, min_detection_confidence=0.4
             )
-            results = detector.process(img_rgb)
+            results = detector.process(det_rgb)
             detector.close()
-            if results.detections:
-                detections = results.detections
-                break
+            for detection in (results.detections or []):
+                all_detections.append(detection)
 
-        if not detections:
+        if not all_detections:
             return img_bgr, 0
 
+        dh, dw = det_rgb.shape[:2]
         face_boxes = []
-        for detection in detections:
+        for detection in all_detections:
             bbox = detection.location_data.relative_bounding_box
             face_boxes.append({
-                "x": int(bbox.xmin * iw),
-                "y": int(bbox.ymin * ih),
-                "w": int(bbox.width * iw),
-                "h": int(bbox.height * ih),
+                "x": int(bbox.xmin * dw * inv_scale),
+                "y": int(bbox.ymin * dh * inv_scale),
+                "w": int(bbox.width * dw * inv_scale),
+                "h": int(bbox.height * dh * inv_scale),
             })
 
     except AttributeError:
-        # mediapipe >= 0.10.30 removed mp.solutions, use tasks API
         model_path = _ensure_face_detect_model()
         options = mp.tasks.vision.FaceDetectorOptions(
             base_options=mp.tasks.BaseOptions(model_asset_path=model_path),
@@ -295,7 +311,7 @@ def enhance_faces(img_bgr, fidelity=0.7):
             min_detection_confidence=0.4,
         )
         fd = mp.tasks.vision.FaceDetector.create_from_options(options)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=det_rgb)
         result = fd.detect(mp_image)
         fd.close()
 
@@ -306,32 +322,27 @@ def enhance_faces(img_bgr, fidelity=0.7):
         for detection in result.detections:
             bbox = detection.bounding_box
             face_boxes.append({
-                "x": bbox.origin_x,
-                "y": bbox.origin_y,
-                "w": bbox.width,
-                "h": bbox.height,
+                "x": int(bbox.origin_x * inv_scale),
+                "y": int(bbox.origin_y * inv_scale),
+                "w": int(bbox.width * inv_scale),
+                "h": int(bbox.height * inv_scale),
             })
 
     # Load CodeFormer model
     model_path = _get_codeformer_path()
-    providers = ["CPUExecutionProvider"]
-    if "CUDAExecutionProvider" in ort.get_available_providers():
-        providers.insert(0, "CUDAExecutionProvider")
-
-    session = ort.InferenceSession(model_path, providers=providers)
+    session, _device = safe_onnx_session(model_path)
     input_names = [inp.name for inp in session.get_inputs()]
 
     result = img_bgr.copy()
     faces_enhanced = 0
 
-    for face_box in face_boxes:
+    for i, face_box in enumerate(face_boxes):
         x = face_box["x"]
         y = face_box["y"]
         w = face_box["w"]
         h = face_box["h"]
 
-        # Skip very small faces (under 48px) - enhancement won't help
-        if w < 48 or h < 48:
+        if w < 24 or h < 24:
             continue
 
         # Expand bounding box by ~80% for hair, forehead, chin
@@ -368,7 +379,8 @@ def enhance_faces(img_bgr, fidelity=0.7):
         # Run inference
         try:
             output = session.run(None, model_inputs)[0][0]  # (3, 512, 512)
-        except Exception:
+        except Exception as e:
+            print(f"[restore] CodeFormer inference failed for face {i}: {e}", file=sys.stderr, flush=True)
             continue
 
         # Postprocess: [-1, 1] -> [0, 255], RGB -> BGR
@@ -468,20 +480,15 @@ def colorize_bw(img_bgr, intensity=0.85):
 
     Reuses the DDColor model that the colorize tool already downloads.
     """
-    import onnxruntime as ort
+    from gpu import safe_onnx_session
 
     if not os.path.exists(DDCOLOR_MODEL_PATH):
-        return img_bgr, False
+        raise FileNotFoundError(
+            f"DDColor model not found at {DDCOLOR_MODEL_PATH}. "
+            "Install the 'object-eraser-colorize' bundle to enable colorization."
+        )
 
-    providers = ["CPUExecutionProvider"]
-    try:
-        from gpu import gpu_available
-        if gpu_available():
-            providers.insert(0, "CUDAExecutionProvider")
-    except ImportError:
-        pass
-
-    session = ort.InferenceSession(DDCOLOR_MODEL_PATH, providers=providers)
+    session, _device = safe_onnx_session(DDCOLOR_MODEL_PATH)
     input_name = session.get_inputs()[0].name
     input_shape = session.get_inputs()[0].shape
     model_size = (
@@ -553,6 +560,9 @@ def main():
         scratch_sensitivity = "medium"
 
     try:
+        from gpu import gpu_available
+        device = "cuda" if gpu_available() else "cpu"
+
         emit_progress(5, "Opening image")
         img_bgr = cv2.imread(input_path, cv2.IMREAD_COLOR)
         if img_bgr is None:
@@ -641,6 +651,7 @@ def main():
             "facesEnhanced": faces_found,
             "isGrayscale": bw_detected,
             "colorized": colorized,
+            "device": device,
             "output_path": output_path,
         }))
 

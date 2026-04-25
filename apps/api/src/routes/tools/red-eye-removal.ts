@@ -1,20 +1,44 @@
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { removeRedEye } from "@ashim/ai";
+import { removeRedEye } from "@snapotter/ai";
+import { getBundleForTool, TOOL_BUNDLE_MAP } from "@snapotter/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
+import { formatZodErrors } from "../../lib/errors.js";
+import { isToolInstalled } from "../../lib/feature-status.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
+import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
+import { decodeHeic, ensureSharpCompat } from "../../lib/heic-converter.js";
 import { createWorkspace } from "../../lib/workspace.js";
 import { updateSingleFileProgress } from "../progress.js";
 import { registerToolProcessFn } from "../tool-factory.js";
+
+const settingsSchema = z.object({
+  sensitivity: z.number().min(0).max(100).default(50),
+  strength: z.number().min(0).max(100).default(70),
+  format: z.string().optional(),
+  quality: z.number().min(1).max(100).default(90),
+});
 
 /** Red eye detection and removal route. */
 export function registerRedEyeRemoval(app: FastifyInstance) {
   app.post(
     "/api/v1/tools/red-eye-removal",
     async (request: FastifyRequest, reply: FastifyReply) => {
+      const toolId = "red-eye-removal";
+      if (!isToolInstalled(toolId)) {
+        const bundle = getBundleForTool(toolId);
+        return reply.status(501).send({
+          error: "Feature not installed",
+          code: "FEATURE_NOT_INSTALLED",
+          feature: TOOL_BUNDLE_MAP[toolId],
+          featureName: bundle?.name ?? toolId,
+          estimatedSize: bundle?.estimatedSize ?? "unknown",
+        });
+      }
+
       let fileBuffer: Buffer | null = null;
       let filename = "image";
       let settingsRaw: string | null = null;
@@ -47,24 +71,46 @@ export function registerRedEyeRemoval(app: FastifyInstance) {
         return reply.status(400).send({ error: "No image file provided" });
       }
 
-      const validation = await validateImageBuffer(fileBuffer);
+      const validation = await validateImageBuffer(fileBuffer, filename);
       if (!validation.valid) {
         return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
       }
 
       try {
-        const settings = settingsRaw ? JSON.parse(settingsRaw) : {};
+        let settings: z.infer<typeof settingsSchema>;
+        try {
+          const parsed = settingsRaw ? JSON.parse(settingsRaw) : {};
+          const result = settingsSchema.safeParse(parsed);
+          if (!result.success) {
+            return reply
+              .status(400)
+              .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
+          }
+          settings = result.data;
+        } catch {
+          return reply.status(400).send({ error: "Settings must be valid JSON" });
+        }
+
+        if (validation.format === "heif") {
+          fileBuffer = await decodeHeic(fileBuffer);
+        }
+
+        // Decode CLI-decoded formats (RAW, TGA, PSD, EXR, HDR)
+        if (needsCliDecode(validation.format)) {
+          fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format);
+        }
+
+        const { sensitivity, strength, format: outputFormat, quality } = settings;
         request.log.info(
           {
             toolId: "red-eye-removal",
             imageSize: fileBuffer.length,
-            sensitivity: settings.sensitivity,
-            strength: settings.strength,
+            sensitivity,
+            strength,
           },
           "Starting red eye removal",
         );
 
-        // Auto-orient to fix EXIF rotation before face detection
         fileBuffer = await autoOrient(fileBuffer);
 
         const jobId = randomUUID();
@@ -91,10 +137,10 @@ export function registerRedEyeRemoval(app: FastifyInstance) {
           fileBuffer,
           join(workspacePath, "output"),
           {
-            sensitivity: settings.sensitivity ?? 50,
-            strength: settings.strength ?? 70,
-            format: settings.format,
-            quality: settings.quality ?? 90,
+            sensitivity,
+            strength,
+            format: outputFormat,
+            quality,
           },
           onProgress,
         );
@@ -148,7 +194,7 @@ export function registerRedEyeRemoval(app: FastifyInstance) {
         format?: string;
         quality?: number;
       };
-      const orientedBuffer = await autoOrient(inputBuffer);
+      const orientedBuffer = await autoOrient(await ensureSharpCompat(inputBuffer));
       const jobId = randomUUID();
       const workspacePath = await createWorkspace(jobId);
       const result = await removeRedEye(orientedBuffer, join(workspacePath, "output"), {

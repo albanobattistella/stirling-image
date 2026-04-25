@@ -11,7 +11,7 @@ import urllib.request
 
 # Some servers (e.g. Berkeley) block the default Python-urllib User-Agent.
 _opener = urllib.request.build_opener()
-_opener.addheaders = [("User-Agent", "ashim/1.0")]
+_opener.addheaders = [("User-Agent", "snapotter/1.0")]
 urllib.request.install_opener(_opener)
 
 
@@ -69,6 +69,37 @@ def _hf_download(
 os.environ["PADDLE_DEVICE"] = "cpu"
 os.environ["FLAGS_use_cuda"] = "0"
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
+# Prevent ONNX Runtime from loading the CUDA Execution Provider at build time.
+# The cudnn-runtime base image includes cuDNN, which makes ONNX try to init
+# the CUDA EP.  Without a GPU driver (only available at container runtime),
+# this segfaults.  Temporarily renaming the provider .so is the most reliable
+# way to prevent this — env vars alone are not enough.
+def _hide_cuda_provider():
+    """Rename ONNX CUDA provider .so to prevent load at build time."""
+    try:
+        import onnxruntime as _ort
+        ep_dir = os.path.join(os.path.dirname(_ort.__file__), "capi")
+        for name in ("libonnxruntime_providers_cuda.so", "libonnxruntime_providers_tensorrt.so"):
+            src = os.path.join(ep_dir, name)
+            if os.path.exists(src):
+                os.rename(src, src + ".build_hide")
+    except ImportError:
+        pass
+
+def _restore_cuda_provider():
+    """Restore hidden ONNX CUDA provider .so after build-time downloads."""
+    try:
+        import onnxruntime as _ort
+        ep_dir = os.path.join(os.path.dirname(_ort.__file__), "capi")
+        for name in ("libonnxruntime_providers_cuda.so", "libonnxruntime_providers_tensorrt.so"):
+            bak = os.path.join(ep_dir, name + ".build_hide")
+            if os.path.exists(bak):
+                os.rename(bak, os.path.join(ep_dir, name))
+    except ImportError:
+        pass
+
+_hide_cuda_provider()
 
 LAMA_MODEL_DIR = "/opt/models/lama"
 LAMA_MODEL_URL = "https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx"
@@ -638,23 +669,55 @@ def smoke_test():
 
 
 def main():
-    print("Pre-downloading all ML models...\n")
-    download_lama_model()
-    download_rembg_models()
-    download_realesrgan_model()
-    download_gfpgan_model()
-    download_codeformer_model()
-    download_ddcolor_model()
-    download_codeformer_onnx_model()
-    download_paddleocr_models()
-    download_paddleocr_vl_model()
-    download_scunet_model()
-    download_nafnet_model()
-    download_facexlib_models()
-    download_opencv_colorize_models()
-    download_mediapipe_task_models()
+    import concurrent.futures
+    import threading
+
+    print("Pre-downloading all ML models (parallel)...\n")
+    print_lock = threading.Lock()
+
+    # All download functions are independent (separate dirs, separate CDNs).
+    # Run them in parallel to cut download time from ~30 min to ~5-10 min.
+    download_fns = [
+        download_lama_model,
+        download_rembg_models,
+        download_realesrgan_model,
+        download_gfpgan_model,
+        download_codeformer_model,
+        download_ddcolor_model,
+        download_codeformer_onnx_model,
+        download_paddleocr_models,
+        download_paddleocr_vl_model,
+        download_scunet_model,
+        download_nafnet_model,
+        download_facexlib_models,
+        download_opencv_colorize_models,
+        download_mediapipe_task_models,
+    ]
+
+    # 6 workers balances parallelism with CDN rate limits
+    errors = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+        future_to_name = {
+            pool.submit(fn): fn.__name__ for fn in download_fns
+        }
+        for future in concurrent.futures.as_completed(future_to_name):
+            name = future_to_name[future]
+            try:
+                future.result()
+            except Exception as e:
+                errors.append((name, e))
+                print(f"\n*** {name} FAILED: {e}\n")
+
+    if errors:
+        print(f"\n{len(errors)} download(s) failed:")
+        for name, e in errors:
+            print(f"  {name}: {e}")
+        sys.exit(1)
+
+    print("\nAll downloads complete. Running verification...\n")
     verify_mediapipe()
     smoke_test()
+    _restore_cuda_provider()
     print("All models downloaded and verified.")
 
 

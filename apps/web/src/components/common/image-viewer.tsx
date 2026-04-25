@@ -1,4 +1,4 @@
-import { Maximize, Minimize2, ZoomIn, ZoomOut } from "lucide-react";
+import { Loader2, Maximize, Minimize2, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatFileSize } from "@/lib/download";
 
@@ -27,7 +27,7 @@ interface ImageViewerProps {
   imageWrapperStyle?: React.CSSProperties;
 }
 
-const ZOOM_STEPS = [25, 50, 75, 100, 125, 150, 200, 300];
+const ZOOM_STEPS = [10, 25, 50, 75, 100, 150, 200, 300, 500, 1000];
 const DEFAULT_ZOOM = 100;
 
 export function ImageViewer({
@@ -182,11 +182,10 @@ export function ImageViewer({
         }}
       >
         {loadError ? (
-          <div className="flex flex-col items-center gap-2 text-center">
-            <p className="text-sm text-muted-foreground">Preview not available</p>
-            <p className="text-xs text-muted-foreground/60">
-              This format cannot be displayed in the browser
-            </p>
+          <div className="flex flex-col items-center justify-center gap-3 text-center">
+            <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
+            <p className="text-sm text-muted-foreground">Loading preview...</p>
+            <p className="text-xs text-muted-foreground/60">{filename}</p>
           </div>
         ) : bgPreview?.backgroundSrc || bgPreview?.containerBackground ? (
           /* Layered bg-removal preview: background layer + subject layer */

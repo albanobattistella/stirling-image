@@ -4,6 +4,7 @@ import { basename, join } from "node:path";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
 import { z } from "zod";
+import { formatZodErrors } from "../../lib/errors.js";
 import {
   buildTagArgs,
   type EditMetadataSettings,
@@ -16,6 +17,8 @@ import { createWorkspace } from "../../lib/workspace.js";
 import { registerToolProcessFn } from "../tool-factory.js";
 
 const settingsSchema = z.object({
+  title: z.string().optional(),
+  author: z.string().optional(),
   artist: z.string().optional(),
   copyright: z.string().optional(),
   imageDescription: z.string().optional(),
@@ -137,7 +140,7 @@ export function registerEditMetadata(app: FastifyInstance) {
       return reply.status(400).send({ error: "No image file provided" });
     }
 
-    const validation = await validateImageBuffer(fileBuffer);
+    const validation = await validateImageBuffer(fileBuffer, filename);
     if (!validation.valid) {
       return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
     }
@@ -150,10 +153,7 @@ export function registerEditMetadata(app: FastifyInstance) {
       if (!result.success) {
         return reply.status(400).send({
           error: "Invalid settings",
-          details: result.error.issues.map((i) => ({
-            path: i.path.join("."),
-            message: i.message,
-          })),
+          details: formatZodErrors(result.error.issues),
         });
       }
       settings = result.data;

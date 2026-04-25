@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatHeaders } from "@/lib/api";
+import { formatHeaders, parseApiError } from "@/lib/api";
 import { generateId } from "@/lib/utils";
 import { useFileStore } from "@/stores/file-store";
 import type { PipelineStep } from "@/stores/pipeline-store";
@@ -86,8 +86,8 @@ export function usePipelineProcessor() {
       const xhr = new XMLHttpRequest();
       xhrRef.current = xhr;
 
-      // Pipeline runs multiple steps sequentially, allow up to 3 minutes
-      xhr.timeout = 180_000;
+      // Pipeline runs multiple steps sequentially, allow up to 10 minutes
+      xhr.timeout = 600_000;
 
       // Pipeline is always "medium" speed: upload = 0-40%, processing = 40-95%
       const UPLOAD_WEIGHT = 40;
@@ -145,10 +145,14 @@ export function usePipelineProcessor() {
         } else {
           try {
             const body = JSON.parse(xhr.responseText);
-            const msg = body.details
-              ? `${body.error}: ${body.details}`
-              : body.error || `Processing failed: ${xhr.status}`;
-            setError(msg);
+            const parsed = parseApiError(body, xhr.status);
+            if (typeof parsed === "object" && parsed.type === "feature_not_installed") {
+              setError(
+                `Feature "${parsed.featureName}" is not installed. Enable it in Settings → AI Features.`,
+              );
+            } else {
+              setError(parsed as string);
+            }
           } catch {
             setError(`Processing failed: ${xhr.status}`);
           }
@@ -273,9 +277,12 @@ export function usePipelineProcessor() {
                 errorMsg += ` (${body.errors.length} files failed)`;
               }
             } else {
-              errorMsg = body.details
-                ? `${body.error}: ${body.details}`
-                : body.error || `Batch processing failed: ${response.status}`;
+              const parsed = parseApiError(body, response.status);
+              if (typeof parsed === "object" && parsed.type === "feature_not_installed") {
+                errorMsg = `Feature "${parsed.featureName}" is not installed. Enable it in Settings → AI Features.`;
+              } else {
+                errorMsg = parsed as string;
+              }
             }
           } catch {
             errorMsg = `Batch processing failed: ${response.status}`;

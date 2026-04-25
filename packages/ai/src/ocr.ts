@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";
-import { type ProgressCallback, runPythonWithProgress } from "./bridge.js";
+import { type ProgressCallback, parseStdoutJson, runPythonWithProgress } from "./bridge.js";
 
 export type OcrQuality = "fast" | "balanced" | "best";
 
@@ -15,6 +15,7 @@ export interface OcrOptions {
 
 export interface OcrResult {
   text: string;
+  engine?: string;
 }
 
 export async function extractText(
@@ -25,22 +26,30 @@ export async function extractText(
 ): Promise<OcrResult> {
   const inputPath = join(outputDir, "input_ocr.png");
 
-  // Convert any input format (HEIC, AVIF, WebP, TIFF, etc.) to PNG
-  // so Tesseract and PaddleOCR can read it reliably.
-  const pngBuffer = await sharp(inputBuffer).png().toBuffer();
+  // Convert to PNG and cap at 2048px to prevent PaddleOCR OOM on large images.
+  const MAX_OCR_DIM = 2048;
+  const pngBuffer = await sharp(inputBuffer)
+    .resize({ width: MAX_OCR_DIM, height: MAX_OCR_DIM, fit: "inside", withoutEnlargement: true })
+    .png()
+    .toBuffer();
   await writeFile(inputPath, pngBuffer);
+
+  const meta = await sharp(pngBuffer).metadata();
+  const megapixels = ((meta.width ?? 0) * (meta.height ?? 0)) / 1_000_000;
+  const timeout = Math.max(600_000, megapixels * 30 * 1000);
 
   const { stdout } = await runPythonWithProgress("ocr.py", [inputPath, JSON.stringify(options)], {
     onProgress,
-    timeout: 600_000, // 10 min timeout for VLM on CPU
+    timeout,
   });
 
-  const result = JSON.parse(stdout);
+  const result = parseStdoutJson(stdout);
   if (!result.success) {
     throw new Error(result.error || "OCR failed");
   }
 
   return {
     text: result.text,
+    engine: result.engine,
   };
 }

@@ -1,7 +1,8 @@
 import { readFile, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type ProgressCallback, runPythonWithProgress } from "./bridge.js";
+import sharp from "sharp";
+import { type ProgressCallback, parseStdoutJson, runPythonWithProgress } from "./bridge.js";
 
 export interface BlurFacesOptions {
   blurRadius?: number;
@@ -39,14 +40,15 @@ export async function blurFaces(
   const inputPath = join(outputDir, "input_faces.png");
   const outputPath = join(outputDir, "output_faces.png");
 
-  await writeFile(inputPath, inputBuffer);
+  const pngBuffer = await sharp(inputBuffer).png().toBuffer();
+  await writeFile(inputPath, pngBuffer);
   const { stdout } = await runPythonWithProgress(
     "detect_faces.py",
     [inputPath, outputPath, JSON.stringify(options)],
     { onProgress },
   );
 
-  const result = JSON.parse(stdout);
+  const result = parseStdoutJson(stdout);
   if (!result.success) {
     throw new Error(result.error || "Face detection failed");
   }
@@ -67,14 +69,15 @@ export async function detectFaces(
   const inputPath = join(tmpdir(), `detect_faces_${Date.now()}.png`);
 
   try {
-    await writeFile(inputPath, inputBuffer);
+    const pngBuffer = await sharp(inputBuffer).png().toBuffer();
+    await writeFile(inputPath, pngBuffer);
     const { stdout } = await runPythonWithProgress(
       "detect_faces.py",
       [inputPath, "unused", JSON.stringify({ ...options, detectOnly: true })],
       { onProgress },
     );
 
-    const result = JSON.parse(stdout);
+    const result = parseStdoutJson(stdout);
     if (!result.success) {
       throw new Error(result.error || "Face detection failed");
     }

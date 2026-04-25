@@ -7,13 +7,15 @@ import type { FastifyInstance } from "fastify";
 import * as mupdf from "mupdf";
 import sharp from "sharp";
 import { z } from "zod";
+import { env } from "../../config.js";
+import { formatZodErrors } from "../../lib/errors.js";
 import { encodeHeic } from "../../lib/heic-converter.js";
 import { createWorkspace } from "../../lib/workspace.js";
 
 // ── Settings schema ──────────────────────────────────────────────
 const settingsSchema = z.object({
   format: z.enum(["png", "jpg", "webp", "avif", "tiff", "gif", "heic", "heif"]).default("png"),
-  dpi: z.number().min(36).max(1200).default(150),
+  dpi: z.number().min(36).max(2400).default(150),
   quality: z.number().min(1).max(100).default(85),
   colorMode: z.enum(["color", "grayscale", "bw"]).default("color"),
   pages: z.string().default("all"),
@@ -228,7 +230,7 @@ export function registerPdfToImage(app: FastifyInstance) {
         return reply.status(400).send({ error: "Password-protected PDFs are not supported" });
       }
       const pageCount = doc.countPages();
-      const maxPages = Math.min(pageCount, 200);
+      const maxPages = env.MAX_PDF_PAGES > 0 ? Math.min(pageCount, env.MAX_PDF_PAGES) : pageCount;
       const thumbnails: Array<{
         page: number;
         dataUrl: string;
@@ -290,7 +292,9 @@ export function registerPdfToImage(app: FastifyInstance) {
       const parsed = settingsRaw ? JSON.parse(settingsRaw) : {};
       const result = settingsSchema.safeParse(parsed);
       if (!result.success) {
-        return reply.status(400).send({ error: "Invalid settings", details: result.error.issues });
+        return reply
+          .status(400)
+          .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
       }
       settings = result.data;
     } catch {

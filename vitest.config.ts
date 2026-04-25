@@ -6,10 +6,19 @@ import { defineConfig } from "vitest/config";
 // Resolve api-workspace packages that pnpm only exposes under apps/api/node_modules.
 const apiNodeModules = path.resolve(__dirname, "apps/api/node_modules");
 
+// Resolve web-workspace packages that pnpm only exposes under apps/web/node_modules.
+const webNodeModules = path.resolve(__dirname, "apps/web/node_modules");
+
+// Resolve landing-workspace packages.
+const landingNodeModules = path.resolve(__dirname, "apps/landing/node_modules");
+
 // Temp dir for integration test DB + workspace (set BEFORE any app code loads)
-const testDir = path.join(os.tmpdir(), `ashim-test-${crypto.randomUUID().slice(0, 8)}`);
+const testDir = path.join(os.tmpdir(), `SnapOtter-test-${crypto.randomUUID().slice(0, 8)}`);
 
 export default defineConfig({
+  esbuild: {
+    jsx: "automatic",
+  },
   test: {
     globals: true,
     testTimeout: 30_000,
@@ -24,9 +33,12 @@ export default defineConfig({
     },
     exclude: [
       "tests/e2e/**",
+      "tests/e2e-docker/**",
       "**/node_modules/**",
       "**/dist/**",
       "**/.{idea,git,cache,output,temp}/**",
+      ".worktrees/**",
+      ".claude/**",
     ],
     // These env vars are injected into process.env BEFORE test files are
     // imported, ensuring apps/api/src/config.ts picks them up correctly.
@@ -65,11 +77,15 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@landing": path.resolve(__dirname, "apps/landing/src"),
+      // Landing page components that don't exist in web but are imported via @/
+      "@/components/fade-in": path.resolve(__dirname, "apps/landing/src/components/fade-in"),
+      "@/components/footer": path.resolve(__dirname, "apps/landing/src/components/footer"),
+      "@/components/navbar": path.resolve(__dirname, "apps/landing/src/components/navbar"),
       "@": path.resolve(__dirname, "apps/web/src"),
-      "@ashim/image-engine": path.resolve(__dirname, "packages/image-engine/src/index.ts"),
-      "@ashim/shared": path.resolve(__dirname, "packages/shared/src/index.ts"),
-      // Map api-only dependencies so integration tests (and transitive imports
-      // from apps/api/src) can resolve them from the root vitest runner.
+      "framer-motion": path.join(landingNodeModules, "framer-motion"),
+      "@snapotter/image-engine": path.resolve(__dirname, "packages/image-engine/src/index.ts"),
+      "@snapotter/shared": path.resolve(__dirname, "packages/shared/src/index.ts"),
       fastify: path.join(apiNodeModules, "fastify"),
       "@fastify/cors": path.join(apiNodeModules, "@fastify/cors"),
       "@fastify/multipart": path.join(apiNodeModules, "@fastify/multipart"),
@@ -87,6 +103,9 @@ export default defineConfig({
       jsqr: path.join(apiNodeModules, "jsqr"),
       pdfkit: path.join(apiNodeModules, "pdfkit"),
       sharp: path.join(apiNodeModules, "sharp"),
+      react: path.join(webNodeModules, "react"),
+      "react-dom": path.join(webNodeModules, "react-dom"),
+      zustand: path.join(webNodeModules, "zustand"),
     },
   },
 });

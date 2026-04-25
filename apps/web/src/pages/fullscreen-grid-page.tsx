@@ -1,19 +1,26 @@
-import type { CategoryInfo, Tool } from "@ashim/shared";
-import { CATEGORIES, TOOLS } from "@ashim/shared";
+import type { CategoryInfo, Tool } from "@snapotter/shared";
+import { ANALYTICS_EVENTS, CATEGORIES, TOOLS } from "@snapotter/shared";
 import { Eye, EyeOff, FileImage, LayoutGrid, List, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { GemLogo } from "@/components/common/gem-logo";
+import { OtterLogo } from "@/components/common/otter-logo";
+import { track } from "@/lib/analytics";
 import { apiGet } from "@/lib/api";
 import { ICON_MAP } from "@/lib/icon-map";
 import { cn } from "@/lib/utils";
+import { useFeaturesStore } from "@/stores/features-store";
 
 export function FullscreenGridPage() {
   const [search, setSearch] = useState("");
-  const [showDetails, setShowDetails] = useState(false);
+  const [showDetails, setShowDetails] = useState(true);
   const navigate = useNavigate();
   const [disabledTools, setDisabledTools] = useState<string[]>([]);
   const [experimentalEnabled, setExperimentalEnabled] = useState(false);
+  const fetchFeatures = useFeaturesStore((s) => s.fetch);
+
+  useEffect(() => {
+    fetchFeatures();
+  }, [fetchFeatures]);
 
   useEffect(() => {
     apiGet<{ settings: Record<string, string> }>("/v1/settings")
@@ -45,6 +52,17 @@ export function FullscreenGridPage() {
     );
   }, [search, visibleTools]);
 
+  useEffect(() => {
+    if (!search) return;
+    const timer = setTimeout(() => {
+      track(ANALYTICS_EVENTS.SEARCH, {
+        query: search,
+        results_count: filteredTools.length,
+      });
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [search, filteredTools.length]);
+
   const groupedTools = useMemo(() => {
     const groups = new Map<string, Tool[]>();
     for (const tool of filteredTools) {
@@ -66,8 +84,8 @@ export function FullscreenGridPage() {
             to="/"
             className="flex items-center gap-2 text-lg font-bold text-foreground shrink-0"
           >
-            <GemLogo className="h-6 w-6 text-primary" />
-            <span className="text-primary">ashim</span>
+            <OtterLogo className="h-6 w-6 text-primary" />
+            <span className="text-primary">SnapOtter</span>
           </Link>
 
           {/* Search */}

@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { type ProgressCallback, runPythonWithProgress } from "./bridge.js";
+import sharp from "sharp";
+import { type ProgressCallback, parseStdoutJson, runPythonWithProgress } from "./bridge.js";
 
 export interface NoiseRemovalOptions {
   tier?: string;
@@ -28,14 +29,15 @@ export async function noiseRemoval(
   const inputPath = join(outputDir, "input_denoise.png");
   const outputPath = join(outputDir, "output_denoise.png");
 
-  await writeFile(inputPath, inputBuffer);
+  const pngBuffer = await sharp(inputBuffer).png().toBuffer();
+  await writeFile(inputPath, pngBuffer);
   const { stdout } = await runPythonWithProgress(
     "noise_removal.py",
     [inputPath, outputPath, JSON.stringify(options)],
     { onProgress },
   );
 
-  const result = JSON.parse(stdout);
+  const result = parseStdoutJson(stdout);
   if (!result.success) {
     throw new Error(result.error || "Noise removal failed");
   }

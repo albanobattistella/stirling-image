@@ -51,7 +51,7 @@ export async function inspectMetadata(buffer: Buffer, filename: string): Promise
   try {
     await writeFile(tempPath, buffer);
     const { stdout } = await execFileAsync(bin, ["-json", "-G", "-struct", "-n", tempPath], {
-      timeout: 30_000,
+      timeout: 60_000,
       maxBuffer: 10 * 1024 * 1024,
     });
 
@@ -126,7 +126,7 @@ export async function writeMetadata(
   try {
     await writeFile(tempPath, buffer);
     await execFileAsync(bin, ["-overwrite_original", ...tags, tempPath], {
-      timeout: 30_000,
+      timeout: 60_000,
       maxBuffer: 10 * 1024 * 1024,
     });
     return await readFile(tempPath);
@@ -137,6 +137,8 @@ export async function writeMetadata(
 
 /** Settings shape that buildTagArgs accepts */
 export interface EditMetadataSettings {
+  title?: string;
+  author?: string;
   artist?: string;
   copyright?: string;
   imageDescription?: string;
@@ -165,11 +167,16 @@ export interface EditMetadataSettings {
 export function buildTagArgs(settings: EditMetadataSettings): string[] {
   const args: string[] = [];
 
+  // Common aliases
+  const artist = settings.artist || settings.author;
+  const description = settings.imageDescription || settings.title;
+
   // Basic EXIF fields
-  if (settings.artist) args.push(`-Artist=${settings.artist}`);
+  if (artist) args.push(`-Artist=${artist}`);
   if (settings.copyright) args.push(`-Copyright=${settings.copyright}`);
-  if (settings.imageDescription) args.push(`-ImageDescription=${settings.imageDescription}`);
+  if (description) args.push(`-ImageDescription=${description}`);
   if (settings.software) args.push(`-Software=${settings.software}`);
+  if (settings.title) args.push(`-XMP:Title=${settings.title}`);
 
   // Date fields
   if (settings.dateTime) args.push(`-ModifyDate=${settings.dateTime}`);

@@ -1,20 +1,43 @@
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { enhanceFaces } from "@ashim/ai";
+import { enhanceFaces } from "@snapotter/ai";
+import { getBundleForTool, TOOL_BUNDLE_MAP } from "@snapotter/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
 import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
+import { formatZodErrors } from "../../lib/errors.js";
+import { isToolInstalled } from "../../lib/feature-status.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
+import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
 import { decodeHeic } from "../../lib/heic-converter.js";
 import { createWorkspace } from "../../lib/workspace.js";
 import { updateSingleFileProgress } from "../progress.js";
 import { registerToolProcessFn } from "../tool-factory.js";
 
+const settingsSchema = z.object({
+  model: z.enum(["auto", "gfpgan", "codeformer"]).default("auto"),
+  strength: z.number().min(0).max(1).default(0.8),
+  onlyCenterFace: z.boolean().default(false),
+  sensitivity: z.number().min(0).max(1).default(0.5),
+});
+
 /** Face enhancement route using GFPGAN/CodeFormer. */
 export function registerEnhanceFaces(app: FastifyInstance) {
   app.post("/api/v1/tools/enhance-faces", async (request: FastifyRequest, reply: FastifyReply) => {
+    const toolId = "enhance-faces";
+    if (!isToolInstalled(toolId)) {
+      const bundle = getBundleForTool(toolId);
+      return reply.status(501).send({
+        error: "Feature not installed",
+        code: "FEATURE_NOT_INSTALLED",
+        feature: TOOL_BUNDLE_MAP[toolId],
+        featureName: bundle?.name ?? toolId,
+        estimatedSize: bundle?.estimatedSize ?? "unknown",
+      });
+    }
+
     let fileBuffer: Buffer | null = null;
     let filename = "image";
     let settingsRaw: string | null = null;
@@ -47,17 +70,27 @@ export function registerEnhanceFaces(app: FastifyInstance) {
       return reply.status(400).send({ error: "No image file provided" });
     }
 
-    const validation = await validateImageBuffer(fileBuffer);
+    const validation = await validateImageBuffer(fileBuffer, filename);
     if (!validation.valid) {
       return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
     }
 
     try {
-      const settings = settingsRaw ? JSON.parse(settingsRaw) : {};
-      const model = settings.model || "auto";
-      const strength = Number(settings.strength) || 0.8;
-      const onlyCenterFace = Boolean(settings.onlyCenterFace);
-      const sensitivity = Number(settings.sensitivity) || 0.5;
+      let settings: z.infer<typeof settingsSchema>;
+      try {
+        const parsed = settingsRaw ? JSON.parse(settingsRaw) : {};
+        const result = settingsSchema.safeParse(parsed);
+        if (!result.success) {
+          return reply
+            .status(400)
+            .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
+        }
+        settings = result.data;
+      } catch {
+        return reply.status(400).send({ error: "Settings must be valid JSON" });
+      }
+
+      const { model, strength, onlyCenterFace, sensitivity } = settings;
       request.log.info(
         { toolId: "enhance-faces", imageSize: fileBuffer.length, model, strength },
         "Starting face enhancement",
@@ -66,6 +99,11 @@ export function registerEnhanceFaces(app: FastifyInstance) {
       // Decode HEIC/HEIF input via system decoder
       if (validation.format === "heif") {
         fileBuffer = await decodeHeic(fileBuffer);
+      }
+
+      // Decode CLI-decoded formats (RAW, TGA, PSD, EXR, HDR)
+      if (needsCliDecode(validation.format)) {
+        fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format);
       }
 
       // Auto-orient to fix EXIF rotation before face detection
@@ -120,6 +158,13 @@ export function registerEnhanceFaces(app: FastifyInstance) {
           phase: "complete",
           percent: 100,
         });
+      }
+
+      if (model !== "auto" && result.model !== model) {
+        request.log.warn(
+          { toolId: "enhance-faces", requested: model, actual: result.model },
+          `Face enhance model mismatch: requested ${model} but used ${result.model}`,
+        );
       }
 
       return reply.send({

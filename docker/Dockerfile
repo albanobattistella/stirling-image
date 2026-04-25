@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # ============================================
-# ashim - Unified Production Dockerfile
+# SnapOtter - Unified Production Dockerfile
 # Single image: GPU auto-detected on amd64, CPU on arm64
 # ============================================
 
@@ -31,12 +31,14 @@ COPY packages/ai/package.json packages/ai/tsconfig.json ./packages/ai/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store/v3 \
     pnpm install --frozen-lockfile
 
-# Copy source code
-COPY . .
+# Copy only frontend-relevant source (API/Python changes don't bust this cache)
+COPY packages/shared/src ./packages/shared/src
+COPY apps/web/src ./apps/web/src
+COPY apps/web/public ./apps/web/public
 
 # Build only the web frontend (API runs from TS source via tsx)
 RUN --mount=type=cache,id=turbo-cache,target=/app/.turbo \
-    pnpm --filter @ashim/web build
+    pnpm --filter @snapotter/web build
 
 # ============================================
 # Stage 2: Build caire (content-aware resize)
@@ -106,9 +108,14 @@ RUN set -e; \
 
 # ============================================
 # Stage 3: Platform-specific base images
+# Pin tags to specific major.minor for reproducible builds.
 # ============================================
 FROM node:22-bookworm AS base-linux-arm64
-FROM nvidia/cuda:12.6.3-runtime-ubuntu24.04 AS base-linux-amd64
+FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 AS base-linux-amd64
+
+# Node.js donor: provides Node binaries for the CUDA amd64 image without
+# relying on NodeSource apt repos or Ubuntu mirrors (which are flaky on CI).
+FROM node:22-bookworm AS node-bins
 
 # ============================================
 # Stage 4: Production runtime
@@ -118,34 +125,31 @@ ARG TARGETARCH
 FROM base-${TARGETOS}-${TARGETARCH} AS production
 
 ARG TARGETARCH
-# Set to "true" to skip model downloads (for CI builds that just test the image structure)
-ARG SKIP_MODEL_DOWNLOADS=false
 
 # Pin corepack's cache to a system-wide path so all users share the same pnpm
 # binary without downloading it on each container start.
 ENV COREPACK_HOME=/usr/local/share/corepack
 
-# Install Node.js on amd64 (CUDA base has no Node; arm64 base already has it)
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-    apt-get update && apt-get install -y --no-install-recommends \
-        curl ca-certificates gnupg && \
-    mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | \
-        gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" > \
-        /etc/apt/sources.list.d/nodesource.list && \
-    apt-get update && apt-get install -y nodejs && \
-    rm -rf /var/lib/apt/lists/* \
-; fi
+# Install Node.js on amd64 by copying from the official node image.
+# This avoids flaky Ubuntu/NodeSource apt mirrors that frequently fail on CI.
+COPY --from=node-bins /usr/local/bin/node /usr/local/bin/
+COPY --from=node-bins /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -sf ../lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack && \
+    ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+    ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate && \
     chmod -R a+rX /usr/local/share/corepack
 
 # System dependencies (all platforms)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Split into runtime deps and build deps to minimize final image size.
+# Retry apt-get update with backoff — Ubuntu mirrors can be flaky on CI runners
+RUN for i in 1 2 3; do apt-get -o Acquire::Retries=3 update && break || sleep $((i * 15)); done && \
+    apt-get install -y --no-install-recommends \
     tini \
     imagemagick \
     libraw-dev \
+    libopenexr-dev \
     potrace \
     curl \
     gosu \
@@ -154,81 +158,39 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv python3-dev \
     tesseract-ocr tesseract-ocr-eng tesseract-ocr-deu tesseract-ocr-fra tesseract-ocr-spa \
     tesseract-ocr-chi-sim tesseract-ocr-jpn tesseract-ocr-kor \
-    build-essential \
+    gcc g++ \
     libgl1 libglib2.0-0 \
     libegl1 libwayland-egl1 libwayland-client0 libwayland-cursor0 \
     libxkbcommon-x11-0 libxkbcommon0 libxcursor1 \
+    && if apt-cache show libmagickcore-6.q16-7-extra >/dev/null 2>&1; then \
+         apt-get install -y --no-install-recommends libmagickcore-6.q16-7-extra; \
+       elif apt-cache show libmagickcore-6.q16-6-extra >/dev/null 2>&1; then \
+         apt-get install -y --no-install-recommends libmagickcore-6.q16-6-extra; \
+       fi \
+    && if apt-cache show libheif-plugin-x265 >/dev/null 2>&1; then \
+         apt-get install -y --no-install-recommends libheif-plugin-x265; \
+       fi \
+    && if apt-cache show libcublas-12-6 >/dev/null 2>&1; then \
+         apt-get install -y --no-install-recommends libcublas-12-6; \
+       fi \
     && rm -rf /var/lib/apt/lists/*
 
 # Caire binary (content-aware seam carving)
 COPY --from=caire-builder /tmp/caire /usr/local/bin/caire
 
-# Python venv - Layer 1: Base packages (rarely change, ~3 GB)
-RUN python3 -m venv /opt/venv && \
+# Python venv - Base packages (rarely change, cached aggressively)
+# Uses pre-built manylinux wheels where available; gcc/g++ above covers the rest.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m venv /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip && \
     /opt/venv/bin/pip install \
         Pillow==11.1.0 \
         numpy==1.26.4 \
         opencv-python-headless==4.10.0.84
 
-# Platform-conditional ONNX runtime
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-    /opt/venv/bin/pip install onnxruntime-gpu==1.20.1 \
-; else \
-    /opt/venv/bin/pip install onnxruntime==1.20.1 \
-; fi
-
-# Python venv - Layer 2: Tool packages (change occasionally, ~2 GB)
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-    /opt/venv/bin/pip install rembg==2.0.62 && \
-    /opt/venv/bin/pip install realesrgan==0.3.0 \
-        --extra-index-url https://download.pytorch.org/whl/cu126 && \
-    /opt/venv/bin/pip install paddlepaddle-gpu>=3.2.1 \
-        --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/ && \
-    /opt/venv/bin/pip install "paddleocr[doc-parser]>=3.4.0,<3.5.0" \
-; else \
-    /opt/venv/bin/pip install "rembg[cpu]==2.0.62" && \
-    /opt/venv/bin/pip install realesrgan==0.3.0 && \
-    /opt/venv/bin/pip install paddlepaddle==3.0.0 "paddleocr[doc-parser]>=3.4.0,<3.5.0" \
-; fi
-
-# mediapipe 0.10.21 only has amd64 wheels; arm64 maxes out at 0.10.18
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-    /opt/venv/bin/pip install mediapipe==0.10.21 \
-; else \
-    /opt/venv/bin/pip install mediapipe==0.10.18 \
-; fi
-
-# CodeFormer face enhancement (install with --no-deps to avoid numpy 2.x conflict)
-RUN /opt/venv/bin/pip install --no-deps codeformer-pip==0.0.4 lpips
-
-# Re-pin numpy to 1.26.4 in case any transitive dep upgraded it
-RUN /opt/venv/bin/pip install numpy==1.26.4
-
-# Pin rembg model storage to a fixed path so models downloaded at build time
-# (as root) are found at runtime (as the non-root ashim user, home=/app).
-# Without this, rembg defaults to ~/.u2net which differs between users.
-ENV U2NET_HOME=/opt/models/rembg
-
-# Pre-download and verify all ML models
-# Note: on amd64, paddlepaddle-gpu can't import without the CUDA driver (only
-# available at runtime). The download script gracefully skips PaddleOCR model
-# pre-download in this case; models download on first use at runtime instead.
-# In CI (SKIP_MODEL_DOWNLOADS=true), skip downloads — the image structure is
-# what matters for the build test; models are verified in integration tests.
-COPY docker/download_models.py /tmp/download_models.py
-RUN if [ "$SKIP_MODEL_DOWNLOADS" = "true" ]; then \
-        echo "Skipping model downloads (CI build)"; \
-    else \
-        /opt/venv/bin/python3 /tmp/download_models.py; \
-    fi && rm -f /tmp/download_models.py && \
-    # Symlink PaddleX model dir into both possible HOME locations so models are
-    # found regardless of whether HOME=/root (build/root context) or HOME=/app
-    # (runtime ashim user via gosu). Without this PaddleX re-downloads on every
-    # fresh container start.
-    mkdir -p /opt/models/paddlex/official_models /root/.paddlex /app/.paddlex && \
-    ln -sf /opt/models/paddlex/official_models /root/.paddlex/official_models && \
-    ln -sf /opt/models/paddlex/official_models /app/.paddlex/official_models
+# On-demand AI feature installer and manifest
+COPY docker/feature-manifest.json /app/docker/feature-manifest.json
+COPY packages/ai/python/install_feature.py /app/packages/ai/python/install_feature.py
 
 WORKDIR /app
 
@@ -247,10 +209,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store/v3 \
     npm pkg delete scripts.prepare && \
     pnpm install --frozen-lockfile --prod
 
-# Remove build tools no longer needed in production
-RUN apt-get purge -y --auto-remove build-essential python3-dev && \
-    rm -rf /var/lib/apt/lists/*
-
 # Copy source code for API (tsx runs TS directly - no build step needed)
 COPY apps/api/src ./apps/api/src
 COPY apps/api/drizzle ./apps/api/drizzle
@@ -264,49 +222,58 @@ COPY packages/ai/python ./packages/ai/python
 # Copy built frontend from builder stage
 COPY --from=builder /app/apps/web/dist ./apps/web/dist
 
-# Create required directories (including /opt/models so chown works even when
-# SKIP_MODEL_DOWNLOADS=true skips the download script that would create it)
-RUN mkdir -p /data /data/files /tmp/workspace /opt/models
-
-# Symlink facexlib models for codeformer-pip (expects gfpgan/weights/ relative to CWD)
-RUN mkdir -p /app/gfpgan/weights/CodeFormer && \
-    ln -sf /opt/models/gfpgan/facelib /app/gfpgan/weights/facelib && \
-    ln -sf /opt/models/codeformer/codeformer.pth /app/gfpgan/weights/CodeFormer/codeformer.pth
+# Create required directories
+RUN mkdir -p /data /data/files /data/ai/models /data/ai/pip-cache /tmp/workspace
 
 # Environment defaults
 ENV PORT=1349 \
     NODE_ENV=production \
     STORAGE_MODE=local \
-    DB_PATH=/data/ashim.db \
+    DB_PATH=/data/snapotter.db \
     WORKSPACE_PATH=/tmp/workspace \
     FILES_STORAGE_PATH=/data/files \
-    PYTHON_VENV_PATH=/opt/venv \
+    PYTHON_VENV_PATH=/data/ai/venv \
+    MODELS_PATH=/data/ai/models \
+    DATA_DIR=/data \
+    U2NET_HOME=/data/ai/models/rembg \
     DEFAULT_THEME=light \
     DEFAULT_LOCALE=en \
-    APP_NAME="ashim" \
-    FILE_MAX_AGE_HOURS=24 \
-    CLEANUP_INTERVAL_MINUTES=30 \
-    MAX_UPLOAD_SIZE_MB=100 \
-    MAX_BATCH_SIZE=200 \
-    CONCURRENT_JOBS=3 \
-    MAX_MEGAPIXELS=100 \
-    RATE_LIMIT_PER_MIN=100 \
-    LOG_LEVEL=info
+    APP_NAME="snapotter" \
+    FILE_MAX_AGE_HOURS=72 \
+    CLEANUP_INTERVAL_MINUTES=60 \
+    MAX_UPLOAD_SIZE_MB=0 \
+    MAX_BATCH_SIZE=0 \
+    CONCURRENT_JOBS=0 \
+    MAX_MEGAPIXELS=0 \
+    RATE_LIMIT_PER_MIN=0 \
+    MAX_USERS=0 \
+    MAX_WORKER_THREADS=0 \
+    PROCESSING_TIMEOUT_S=0 \
+    MAX_PIPELINE_STEPS=0 \
+    MAX_CANVAS_PIXELS=0 \
+    MAX_SVG_SIZE_MB=0 \
+    MAX_LOGO_SIZE_KB=2048 \
+    MAX_SPLIT_GRID=100 \
+    MAX_PDF_PAGES=0 \
+    SESSION_DURATION_HOURS=168 \
+    LOGIN_ATTEMPT_LIMIT=500 \
+    LOG_LEVEL=info \
+    TRUST_PROXY=true
 
 # NVIDIA Container Toolkit env vars (harmless on non-GPU systems)
 ENV NVIDIA_VISIBLE_DEVICES=all \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
 # Suppress noisy ML library output in docker logs
-ENV PYTHONWARNINGS=ignore \
+ENV PYTHONWARNINGS=default \
     TF_CPP_MIN_LOG_LEVEL=3 \
     PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
 
 # Create non-root user for runtime
-RUN groupadd -r ashim && useradd -r -g ashim -d /app -s /sbin/nologin ashim
-RUN chown -R ashim:ashim /app /data /tmp/workspace /opt/venv /opt/models
+RUN groupadd -r snapotter && useradd -r -g snapotter -d /app -s /sbin/nologin snapotter
+RUN chown -R snapotter:snapotter /app /data /tmp/workspace /opt/venv
 
-# Entrypoint fixes volume permissions then drops to ashim via gosu
+# Entrypoint fixes volume permissions then drops to snapotter via gosu
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
@@ -317,4 +284,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
 
 # tini as PID 1 for zombie reaping + signal forwarding
 ENTRYPOINT ["tini", "--", "entrypoint.sh"]
-CMD ["pnpm", "--filter", "@ashim/api", "run", "start"]
+CMD ["pnpm", "--filter", "@snapotter/api", "run", "start"]

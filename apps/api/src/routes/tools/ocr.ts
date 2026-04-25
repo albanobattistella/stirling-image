@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
-import { extractText } from "@ashim/ai";
+import { extractText } from "@snapotter/ai";
+import { getBundleForTool, TOOL_BUNDLE_MAP } from "@snapotter/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { formatZodErrors } from "../../lib/errors.js";
+import { isToolInstalled } from "../../lib/feature-status.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
 import { createWorkspace } from "../../lib/workspace.js";
 import { updateSingleFileProgress } from "../progress.js";
@@ -21,6 +24,18 @@ const settingsSchema = z.object({
  */
 export function registerOcr(app: FastifyInstance) {
   app.post("/api/v1/tools/ocr", async (request: FastifyRequest, reply: FastifyReply) => {
+    const toolId = "ocr";
+    if (!isToolInstalled(toolId)) {
+      const bundle = getBundleForTool(toolId);
+      return reply.status(501).send({
+        error: "Feature not installed",
+        code: "FEATURE_NOT_INSTALLED",
+        feature: TOOL_BUNDLE_MAP[toolId],
+        featureName: bundle?.name ?? toolId,
+        estimatedSize: bundle?.estimatedSize ?? "unknown",
+      });
+    }
+
     let fileBuffer: Buffer | null = null;
     let filename = "image";
     let settingsRaw: string | null = null;
@@ -53,7 +68,7 @@ export function registerOcr(app: FastifyInstance) {
       return reply.status(400).send({ error: "No image file provided" });
     }
 
-    const validation = await validateImageBuffer(fileBuffer);
+    const validation = await validateImageBuffer(fileBuffer, filename);
     if (!validation.valid) {
       return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
     }
@@ -66,7 +81,7 @@ export function registerOcr(app: FastifyInstance) {
         if (!result.success) {
           return reply
             .status(400)
-            .send({ error: "Invalid settings", details: result.error.issues });
+            .send({ error: "Invalid settings", details: formatZodErrors(result.error.issues) });
         }
         settings = result.data;
       } catch {
@@ -135,19 +150,30 @@ export function registerOcr(app: FastifyInstance) {
             });
           }
 
+          const expectedEngine =
+            tier === "fast" ? "tesseract" : tier === "balanced" ? "paddleocr" : "paddleocr-vl";
+          if (result.engine && result.engine !== expectedEngine) {
+            request.log.warn(
+              { toolId: "ocr", requested: tier, expected: expectedEngine, actual: result.engine },
+              `OCR engine fallback: requested ${tier} (${expectedEngine}) but used ${result.engine}`,
+            );
+          }
+
           return reply.send({
             jobId,
             filename,
             text: result.text,
+            engine: result.engine,
           });
         } catch (err) {
           lastError = err;
-          const msg = err instanceof Error ? err.message : String(err);
+          const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
           // If the Python process crashed (segfault, dispatcher exit), try next tier
           if (
             msg.includes("exited unexpectedly") ||
             msg.includes("exited with code") ||
-            msg.includes("Segmentation fault")
+            msg.includes("segmentation fault") ||
+            msg.includes("process crashed")
           ) {
             request.log.warn(
               { toolId: "ocr", quality: tier, err },

@@ -1,13 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { detectFaceLandmarks, removeBackground } from "@ashim/ai";
-import { PASSPORT_SPECS, PRINT_LAYOUTS } from "@ashim/shared";
+import { detectFaceLandmarks, removeBackground } from "@snapotter/ai";
+import {
+  getBundleForTool,
+  PASSPORT_SPECS,
+  PRINT_LAYOUTS,
+  TOOL_BUNDLE_MAP,
+} from "@snapotter/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
 import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
+import { formatZodErrors } from "../../lib/errors.js";
+import { isToolInstalled } from "../../lib/feature-status.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
+import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
 import { decodeHeic } from "../../lib/heic-converter.js";
 import { createWorkspace, getWorkspacePath } from "../../lib/workspace.js";
 import { updateSingleFileProgress } from "../progress.js";
@@ -34,7 +42,7 @@ const generateSettingsSchema = z.object({
   bgColor: z.string().default("#FFFFFF"),
   printLayout: z.string().default("none"),
   maxFileSizeKb: z.number().default(0),
-  dpi: z.number().min(72).max(600).default(300),
+  dpi: z.number().min(72).max(1200).default(300),
   customWidthMm: z.number().optional(),
   customHeightMm: z.number().optional(),
   zoom: z.number().min(0.5).max(3).default(1),
@@ -123,6 +131,18 @@ export function registerPassportPhoto(app: FastifyInstance) {
   app.post(
     "/api/v1/tools/passport-photo/analyze",
     async (request: FastifyRequest, reply: FastifyReply) => {
+      const toolId = "passport-photo";
+      if (!isToolInstalled(toolId)) {
+        const bundle = getBundleForTool(toolId);
+        return reply.status(501).send({
+          error: "Feature not installed",
+          code: "FEATURE_NOT_INSTALLED",
+          feature: TOOL_BUNDLE_MAP[toolId],
+          featureName: bundle?.name ?? toolId,
+          estimatedSize: bundle?.estimatedSize ?? "unknown",
+        });
+      }
+
       let fileBuffer: Buffer | null = null;
       let filename = "image";
       let clientJobId: string | null = null;
@@ -150,7 +170,7 @@ export function registerPassportPhoto(app: FastifyInstance) {
         return reply.status(400).send({ error: "No image file provided" });
       }
 
-      const validation = await validateImageBuffer(fileBuffer);
+      const validation = await validateImageBuffer(fileBuffer, filename);
       if (!validation.valid) {
         return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
       }
@@ -159,6 +179,13 @@ export function registerPassportPhoto(app: FastifyInstance) {
         // Decode HEIC/HEIF before processing
         if (validation.format === "heif") {
           fileBuffer = await decodeHeic(fileBuffer);
+          const ext = filename.match(/\.[^.]+$/)?.[0];
+          if (ext) filename = `${filename.slice(0, -ext.length)}.png`;
+        }
+
+        // Decode CLI-decoded formats (RAW, TGA, PSD, EXR, HDR)
+        if (needsCliDecode(validation.format)) {
+          fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format);
           const ext = filename.match(/\.[^.]+$/)?.[0];
           if (ext) filename = `${filename.slice(0, -ext.length)}.png`;
         }
@@ -275,15 +302,14 @@ export function registerPassportPhoto(app: FastifyInstance) {
   app.post(
     "/api/v1/tools/passport-photo/generate",
     async (request: FastifyRequest, reply: FastifyReply) => {
-      let parsed: z.infer<typeof generateSettingsSchema>;
-      try {
-        parsed = generateSettingsSchema.parse(request.body);
-      } catch (err) {
+      const parseResult = generateSettingsSchema.safeParse(request.body);
+      if (!parseResult.success) {
         return reply.status(400).send({
           error: "Invalid settings",
-          details: err instanceof Error ? err.message : String(err),
+          details: formatZodErrors(parseResult.error.issues),
         });
       }
+      const parsed = parseResult.data;
 
       const {
         jobId,
@@ -539,11 +565,18 @@ export function registerPassportPhoto(app: FastifyInstance) {
       const docSpec = countrySpec.documents.find((d) => d.type === s.documentType);
       if (!docSpec) throw new Error(`No ${s.documentType} spec for ${s.countryCode}`);
 
-      // Convert normalized landmarks (0-1) to pixel coordinates
-      const crownYPx = (landmarks.crown.y + s.adjustY) * imgH;
-      const chinYPx = (landmarks.chin.y + s.adjustY) * imgH;
-      const eyeYPx = (landmarks.eyeCenter.y + s.adjustY) * imgH;
-      const faceCenterXPx = (landmarks.faceCenterX + s.adjustX) * imgW;
+      // Use actual bg-removed image dimensions (may differ from original)
+      const bgRemovedMeta = await sharp(bgRemovedBuffer).metadata();
+      const actualW = bgRemovedMeta.width ?? imgW;
+      const actualH = bgRemovedMeta.height ?? imgH;
+      const scaleX = actualW / imgW;
+      const scaleY = actualH / imgH;
+
+      // Convert normalized landmarks (0-1) to pixel coordinates in bg-removed space
+      const crownYPx = (landmarks.crown.y + s.adjustY) * imgH * scaleY;
+      const chinYPx = (landmarks.chin.y + s.adjustY) * imgH * scaleY;
+      const eyeYPx = (landmarks.eyeCenter.y + s.adjustY) * imgH * scaleY;
+      const faceCenterXPx = (landmarks.faceCenterX + s.adjustX) * imgW * scaleX;
 
       const targetHeadRatio = (docSpec.headHeightMin + docSpec.headHeightMax) / 2;
       const headHeightPx = chinYPx - crownYPx;
@@ -554,40 +587,58 @@ export function registerPassportPhoto(app: FastifyInstance) {
       const topY = eyeYPx - photoHeightPx * (1 - docSpec.eyeLineFromBottom);
       const leftX = faceCenterXPx - photoWidthPx / 2;
 
-      const cropW = Math.min(Math.round(photoWidthPx), imgW);
-      const cropH = Math.min(Math.round(photoHeightPx), imgH);
-      let cropLeft = Math.max(0, Math.round(leftX));
-      let cropTop = Math.max(0, Math.round(topY));
-      if (cropLeft + cropW > imgW) cropLeft = imgW - cropW;
-      if (cropTop + cropH > imgH) cropTop = imgH - cropH;
-      cropLeft = Math.max(0, cropLeft);
-      cropTop = Math.max(0, cropTop);
-
       // Composite onto background
       const hex = s.bgColor.replace("#", "");
       const bgR = Number.parseInt(hex.slice(0, 2), 16);
       const bgG = Number.parseInt(hex.slice(2, 4), 16);
       const bgB = Number.parseInt(hex.slice(4, 6), 16);
+      const bgRgb = { r: bgR, g: bgG, b: bgB, alpha: 1 };
 
-      const bgRemovedMeta = await sharp(bgRemovedBuffer).metadata();
       const bgLayer = await sharp({
         create: {
-          width: bgRemovedMeta.width ?? imgW,
-          height: bgRemovedMeta.height ?? imgH,
+          width: actualW,
+          height: actualH,
           channels: 4,
-          background: { r: bgR, g: bgG, b: bgB, alpha: 1 },
+          background: bgRgb,
         },
       })
         .composite([{ input: bgRemovedBuffer, blend: "over" }])
         .png()
         .toBuffer();
 
+      // Pad instead of clamp so the crop region can extend beyond the image
+      const rawLeft = Math.round(leftX);
+      const rawTop = Math.round(topY);
+      const rawW = Math.round(photoWidthPx);
+      const rawH = Math.round(photoHeightPx);
+
+      const padLeft = Math.max(0, -rawLeft);
+      const padTop = Math.max(0, -rawTop);
+      const padRight = Math.max(0, rawLeft + rawW - actualW);
+      const padBottom = Math.max(0, rawTop + rawH - actualH);
+
+      let sourceForCrop = bgLayer;
+      if (padLeft > 0 || padTop > 0 || padRight > 0 || padBottom > 0) {
+        sourceForCrop = await sharp(bgLayer)
+          .extend({
+            top: padTop,
+            bottom: padBottom,
+            left: padLeft,
+            right: padRight,
+            background: bgRgb,
+          })
+          .toBuffer();
+      }
+
+      const cropLeft = rawLeft + padLeft;
+      const cropTop = rawTop + padTop;
+
       const MM_PER_INCH = 25.4;
       const targetWidthPx = Math.round((docSpec.width / MM_PER_INCH) * docSpec.dpi);
       const targetHeightPx = Math.round((docSpec.height / MM_PER_INCH) * docSpec.dpi);
 
-      const result = await sharp(bgLayer)
-        .extract({ left: cropLeft, top: cropTop, width: cropW, height: cropH })
+      const result = await sharp(sourceForCrop)
+        .extract({ left: cropLeft, top: cropTop, width: rawW, height: rawH })
         .resize(targetWidthPx, targetHeightPx, { fit: "fill" })
         .jpeg({ quality: 95 })
         .toBuffer();
