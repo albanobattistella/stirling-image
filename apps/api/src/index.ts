@@ -242,13 +242,16 @@ const cleanupCron = startCleanupCron();
 // Start
 try {
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
-  const gpu = isGpuAvailable();
+  const dispatcherStatus = getDispatcherStatus();
+  const gpuLine = !dispatcherStatus.ready
+    ? "[INFO] GPU status: waiting for AI sidecar startup..."
+    : dispatcherStatus.gpu
+      ? "[INFO] GPU detected — AI tools will use CUDA acceleration"
+      : "[WARN] No GPU detected — AI tools will use CPU (slower)";
   console.log(
     [
       `SnapOtter v${APP_VERSION} running on port ${env.PORT}`,
-      gpu
-        ? "[INFO] GPU detected — AI tools will use CUDA acceleration"
-        : "[WARN] No GPU detected — AI tools will use CPU (slower)",
+      gpuLine,
       `[INFO] Rate limit: ${env.RATE_LIMIT_PER_MIN > 0 ? `${env.RATE_LIMIT_PER_MIN}/min` : "disabled"}`,
       `[INFO] Upload limit: ${env.MAX_UPLOAD_SIZE_MB > 0 ? `${env.MAX_UPLOAD_SIZE_MB} MB` : "unlimited"}`,
       `[INFO] Trust proxy: ${env.TRUST_PROXY}`,

@@ -151,7 +151,7 @@ export function registerOcr(app: FastifyInstance) {
           }
 
           const expectedEngine =
-            tier === "fast" ? "tesseract" : tier === "balanced" ? "paddleocr" : "paddleocr-vl";
+            tier === "fast" ? "tesseract" : tier === "balanced" ? "paddleocr-v5" : "paddleocr-vl";
           if (result.engine && result.engine !== expectedEngine) {
             request.log.warn(
               { toolId: "ocr", requested: tier, expected: expectedEngine, actual: result.engine },

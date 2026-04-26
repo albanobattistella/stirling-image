@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
-const authFile = path.join(__dirname, "test-results", ".auth", "user.json");
+const authFile = path.join(__dirname, "test-results", ".auth", "analytics-user.json");
 
 // Point raw-fetch tests (api.spec, security.spec, people.spec, rbac.spec) at
 // the Docker container instead of the dev-server default (port 13490).
@@ -10,7 +10,7 @@ const containerUrl = process.env.BASE_URL || "http://localhost:1349";
 process.env.API_URL ??= containerUrl;
 
 export default defineConfig({
-  testDir: "./tests/e2e",
+  testDir: "./tests/e2e-docker",
   timeout: 600_000,
   expect: {
     timeout: 60_000,
