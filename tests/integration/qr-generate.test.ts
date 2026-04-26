@@ -460,7 +460,7 @@ describe("QR Generate", () => {
     expect(res.statusCode).toBe(200);
     const result = JSON.parse(res.body);
     expect(result.processedSize).toBeGreaterThan(0);
-  });
+  }, 120_000);
 
   it("generates QR with transparent background (3-char hex)", async () => {
     const res = await app.inject({

@@ -185,9 +185,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m venv /opt/venv && \
     /opt/venv/bin/pip install --upgrade pip && \
     /opt/venv/bin/pip install \
-        Pillow==11.1.0 \
+        "Pillow>=12.2.0,<13.0.0" \
         numpy==1.26.4 \
-        opencv-python-headless==4.10.0.84
+        "opencv-python-headless>=4.10.0,<4.12.0"
 
 # On-demand AI feature installer and manifest
 COPY docker/feature-manifest.json /app/docker/feature-manifest.json
