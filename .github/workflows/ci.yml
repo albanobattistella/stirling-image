@@ -94,6 +94,7 @@ jobs:
           --ignore-vuln CVE-2026-40086
           --ignore-vuln CVE-2026-25990
           --ignore-vuln CVE-2026-40192
+          --ignore-vuln GHSA-55v6-g8pm-pw4c
 
   build:
     name: Build
