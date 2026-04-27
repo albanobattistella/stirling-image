@@ -405,4 +405,188 @@ describe("image-to-pdf", () => {
     expect(json.compression.jpegQuality).toBeLessThanOrEqual(95);
     expect(json.processedSize).toBeLessThanOrEqual(5 * 1024 * 1024);
   });
+
+  it("returns targetMet=false when target is impossibly small", async () => {
+    // Generate an 800x800 high-frequency pattern image that cannot compress
+    // below 50KB even at JPEG quality 10, making the target impossible to meet.
+    const w = 800;
+    const h = 800;
+    const raw = Buffer.alloc(w * h * 3);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = (y * w + x) * 3;
+        raw[idx] = (x * 7 + y * 13) % 256;
+        raw[idx + 1] = (x * 11 + y * 3) % 256;
+        raw[idx + 2] = (x * 5 + y * 17) % 256;
+      }
+    }
+    const sharp = (await import("sharp")).default;
+    const largePng = await sharp(raw, { raw: { width: w, height: h, channels: 3 } })
+      .png()
+      .toBuffer();
+
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "big.png", contentType: "image/png", content: largePng },
+      {
+        name: "settings",
+        content: JSON.stringify({ targetSize: { value: 50, unit: "KB" } }),
+      },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/image-to-pdf",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": contentType },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body);
+    expect(json.compression).toBeDefined();
+    expect(json.compression.targetMet).toBe(false);
+    expect(json.compression.jpegQuality).toBe(10);
+  });
+
+  it("rejects target size below 50KB", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+      {
+        name: "settings",
+        content: JSON.stringify({ targetSize: { value: 10, unit: "KB" } }),
+      },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/image-to-pdf",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": contentType },
+      body,
+    });
+
+    expect(res.statusCode).toBe(400);
+    const json = JSON.parse(res.body);
+    expect(json.error).toContain("at least 50KB");
+  });
+
+  it("rejects negative target size value", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+      {
+        name: "settings",
+        content: JSON.stringify({ targetSize: { value: -1, unit: "MB" } }),
+      },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/image-to-pdf",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": contentType },
+      body,
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects invalid target size unit", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+      {
+        name: "settings",
+        content: JSON.stringify({ targetSize: { value: 1, unit: "GB" } }),
+      },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/image-to-pdf",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": contentType },
+      body,
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("compresses multi-image PDF to meet target size", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "p1.png", contentType: "image/png", content: PNG },
+      { name: "file", filename: "p2.jpg", contentType: "image/jpeg", content: JPG },
+      {
+        name: "settings",
+        content: JSON.stringify({ targetSize: { value: 5, unit: "MB" } }),
+      },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/image-to-pdf",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": contentType },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body);
+    expect(json.pages).toBe(2);
+    expect(json.compression).toBeDefined();
+    expect(json.compression.targetMet).toBe(true);
+  });
+
+  it("omits compression field when no targetSize is provided", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+      { name: "settings", content: JSON.stringify({}) },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/image-to-pdf",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": contentType },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body);
+    expect(json.compression).toBeUndefined();
+  });
+
+  it("accepts decimal MB values for target size", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+      {
+        name: "settings",
+        content: JSON.stringify({ targetSize: { value: 1.5, unit: "MB" } }),
+      },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/image-to-pdf",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": contentType },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body);
+    expect(json.compression.targetRequested).toBe(Math.round(1.5 * 1024 * 1024));
+  });
+
+  it("accepts KB unit for target size", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+      {
+        name: "settings",
+        content: JSON.stringify({ targetSize: { value: 500, unit: "KB" } }),
+      },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/image-to-pdf",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": contentType },
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body);
+    expect(json.compression.targetRequested).toBe(500 * 1024);
+  });
 });
