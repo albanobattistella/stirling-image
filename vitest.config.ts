@@ -108,6 +108,8 @@ export default defineConfig({
       react: path.join(webNodeModules, "react"),
       "react-dom": path.join(webNodeModules, "react-dom"),
       zustand: path.join(webNodeModules, "zustand"),
+      "posthog-js": path.join(webNodeModules, "posthog-js"),
+      "@sentry/react": path.join(webNodeModules, "@sentry/react"),
     },
   },
 });

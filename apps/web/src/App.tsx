@@ -174,22 +174,19 @@ export function App() {
   }, [fetchAnalyticsConfig]);
 
   useEffect(() => {
-    if (analyticsConfigLoaded && analyticsConfig?.enabled) {
-      initAnalytics(analyticsConfig);
-    }
-  }, [analyticsConfigLoaded, analyticsConfig]);
-
-  useEffect(() => {
     if (
       !analyticsConfigLoaded ||
       !analyticsConfig?.enabled ||
       analyticsConsent.analyticsEnabled !== true
     )
       return;
-    identify(analyticsConfig.instanceId, {
-      $set: { version: APP_VERSION },
-      $set_once: { instance_id: analyticsConfig.instanceId },
-    });
+    void (async () => {
+      await initAnalytics(analyticsConfig);
+      identify(analyticsConfig.instanceId, {
+        $set: { version: APP_VERSION },
+        $set_once: { instance_id: analyticsConfig.instanceId },
+      });
+    })();
   }, [analyticsConfigLoaded, analyticsConfig, analyticsConsent.analyticsEnabled]);
 
   return (

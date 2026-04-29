@@ -1,38 +1,25 @@
 // @vitest-environment node
-/**
- * Tests for the analytics lib's exported functions.
- *
- * Since posthog-js and @sentry/react are heavy browser-side SDKs that
- * vitest cannot easily resolve (they live in web's node_modules behind
- * a complex resolution chain), we test the module's behavior through
- * its public API contract:
- *
- * - Functions never throw (silent failures per design)
- * - Consent gating works correctly
- * - setAnalyticsConsent can be called standalone
- * - Functions are safe to call before/without initialization
- */
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock both posthog-js and @sentry/react so the module can load
+const mockInit = vi.fn(() => ({
+  capture: mockCapture,
+  identify: mockIdentify,
+  startSessionRecording: mockStartSessionRecording,
+  opt_in_capturing: mockOptIn,
+  opt_out_capturing: mockOptOut,
+  reset: mockReset,
+  persistence: { disabled: false },
+}));
 const mockCapture = vi.fn();
 const mockIdentify = vi.fn();
 const mockStartSessionRecording = vi.fn();
 const mockOptIn = vi.fn();
 const mockOptOut = vi.fn();
+const mockReset = vi.fn();
 
 vi.mock("posthog-js", () => ({
   __esModule: true,
-  default: {
-    init: vi.fn(() => ({
-      capture: mockCapture,
-      identify: mockIdentify,
-      startSessionRecording: mockStartSessionRecording,
-      opt_in_capturing: mockOptIn,
-      opt_out_capturing: mockOptOut,
-      persistence: { disabled: false },
-    })),
-  },
+  default: { init: mockInit },
 }));
 
 const mockSentryInit = vi.fn();
@@ -58,51 +45,159 @@ import {
   identify,
   initAnalytics,
   setAnalyticsConsent,
+  shutdownAnalytics,
   startErrorReplay,
   track,
 } from "@/lib/analytics";
 
+const enabledConfig = {
+  enabled: true,
+  posthogApiKey: "phc_test",
+  posthogHost: "https://ph.test",
+  sentryDsn: "https://sentry.test/123",
+  sampleRate: 1,
+  instanceId: "inst-1",
+};
+
+const disabledConfig = {
+  enabled: false,
+  posthogApiKey: "key",
+  posthogHost: "https://ph.test",
+  sentryDsn: "",
+  sampleRate: 1,
+  instanceId: "inst-1",
+};
+
 describe("analytics lib", () => {
+  beforeEach(() => {
+    shutdownAnalytics();
+    mockInit.mockClear();
+    mockCapture.mockClear();
+    mockIdentify.mockClear();
+    mockStartSessionRecording.mockClear();
+    mockOptIn.mockClear();
+    mockOptOut.mockClear();
+    mockReset.mockClear();
+    mockSentryInit.mockClear();
+  });
+
   describe("initAnalytics", () => {
-    it("does not throw when config.enabled is false", () => {
-      expect(() =>
-        initAnalytics({
-          enabled: false,
-          posthogApiKey: "key",
-          posthogHost: "https://ph.test",
-          sentryDsn: "",
-          sampleRate: 1,
-          instanceId: "inst-1",
-        }),
-      ).not.toThrow();
+    it("skips initialization when config.enabled is false", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(disabledConfig);
+      expect(mockInit).not.toHaveBeenCalled();
     });
 
-    it("does not throw when config.enabled is true", () => {
-      expect(() =>
-        initAnalytics({
-          enabled: true,
-          posthogApiKey: "phc_test",
-          posthogHost: "https://ph.test",
-          sentryDsn: "https://sentry.test/123",
-          sampleRate: 1,
-          instanceId: "inst-1",
-        }),
-      ).not.toThrow();
+    it("skips posthog.init when consent is not granted", async () => {
+      await initAnalytics(enabledConfig);
+      expect(mockInit).not.toHaveBeenCalled();
     });
 
-    it("does not throw on double initialization", () => {
-      const config = {
-        enabled: true,
-        posthogApiKey: "phc_test",
-        posthogHost: "https://ph.test",
-        sentryDsn: "",
-        sampleRate: 1,
-        instanceId: "inst-1",
-      };
-      expect(() => {
-        initAnalytics(config);
-        initAnalytics(config);
-      }).not.toThrow();
+    it("calls posthog.init when config.enabled and consent are both true", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      expect(mockInit).toHaveBeenCalledOnce();
+      expect(mockInit).toHaveBeenCalledWith(
+        "phc_test",
+        expect.objectContaining({
+          api_host: "https://ph.test",
+          autocapture: false,
+          ip: false,
+        }),
+      );
+    });
+
+    it("initializes Sentry when sentryDsn is provided and consent is granted", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      expect(mockSentryInit).toHaveBeenCalledOnce();
+      expect(mockSentryInit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dsn: "https://sentry.test/123",
+          sendDefaultPii: false,
+        }),
+      );
+    });
+
+    it("skips Sentry when sentryDsn is empty", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics({ ...enabledConfig, sentryDsn: "" });
+      expect(mockSentryInit).not.toHaveBeenCalled();
+    });
+
+    it("does not double-initialize on repeated calls", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      await initAnalytics(enabledConfig);
+      expect(mockInit).toHaveBeenCalledOnce();
+    });
+
+    it("bails out if consent is revoked during async import", async () => {
+      setAnalyticsConsent(true);
+      const initPromise = initAnalytics(enabledConfig);
+      setAnalyticsConsent(false);
+      await initPromise;
+      // shutdownAnalytics was called by setAnalyticsConsent(false),
+      // and the init should have bailed after the import resolved
+      // because consentGranted was false at that point.
+      // mockInit may or may not have been called depending on timing,
+      // but the SDK should not be active after shutdown.
+      // Verify track does not forward to posthog:
+      track("test_event");
+      expect(mockCapture).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("shutdownAnalytics", () => {
+    it("calls opt_out_capturing and reset on the posthog instance", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      shutdownAnalytics();
+      expect(mockOptOut).toHaveBeenCalledOnce();
+      expect(mockReset).toHaveBeenCalledOnce();
+    });
+
+    it("is safe to call when not initialized", () => {
+      expect(() => shutdownAnalytics()).not.toThrow();
+    });
+
+    it("is safe to call multiple times", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      shutdownAnalytics();
+      expect(() => shutdownAnalytics()).not.toThrow();
+      // opt_out and reset only called once (first shutdown had a posthog instance)
+      expect(mockOptOut).toHaveBeenCalledOnce();
+      expect(mockReset).toHaveBeenCalledOnce();
+    });
+
+    it("allows re-initialization after shutdown", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      expect(mockInit).toHaveBeenCalledOnce();
+
+      shutdownAnalytics();
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      expect(mockInit).toHaveBeenCalledTimes(2);
+    });
+
+    it("swallows exceptions from posthog.opt_out_capturing", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      mockOptOut.mockImplementationOnce(() => {
+        throw new Error("opt_out boom");
+      });
+      expect(() => shutdownAnalytics()).not.toThrow();
+    });
+
+    it("swallows exceptions from posthog.reset", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      mockReset.mockImplementationOnce(() => {
+        throw new Error("reset boom");
+      });
+      expect(() => shutdownAnalytics()).not.toThrow();
     });
   });
 
@@ -122,107 +217,132 @@ describe("analytics lib", () => {
         setAnalyticsConsent(true);
       }).not.toThrow();
     });
+
+    it("triggers shutdown when set to false after init", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      setAnalyticsConsent(false);
+      expect(mockOptOut).toHaveBeenCalledOnce();
+      expect(mockReset).toHaveBeenCalledOnce();
+    });
+
+    it("does not trigger shutdown when set to true", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      mockOptOut.mockClear();
+      mockReset.mockClear();
+      setAnalyticsConsent(true);
+      expect(mockOptOut).not.toHaveBeenCalled();
+      expect(mockReset).not.toHaveBeenCalled();
+    });
   });
 
   describe("track", () => {
-    it("does not throw without consent", () => {
-      setAnalyticsConsent(false);
-      expect(() => track("test_event", { foo: "bar" })).not.toThrow();
-    });
-
-    it("does not throw with consent", () => {
+    it("does not call capture without consent", async () => {
       setAnalyticsConsent(true);
-      expect(() => track("tool_used", { tool: "resize" })).not.toThrow();
-    });
-
-    it("does not throw without properties", () => {
-      setAnalyticsConsent(true);
-      expect(() => track("simple_event")).not.toThrow();
-    });
-
-    it("does not throw with empty properties", () => {
-      setAnalyticsConsent(true);
-      expect(() => track("event", {})).not.toThrow();
-    });
-  });
-
-  describe("identify", () => {
-    it("does not throw without consent", () => {
-      setAnalyticsConsent(false);
-      expect(() => identify("inst-1", { version: "1.0" })).not.toThrow();
-    });
-
-    it("does not throw with consent", () => {
-      setAnalyticsConsent(true);
-      expect(() => identify("inst-1", { plan: "free" })).not.toThrow();
-    });
-
-    it("does not throw with empty properties", () => {
-      setAnalyticsConsent(true);
-      expect(() => identify("inst-1", {})).not.toThrow();
-    });
-  });
-
-  describe("startErrorReplay", () => {
-    it("does not throw without consent", () => {
-      setAnalyticsConsent(false);
-      expect(() => startErrorReplay()).not.toThrow();
-    });
-
-    it("does not throw with consent", () => {
-      setAnalyticsConsent(true);
-      expect(() => startErrorReplay()).not.toThrow();
-    });
-  });
-
-  describe("consent gating behavior", () => {
-    it("track captures only when consent is granted", () => {
+      await initAnalytics(enabledConfig);
       mockCapture.mockClear();
       setAnalyticsConsent(false);
-      track("no_consent_event");
-      const callsWithoutConsent = mockCapture.mock.calls.length;
-
+      // Re-init to have a posthog instance for the next consent grant
       setAnalyticsConsent(true);
-      track("with_consent_event");
-      const callsWithConsent = mockCapture.mock.calls.length;
-
-      // With consent should have more calls than without
-      expect(callsWithConsent).toBeGreaterThanOrEqual(callsWithoutConsent);
-    });
-
-    it("identify only works when consent is granted", () => {
-      mockIdentify.mockClear();
+      await initAnalytics(enabledConfig);
       setAnalyticsConsent(false);
-      identify("no-consent", {});
-      const callsWithoutConsent = mockIdentify.mock.calls.length;
-
-      setAnalyticsConsent(true);
-      identify("with-consent", {});
-      const callsWithConsent = mockIdentify.mock.calls.length;
-
-      expect(callsWithConsent).toBeGreaterThanOrEqual(callsWithoutConsent);
+      track("blocked_event");
+      expect(mockCapture).not.toHaveBeenCalled();
     });
-  });
 
-  describe("error resilience", () => {
-    it("track swallows exception from posthog.capture", () => {
+    it("calls capture with consent", async () => {
       setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      track("tool_used", { tool: "resize" });
+      expect(mockCapture).toHaveBeenCalledWith("tool_used", { tool: "resize" });
+    });
+
+    it("works without properties", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      track("simple_event");
+      expect(mockCapture).toHaveBeenCalledWith("simple_event", undefined);
+    });
+
+    it("does not throw before initialization", () => {
+      setAnalyticsConsent(true);
+      expect(() => track("pre_init_event")).not.toThrow();
+    });
+
+    it("swallows exceptions from posthog.capture", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
       mockCapture.mockImplementationOnce(() => {
         throw new Error("capture boom");
       });
       expect(() => track("should_not_throw")).not.toThrow();
     });
+  });
 
-    it("identify swallows exception from posthog.identify", () => {
+  describe("identify", () => {
+    it("does not call posthog.identify without consent", async () => {
       setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      setAnalyticsConsent(false);
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      setAnalyticsConsent(false);
+      mockIdentify.mockClear();
+      identify("blocked-id", {});
+      expect(mockIdentify).not.toHaveBeenCalled();
+    });
+
+    it("calls posthog.identify with consent", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      identify("inst-1", { version: "1.0" });
+      expect(mockIdentify).toHaveBeenCalledWith("inst-1", { version: "1.0" });
+    });
+
+    it("does not throw before initialization", () => {
+      setAnalyticsConsent(true);
+      expect(() => identify("inst-1", {})).not.toThrow();
+    });
+
+    it("swallows exceptions from posthog.identify", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
       mockIdentify.mockImplementationOnce(() => {
         throw new Error("identify boom");
       });
       expect(() => identify("inst-x", { foo: "bar" })).not.toThrow();
     });
+  });
 
-    it("startErrorReplay swallows exception from posthog.startSessionRecording", () => {
+  describe("startErrorReplay", () => {
+    it("does not call startSessionRecording without consent", async () => {
       setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      setAnalyticsConsent(false);
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      setAnalyticsConsent(false);
+      mockStartSessionRecording.mockClear();
+      startErrorReplay();
+      expect(mockStartSessionRecording).not.toHaveBeenCalled();
+    });
+
+    it("calls startSessionRecording with consent", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      startErrorReplay();
+      expect(mockStartSessionRecording).toHaveBeenCalledOnce();
+    });
+
+    it("does not throw before initialization", () => {
+      setAnalyticsConsent(true);
+      expect(() => startErrorReplay()).not.toThrow();
+    });
+
+    it("swallows exceptions from posthog.startSessionRecording", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
       mockStartSessionRecording.mockImplementationOnce(() => {
         throw new Error("replay boom");
       });
@@ -230,40 +350,79 @@ describe("analytics lib", () => {
     });
   });
 
-  describe("consent gating prevents calls", () => {
-    it("track does not call capture when consent is false", () => {
-      mockCapture.mockClear();
+  describe("full consent lifecycle", () => {
+    it("accept -> use -> revoke -> silent -> re-accept -> use", async () => {
+      // Phase 1: Accept and use analytics
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      expect(mockInit).toHaveBeenCalledOnce();
+
+      track("phase1_event");
+      expect(mockCapture).toHaveBeenCalledWith("phase1_event", undefined);
+      identify("inst-1", { phase: 1 });
+      expect(mockIdentify).toHaveBeenCalledWith("inst-1", { phase: 1 });
+
+      // Phase 2: Revoke consent mid-session
       setAnalyticsConsent(false);
-      track("blocked_event");
+      expect(mockOptOut).toHaveBeenCalledOnce();
+      expect(mockReset).toHaveBeenCalledOnce();
+
+      mockCapture.mockClear();
+      mockIdentify.mockClear();
+      track("phase2_blocked");
+      identify("inst-1", { phase: 2 });
+      expect(mockCapture).not.toHaveBeenCalled();
+      expect(mockIdentify).not.toHaveBeenCalled();
+
+      // Phase 3: Re-accept consent
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
+      expect(mockInit).toHaveBeenCalledTimes(2);
+
+      track("phase3_event");
+      expect(mockCapture).toHaveBeenCalledWith("phase3_event", undefined);
+    });
+
+    it("server disabled overrides user consent", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(disabledConfig);
+      expect(mockInit).not.toHaveBeenCalled();
+
+      track("should_not_fire");
       expect(mockCapture).not.toHaveBeenCalled();
     });
 
-    it("identify does not call identify when consent is false", () => {
-      mockIdentify.mockClear();
-      setAnalyticsConsent(false);
-      identify("blocked-id", {});
-      expect(mockIdentify).not.toHaveBeenCalled();
-    });
+    it("rapid consent toggles do not corrupt state", async () => {
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
 
-    it("startErrorReplay does not call startSessionRecording when consent is false", () => {
-      mockStartSessionRecording.mockClear();
       setAnalyticsConsent(false);
-      startErrorReplay();
-      expect(mockStartSessionRecording).not.toHaveBeenCalled();
+      setAnalyticsConsent(true);
+      setAnalyticsConsent(false);
+      setAnalyticsConsent(true);
+
+      // After rapid toggles ending on true, SDK was shut down multiple times.
+      // Re-init should work cleanly.
+      await initAnalytics(enabledConfig);
+      track("after_rapid_toggle");
+      expect(mockCapture).toHaveBeenCalledWith("after_rapid_toggle", undefined);
     });
   });
 
   describe("Sentry beforeSend callback", () => {
-    function getBeforeSend() {
+    async function getBeforeSend() {
+      shutdownAnalytics();
+      mockSentryInit.mockClear();
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
       const sentryCall = mockSentryInit.mock.calls.find((call: unknown[]) => call[0]?.beforeSend);
       return sentryCall ? sentryCall[0].beforeSend : null;
     }
 
-    it("scrubs file extensions from exception values", () => {
-      const beforeSend = getBeforeSend();
+    it("scrubs file extensions from exception values", async () => {
+      const beforeSend = await getBeforeSend();
       if (!beforeSend) return;
 
-      setAnalyticsConsent(true);
       const event = {
         user: { email: "test@example.com", username: "user1" },
         exception: {
@@ -291,8 +450,8 @@ describe("analytics lib", () => {
       expect(result.exception.values[0].stacktrace.frames[0].abs_path).toContain("[REDACTED]");
     });
 
-    it("returns null when consent is not granted", () => {
-      const beforeSend = getBeforeSend();
+    it("returns null when consent is not granted", async () => {
+      const beforeSend = await getBeforeSend();
       if (!beforeSend) return;
 
       setAnalyticsConsent(false);
@@ -300,20 +459,18 @@ describe("analytics lib", () => {
       expect(result).toBeNull();
     });
 
-    it("handles event without user or exception fields", () => {
-      const beforeSend = getBeforeSend();
+    it("handles event without user or exception fields", async () => {
+      const beforeSend = await getBeforeSend();
       if (!beforeSend) return;
 
-      setAnalyticsConsent(true);
       const result = beforeSend({});
       expect(result).toBeDefined();
     });
 
-    it("handles exception values without stacktrace", () => {
-      const beforeSend = getBeforeSend();
+    it("handles exception values without stacktrace", async () => {
+      const beforeSend = await getBeforeSend();
       if (!beforeSend) return;
 
-      setAnalyticsConsent(true);
       const event = {
         exception: { values: [{ value: "plain error" }] },
       };
@@ -324,27 +481,29 @@ describe("analytics lib", () => {
   });
 
   describe("Sentry beforeBreadcrumb callback", () => {
-    function getBeforeBreadcrumb() {
+    async function getBeforeBreadcrumb() {
+      shutdownAnalytics();
+      mockSentryInit.mockClear();
+      setAnalyticsConsent(true);
+      await initAnalytics(enabledConfig);
       const sentryCall = mockSentryInit.mock.calls.find(
         (call: unknown[]) => call[0]?.beforeBreadcrumb,
       );
       return sentryCall ? sentryCall[0].beforeBreadcrumb : null;
     }
 
-    it("returns null for ui.click breadcrumbs", () => {
-      const beforeBreadcrumb = getBeforeBreadcrumb();
+    it("returns null for ui.click breadcrumbs", async () => {
+      const beforeBreadcrumb = await getBeforeBreadcrumb();
       if (!beforeBreadcrumb) return;
 
-      setAnalyticsConsent(true);
       const result = beforeBreadcrumb({ category: "ui.click" });
       expect(result).toBeNull();
     });
 
-    it("returns null for fetch breadcrumbs with file extension URLs", () => {
-      const beforeBreadcrumb = getBeforeBreadcrumb();
+    it("returns null for fetch breadcrumbs with file extension URLs", async () => {
+      const beforeBreadcrumb = await getBeforeBreadcrumb();
       if (!beforeBreadcrumb) return;
 
-      setAnalyticsConsent(true);
       const result = beforeBreadcrumb({
         category: "fetch",
         data: { url: "https://example.com/uploads/photo.png" },
@@ -352,11 +511,10 @@ describe("analytics lib", () => {
       expect(result).toBeNull();
     });
 
-    it("scrubs messages containing file paths", () => {
-      const beforeBreadcrumb = getBeforeBreadcrumb();
+    it("scrubs messages containing file paths", async () => {
+      const beforeBreadcrumb = await getBeforeBreadcrumb();
       if (!beforeBreadcrumb) return;
 
-      setAnalyticsConsent(true);
       const breadcrumb = {
         category: "console",
         message: "Error loading /tmp/workspace/file.jpg",
@@ -366,8 +524,8 @@ describe("analytics lib", () => {
       expect(result.message).toContain("[REDACTED]");
     });
 
-    it("returns null when consent is not granted", () => {
-      const beforeBreadcrumb = getBeforeBreadcrumb();
+    it("returns null when consent is not granted", async () => {
+      const beforeBreadcrumb = await getBeforeBreadcrumb();
       if (!beforeBreadcrumb) return;
 
       setAnalyticsConsent(false);
@@ -375,11 +533,10 @@ describe("analytics lib", () => {
       expect(result).toBeNull();
     });
 
-    it("passes through fetch breadcrumbs without file extension URLs", () => {
-      const beforeBreadcrumb = getBeforeBreadcrumb();
+    it("passes through fetch breadcrumbs without file extension URLs", async () => {
+      const beforeBreadcrumb = await getBeforeBreadcrumb();
       if (!beforeBreadcrumb) return;
 
-      setAnalyticsConsent(true);
       const breadcrumb = {
         category: "fetch",
         data: { url: "https://example.com/api/v1/health" },
@@ -388,11 +545,10 @@ describe("analytics lib", () => {
       expect(result).not.toBeNull();
     });
 
-    it("passes through breadcrumbs without message field", () => {
-      const beforeBreadcrumb = getBeforeBreadcrumb();
+    it("passes through breadcrumbs without message field", async () => {
+      const beforeBreadcrumb = await getBeforeBreadcrumb();
       if (!beforeBreadcrumb) return;
 
-      setAnalyticsConsent(true);
       const breadcrumb = { category: "navigation" };
       const result = beforeBreadcrumb(breadcrumb);
       expect(result).not.toBeNull();
