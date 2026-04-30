@@ -1,9 +1,10 @@
 /**
  * Integration tests for the upscale tool (/api/v1/tools/upscale).
  *
- * This tool requires the Python sidecar (Real-ESRGAN). Tests accept both
- * 200 (sidecar running) and 501 (not installed) for the processing path
- * while fully testing validation paths.
+ * This tool uses async processing: valid requests return 202 with a jobId,
+ * and the result is delivered via SSE. Tests accept both 202 (processing
+ * accepted) and 501 (not installed) for the processing path while fully
+ * testing validation paths.
  */
 
 import { readFileSync } from "node:fs";
@@ -50,7 +51,7 @@ describe("Upscale", () => {
       body,
     });
 
-    expect([200, 501]).toContain(res.statusCode);
+    expect([202, 501]).toContain(res.statusCode);
   }, 60_000);
 
   it("accepts default settings (2x scale)", async () => {
@@ -69,15 +70,12 @@ describe("Upscale", () => {
       body,
     });
 
-    expect([200, 501]).toContain(res.statusCode);
+    expect([202, 501]).toContain(res.statusCode);
 
-    if (res.statusCode === 200) {
+    if (res.statusCode === 202) {
       const result = JSON.parse(res.body);
-      expect(result.downloadUrl).toBeDefined();
-      expect(result.processedSize).toBeGreaterThan(0);
-      expect(result.width).toBeDefined();
-      expect(result.height).toBeDefined();
-      expect(result.method).toBeDefined();
+      expect(result.jobId).toBeDefined();
+      expect(result.async).toBe(true);
     }
 
     if (res.statusCode === 501) {
@@ -105,7 +103,7 @@ describe("Upscale", () => {
       body,
     });
 
-    expect([200, 501]).toContain(res.statusCode);
+    expect([202, 501]).toContain(res.statusCode);
   }, 60_000);
 
   it("accepts model and faceEnhance options", async () => {
@@ -131,7 +129,7 @@ describe("Upscale", () => {
       body,
     });
 
-    expect([200, 501]).toContain(res.statusCode);
+    expect([202, 501]).toContain(res.statusCode);
   }, 60_000);
 
   it("accepts denoise and format options", async () => {
@@ -158,7 +156,7 @@ describe("Upscale", () => {
       body,
     });
 
-    expect([200, 501]).toContain(res.statusCode);
+    expect([202, 501]).toContain(res.statusCode);
   }, 60_000);
 
   it("accepts scale as a string (coerced to number)", async () => {
@@ -180,7 +178,7 @@ describe("Upscale", () => {
       body,
     });
 
-    expect([200, 501]).toContain(res.statusCode);
+    expect([202, 501]).toContain(res.statusCode);
   }, 60_000);
 
   it("processes JPEG input", async () => {
@@ -199,7 +197,7 @@ describe("Upscale", () => {
       body,
     });
 
-    expect([200, 501]).toContain(res.statusCode);
+    expect([202, 501]).toContain(res.statusCode);
   }, 60_000);
 
   it("handles HEIC input", async () => {
@@ -218,7 +216,7 @@ describe("Upscale", () => {
       body,
     });
 
-    expect([200, 501]).toContain(res.statusCode);
+    expect([202, 501]).toContain(res.statusCode);
   }, 60_000);
 
   it("handles 1x1 pixel input", async () => {
@@ -237,7 +235,7 @@ describe("Upscale", () => {
       body,
     });
 
-    expect([200, 422, 501]).toContain(res.statusCode);
+    expect([202, 422, 501]).toContain(res.statusCode);
   }, 60_000);
 
   // ── Validation (always testable) ─────────────────────────────────
@@ -302,4 +300,56 @@ describe("Upscale", () => {
 
     expect(res.statusCode).toBe(401);
   });
+
+  // ── Async processing (regression for #106) ─────────────────────────
+
+  it("returns 202 with jobId for async processing", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+      { name: "settings", content: JSON.stringify({ scale: 2 }) },
+      { name: "clientJobId", content: "test-job-async-regression" },
+    ]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/upscale",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    if (res.statusCode === 501) return;
+
+    expect(res.statusCode).toBe(202);
+    const result = JSON.parse(res.body);
+    expect(result.async).toBe(true);
+    expect(result.jobId).toBe("test-job-async-regression");
+  }, 60_000);
+
+  it("returns 202 without blocking for processing", async () => {
+    const { body, contentType } = createMultipartPayload([
+      { name: "file", filename: "test.png", contentType: "image/png", content: PNG },
+      { name: "settings", content: JSON.stringify({}) },
+      { name: "clientJobId", content: "test-job-timing" },
+    ]);
+
+    const start = Date.now();
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/tools/upscale",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": contentType,
+      },
+      body,
+    });
+
+    if (res.statusCode === 501) return;
+
+    const elapsed = Date.now() - start;
+    expect(res.statusCode).toBe(202);
+    expect(elapsed).toBeLessThan(30_000);
+  }, 60_000);
 });
