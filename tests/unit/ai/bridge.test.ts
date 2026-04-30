@@ -20,9 +20,12 @@ function createMockProcess(): {
   stdout: EventEmitter;
   stderr: EventEmitter;
   emitEvent: (event: string, ...args: unknown[]) => void;
+  stdinWrites: string[];
 } {
+  const stdinWrites: string[] = [];
   const stdin = new Writable({
-    write(_chunk, _encoding, callback) {
+    write(chunk, _encoding, callback) {
+      stdinWrites.push(chunk.toString());
       callback();
     },
   });
@@ -48,6 +51,7 @@ function createMockProcess(): {
     stdout,
     stderr,
     emitEvent: (event: string, ...args: unknown[]) => proc.emit(event, ...args),
+    stdinWrites,
   };
 }
 
@@ -1216,5 +1220,877 @@ describe("bridge - initDispatcher", () => {
     expect(result2).toEqual({ ready: true, gpu: true });
     // spawn should only have been called once
     expect(spawn).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── Dispatcher stdin JSON-RPC protocol ──────────────────────────────
+
+describe("bridge - dispatcher stdin JSON-RPC protocol", () => {
+  let runPythonWithProgress: typeof import("../../../packages/ai/src/bridge.js").runPythonWithProgress;
+  let initDispatcher: typeof import("../../../packages/ai/src/bridge.js").initDispatcher;
+  let shutdownDispatcher: typeof import("../../../packages/ai/src/bridge.js").shutdownDispatcher;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.mocked(spawn).mockReset();
+
+    const mod = await import("../../../packages/ai/src/bridge.js");
+    runPythonWithProgress = mod.runPythonWithProgress;
+    initDispatcher = mod.initDispatcher;
+    shutdownDispatcher = mod.shutdownDispatcher;
+  });
+
+  afterEach(() => {
+    shutdownDispatcher();
+    vi.restoreAllMocks();
+  });
+
+  /**
+   * Helper: create a mock, init dispatcher to ready, then return the mock.
+   * This ensures dispatcherReady=true so subsequent runPythonWithProgress
+   * calls go through the dispatcher path (dispatcherRun) rather than per-request.
+   */
+  async function setupReadyDispatcher() {
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+
+    const initPromise = initDispatcher();
+    mock.stderr.emit("data", Buffer.from('{"ready": true, "gpu": false}\n'));
+    await initPromise;
+
+    return mock;
+  }
+
+  it("writes a JSON-line with id, script (without .py), and args to dispatcher stdin", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise = runPythonWithProgress("remove_bg.py", ["/tmp/in.png", "/tmp/out.png"]);
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Verify stdin received a JSON-line
+    expect(mock.stdinWrites.length).toBeGreaterThanOrEqual(1);
+    const written = mock.stdinWrites.join("");
+    const lines = written.split("\n").filter(Boolean);
+    expect(lines.length).toBe(1);
+
+    const request = JSON.parse(lines[0]);
+    expect(request).toHaveProperty("id");
+    expect(request.script).toBe("remove_bg");
+    expect(request.args).toEqual(["/tmp/in.png", "/tmp/out.png"]);
+
+    // Respond to complete the promise
+    const response = JSON.stringify({ id: request.id, exitCode: 0, stdout: '{"success": true}' });
+    mock.stdout.emit("data", Buffer.from(response + "\n"));
+
+    const result = await promise;
+    expect(result.stdout).toBe('{"success": true}');
+  });
+
+  it("strips .py extension from script name in dispatcher request", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise = runPythonWithProgress("upscale.py", ["/tmp/in.png"]);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const line = mock.stdinWrites.join("").split("\n").filter(Boolean)[0];
+    const request = JSON.parse(line);
+    expect(request.script).toBe("upscale");
+
+    // Complete the request properly to avoid a hanging retry
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: request.id, exitCode: 0, stdout: "{}" }) + "\n"),
+    );
+    await promise;
+  });
+
+  it("generates a unique UUID id for each request", async () => {
+    const mock = await setupReadyDispatcher();
+
+    runPythonWithProgress("tool_a.py", []);
+    runPythonWithProgress("tool_b.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const lines = mock.stdinWrites.join("").split("\n").filter(Boolean);
+    expect(lines.length).toBe(2);
+
+    const id1 = JSON.parse(lines[0]).id;
+    const id2 = JSON.parse(lines[1]).id;
+    expect(id1).not.toBe(id2);
+    // UUID format check
+    expect(id1).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(id2).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+
+    // Cleanup
+    mock.emitEvent("close", 0, null);
+  });
+
+  it("routes responses by ID to the correct pending request", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise1 = runPythonWithProgress("tool_a.py", []);
+    const promise2 = runPythonWithProgress("tool_b.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const lines = mock.stdinWrites.join("").split("\n").filter(Boolean);
+    const id1 = JSON.parse(lines[0]).id;
+    const id2 = JSON.parse(lines[1]).id;
+
+    // Respond to the SECOND request first (out of order)
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: id2, exitCode: 0, stdout: '{"result": "two"}' }) + "\n"),
+    );
+    // Then respond to the first
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: id1, exitCode: 0, stdout: '{"result": "one"}' }) + "\n"),
+    );
+
+    const [r1, r2] = await Promise.all([promise1, promise2]);
+    expect(r1.stdout).toBe('{"result": "one"}');
+    expect(r2.stdout).toBe('{"result": "two"}');
+  });
+
+  it("rejects the correct request when dispatcher returns non-zero exitCode", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promiseOk = runPythonWithProgress("tool_ok.py", []);
+    const promiseFail = runPythonWithProgress("tool_fail.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const lines = mock.stdinWrites.join("").split("\n").filter(Boolean);
+    const idOk = JSON.parse(lines[0]).id;
+    const idFail = JSON.parse(lines[1]).id;
+
+    // Fail request #2
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: idFail, exitCode: 1, stdout: "" }) + "\n"),
+    );
+    // Succeed request #1
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: idOk, exitCode: 0, stdout: '{"ok": true}' }) + "\n"),
+    );
+
+    await expect(promiseFail).rejects.toThrow("exited with code 1");
+    const result = await promiseOk;
+    expect(result.stdout).toBe('{"ok": true}');
+  });
+
+  it("rejects with OOM message when dispatcher response has exitCode 137", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise = runPythonWithProgress("heavy.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const line = mock.stdinWrites.join("").split("\n").filter(Boolean)[0];
+    const id = JSON.parse(line).id;
+
+    mock.stdout.emit("data", Buffer.from(JSON.stringify({ id, exitCode: 137, stdout: "" }) + "\n"));
+
+    await expect(promise).rejects.toThrow("out of memory");
+  });
+
+  it("rejects with segfault message when dispatcher response has exitCode 139", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise = runPythonWithProgress("crash.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const line = mock.stdinWrites.join("").split("\n").filter(Boolean)[0];
+    const id = JSON.parse(line).id;
+
+    mock.stdout.emit("data", Buffer.from(JSON.stringify({ id, exitCode: 139, stdout: "" }) + "\n"));
+
+    await expect(promise).rejects.toThrow("segmentation fault");
+  });
+
+  it("ignores stdout lines that are not valid JSON", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise = runPythonWithProgress("test.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const line = mock.stdinWrites.join("").split("\n").filter(Boolean)[0];
+    const id = JSON.parse(line).id;
+
+    // Emit invalid JSON on stdout -- should be silently ignored
+    mock.stdout.emit("data", Buffer.from("not json at all\n"));
+    // Now emit the real response
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id, exitCode: 0, stdout: '{"ok": true}' }) + "\n"),
+    );
+
+    const result = await promise;
+    expect(result.stdout).toBe('{"ok": true}');
+  });
+
+  it("ignores stdout responses with unknown request IDs", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise = runPythonWithProgress("test.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const line = mock.stdinWrites.join("").split("\n").filter(Boolean)[0];
+    const realId = JSON.parse(line).id;
+
+    // Response for a non-existent request -- should be ignored
+    mock.stdout.emit(
+      "data",
+      Buffer.from(
+        JSON.stringify({ id: "00000000-0000-0000-0000-000000000000", exitCode: 0, stdout: "" }) +
+          "\n",
+      ),
+    );
+    // Real response
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: realId, exitCode: 0, stdout: '{"ok": true}' }) + "\n"),
+    );
+
+    const result = await promise;
+    expect(result.stdout).toBe('{"ok": true}');
+  });
+
+  it("handles chunked stdout responses split across data events", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise = runPythonWithProgress("test.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const line = mock.stdinWrites.join("").split("\n").filter(Boolean)[0];
+    const id = JSON.parse(line).id;
+
+    const fullResponse = JSON.stringify({ id, exitCode: 0, stdout: '{"ok": true}' }) + "\n";
+    const half = Math.floor(fullResponse.length / 2);
+
+    // Send in two chunks
+    mock.stdout.emit("data", Buffer.from(fullResponse.slice(0, half)));
+    mock.stdout.emit("data", Buffer.from(fullResponse.slice(half)));
+
+    const result = await promise;
+    expect(result.stdout).toBe('{"ok": true}');
+  });
+
+  it("returns empty stdout when dispatcher response omits stdout field", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise = runPythonWithProgress("test.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const line = mock.stdinWrites.join("").split("\n").filter(Boolean)[0];
+    const id = JSON.parse(line).id;
+
+    // Response without stdout field
+    mock.stdout.emit("data", Buffer.from(JSON.stringify({ id, exitCode: 0 }) + "\n"));
+
+    const result = await promise;
+    expect(result.stdout).toBe("");
+  });
+
+  it("collects stderr lines and returns them with the response", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise = runPythonWithProgress("test.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Non-JSON, non-bracket stderr goes to pending request stderrLines
+    mock.stderr.emit("data", Buffer.from("some warning\n"));
+    mock.stderr.emit("data", Buffer.from("another warning\n"));
+
+    const line = mock.stdinWrites.join("").split("\n").filter(Boolean)[0];
+    const id = JSON.parse(line).id;
+
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id, exitCode: 0, stdout: '{"ok": true}' }) + "\n"),
+    );
+
+    const result = await promise;
+    expect(result.stderr).toContain("some warning");
+    expect(result.stderr).toContain("another warning");
+  });
+});
+
+// ── Dispatcher timeout on dispatcher path ───────────────────────────
+
+describe("bridge - dispatcher request timeout", () => {
+  let runPythonWithProgress: typeof import("../../../packages/ai/src/bridge.js").runPythonWithProgress;
+  let initDispatcher: typeof import("../../../packages/ai/src/bridge.js").initDispatcher;
+  let shutdownDispatcher: typeof import("../../../packages/ai/src/bridge.js").shutdownDispatcher;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.mocked(spawn).mockReset();
+
+    const mod = await import("../../../packages/ai/src/bridge.js");
+    runPythonWithProgress = mod.runPythonWithProgress;
+    initDispatcher = mod.initDispatcher;
+    shutdownDispatcher = mod.shutdownDispatcher;
+  });
+
+  afterEach(() => {
+    shutdownDispatcher();
+    vi.restoreAllMocks();
+  });
+
+  it("rejects with timeout when dispatcher does not respond within timeout", async () => {
+    vi.useFakeTimers();
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+
+    // Make dispatcher ready using initDispatcher + ready signal
+    const initPromise = initDispatcher();
+    mock.stderr.emit("data", Buffer.from('{"ready": true, "gpu": false}\n'));
+    // Need to advance timers so the polling interval fires
+    vi.advanceTimersByTime(100);
+    await initPromise;
+
+    const promise = runPythonWithProgress("slow.py", [], { timeout: 2000 });
+
+    // Advance past the timeout
+    vi.advanceTimersByTime(3000);
+
+    await expect(promise).rejects.toThrow("Python script timed out");
+    vi.useRealTimers();
+  });
+});
+
+// ── Max consecutive crash threshold ─────────────────────────────────
+
+describe("bridge - max consecutive crash threshold", () => {
+  let runPythonWithProgress: typeof import("../../../packages/ai/src/bridge.js").runPythonWithProgress;
+  let getDispatcherStatus: typeof import("../../../packages/ai/src/bridge.js").getDispatcherStatus;
+  let shutdownDispatcher: typeof import("../../../packages/ai/src/bridge.js").shutdownDispatcher;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.mocked(spawn).mockReset();
+
+    const mod = await import("../../../packages/ai/src/bridge.js");
+    runPythonWithProgress = mod.runPythonWithProgress;
+    getDispatcherStatus = mod.getDispatcherStatus;
+    shutdownDispatcher = mod.shutdownDispatcher;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("sets dispatcherFailed after 5 consecutive crashes within the crash window", async () => {
+    // Use fake timers so all crashes happen within the 60s window.
+    // Also need to advance past backoff between crashes.
+    vi.useFakeTimers();
+
+    // We need enough mocks: each crash cycle uses 2 (dispatcher + per-request)
+    // but after crash, backoff applies. We need to advance past each backoff
+    // before the next runPythonWithProgress call spawns a new dispatcher.
+    const mocks: ReturnType<typeof createMockProcess>[] = [];
+    for (let i = 0; i < 12; i++) {
+      mocks.push(createMockProcess());
+    }
+
+    let callCount = 0;
+    vi.mocked(spawn).mockImplementation(() => {
+      const m = mocks[callCount % mocks.length];
+      callCount++;
+      return m.process;
+    });
+
+    for (let crashNum = 0; crashNum < 5; crashNum++) {
+      // Advance past any backoff from previous crash
+      // Backoff = 1000 * 2^(crashNum-1), but we just jump 30s which covers all
+      if (crashNum > 0) {
+        vi.advanceTimersByTime(30_000);
+      }
+
+      const mockIdx = crashNum * 2;
+      const perReqIdx = crashNum * 2 + 1;
+
+      const promise = runPythonWithProgress("test.py", []);
+
+      // Crash the dispatcher with non-zero exit
+      mocks[mockIdx].emitEvent("close", 1, null);
+
+      // Need to let microtasks process the crash + per-request spawn
+      await vi.advanceTimersByTimeAsync(20);
+
+      // Complete via per-request fallback
+      mocks[perReqIdx].stdout.emit("data", Buffer.from('{"ok": true}\n'));
+      mocks[perReqIdx].emitEvent("close", 0, null);
+      await promise;
+    }
+
+    const status = getDispatcherStatus();
+    expect(status.failed).toBe(true);
+    expect(status.consecutiveCrashes).toBeGreaterThanOrEqual(5);
+
+    vi.useRealTimers();
+  });
+
+  it("after reaching crash threshold, subsequent requests go directly to per-request path", async () => {
+    vi.useFakeTimers();
+
+    const mocks: ReturnType<typeof createMockProcess>[] = [];
+    for (let i = 0; i < 14; i++) {
+      mocks.push(createMockProcess());
+    }
+
+    let callCount = 0;
+    vi.mocked(spawn).mockImplementation(() => {
+      const m = mocks[callCount % mocks.length];
+      callCount++;
+      return m.process;
+    });
+
+    // Crash 5 times to hit the threshold
+    for (let i = 0; i < 5; i++) {
+      if (i > 0) vi.advanceTimersByTime(30_000);
+
+      const dispIdx = i * 2;
+      const prIdx = i * 2 + 1;
+
+      const p = runPythonWithProgress("test.py", []);
+      mocks[dispIdx].emitEvent("close", 1, null);
+      await vi.advanceTimersByTimeAsync(20);
+      mocks[prIdx].stdout.emit("data", Buffer.from('{"ok": true}\n'));
+      mocks[prIdx].emitEvent("close", 0, null);
+      await p;
+    }
+
+    expect(getDispatcherStatus().failed).toBe(true);
+
+    // Now do one more request -- it should skip dispatcher entirely
+    const spawnCountBefore = callCount;
+    const finalMock = mocks[10];
+    const finalPromise = runPythonWithProgress("final.py", []);
+
+    await vi.advanceTimersByTimeAsync(20);
+
+    finalMock.stdout.emit("data", Buffer.from('{"final": true}\n'));
+    finalMock.emitEvent("close", 0, null);
+
+    const result = await finalPromise;
+    expect(result.stdout).toContain("final");
+
+    // Only 1 new spawn (per-request), not 2 (dispatcher + per-request)
+    expect(callCount - spawnCountBefore).toBe(1);
+
+    vi.useRealTimers();
+  });
+
+  it("does not reach threshold when fewer than 5 crashes occur", async () => {
+    vi.useFakeTimers();
+
+    const mocks: ReturnType<typeof createMockProcess>[] = [];
+    for (let i = 0; i < 8; i++) {
+      mocks.push(createMockProcess());
+    }
+
+    let callCount = 0;
+    vi.mocked(spawn).mockImplementation(() => {
+      const m = mocks[callCount % mocks.length];
+      callCount++;
+      return m.process;
+    });
+
+    // Crash only 3 times -- should NOT reach threshold
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) vi.advanceTimersByTime(30_000);
+
+      const dispIdx = i * 2;
+      const prIdx = i * 2 + 1;
+
+      const p = runPythonWithProgress("test.py", []);
+      mocks[dispIdx].emitEvent("close", 1, null);
+      await vi.advanceTimersByTimeAsync(20);
+      mocks[prIdx].stdout.emit("data", Buffer.from('{"ok": true}\n'));
+      mocks[prIdx].emitEvent("close", 0, null);
+      await p;
+    }
+
+    const status = getDispatcherStatus();
+    expect(status.consecutiveCrashes).toBeGreaterThanOrEqual(3);
+    expect(status.failed).toBe(false);
+
+    vi.useRealTimers();
+  });
+
+  it("uses exponential backoff delay between crash restarts", async () => {
+    vi.useFakeTimers();
+    const mock1 = createMockProcess();
+    const mockPR1 = createMockProcess();
+
+    let callCount = 0;
+    vi.mocked(spawn).mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return mock1.process;
+      return mockPR1.process;
+    });
+
+    // First request: dispatcher crash
+    const p1 = runPythonWithProgress("test.py", []);
+    mock1.emitEvent("close", 1, null);
+
+    // Complete per-request fallback
+    await vi.advanceTimersByTimeAsync(20);
+    mockPR1.stdout.emit("data", Buffer.from('{"ok": true}\n'));
+    mockPR1.emitEvent("close", 0, null);
+    await p1;
+
+    // After first crash, backoff = 1000ms (BASE_BACKOFF_MS * 2^0).
+    // A request during backoff should skip dispatcher and go straight to per-request.
+    // Advance only 500ms -- still within backoff.
+    vi.advanceTimersByTime(500);
+
+    const mockPR2 = createMockProcess();
+    vi.mocked(spawn).mockImplementation(() => {
+      callCount++;
+      return mockPR2.process;
+    });
+
+    const p2 = runPythonWithProgress("test2.py", []);
+
+    // Should go to per-request since backoff hasn't expired
+    await vi.advanceTimersByTimeAsync(20);
+    mockPR2.stdout.emit("data", Buffer.from('{"ok": true}\n'));
+    mockPR2.emitEvent("close", 0, null);
+    await p2;
+
+    vi.useRealTimers();
+  });
+
+  it("resets crash counter outside the 60s crash window", async () => {
+    vi.useFakeTimers();
+
+    const mocks: ReturnType<typeof createMockProcess>[] = [];
+    for (let i = 0; i < 8; i++) {
+      mocks.push(createMockProcess());
+    }
+
+    let callCount = 0;
+    vi.mocked(spawn).mockImplementation(() => {
+      const m = mocks[callCount % mocks.length];
+      callCount++;
+      return m.process;
+    });
+
+    // Crash 3 times
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) vi.advanceTimersByTime(5_000);
+      const p = runPythonWithProgress("test.py", []);
+      mocks[i * 2].emitEvent("close", 1, null);
+      await vi.advanceTimersByTimeAsync(20);
+      mocks[i * 2 + 1].stdout.emit("data", Buffer.from('{"ok": true}\n'));
+      mocks[i * 2 + 1].emitEvent("close", 0, null);
+      await p;
+    }
+
+    expect(getDispatcherStatus().consecutiveCrashes).toBeGreaterThanOrEqual(3);
+
+    // Advance past the 60s crash window
+    vi.advanceTimersByTime(70_000);
+
+    // Next crash should reset the counter to 1 (outside window)
+    const newMock = createMockProcess();
+    const newPR = createMockProcess();
+    vi.mocked(spawn).mockImplementation(() => {
+      callCount++;
+      if (callCount % 2 === 1) return newMock.process;
+      return newPR.process;
+    });
+
+    const p = runPythonWithProgress("test.py", []);
+    newMock.emitEvent("close", 1, null);
+    await vi.advanceTimersByTimeAsync(20);
+    newPR.stdout.emit("data", Buffer.from('{"ok": true}\n'));
+    newPR.emitEvent("close", 0, null);
+    await p;
+
+    // Counter should be 1 (reset by being outside the window), not 4
+    expect(getDispatcherStatus().consecutiveCrashes).toBe(1);
+    expect(getDispatcherStatus().failed).toBe(false);
+
+    vi.useRealTimers();
+  });
+});
+
+// ── Concurrent dispatcher requests ──────────────────────────────────
+
+describe("bridge - concurrent dispatcher requests", () => {
+  let runPythonWithProgress: typeof import("../../../packages/ai/src/bridge.js").runPythonWithProgress;
+  let initDispatcher: typeof import("../../../packages/ai/src/bridge.js").initDispatcher;
+  let shutdownDispatcher: typeof import("../../../packages/ai/src/bridge.js").shutdownDispatcher;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.mocked(spawn).mockReset();
+
+    const mod = await import("../../../packages/ai/src/bridge.js");
+    runPythonWithProgress = mod.runPythonWithProgress;
+    initDispatcher = mod.initDispatcher;
+    shutdownDispatcher = mod.shutdownDispatcher;
+  });
+
+  afterEach(() => {
+    shutdownDispatcher();
+    vi.restoreAllMocks();
+  });
+
+  async function setupReadyDispatcher() {
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+    const initPromise = initDispatcher();
+    mock.stderr.emit("data", Buffer.from('{"ready": true, "gpu": false}\n'));
+    await initPromise;
+    return mock;
+  }
+
+  it("sends multiple concurrent requests to the same dispatcher process", async () => {
+    const mock = await setupReadyDispatcher();
+
+    // Fire 3 concurrent requests
+    const p1 = runPythonWithProgress("tool_a.py", ["a"]);
+    const p2 = runPythonWithProgress("tool_b.py", ["b"]);
+    const p3 = runPythonWithProgress("tool_c.py", ["c"]);
+    await new Promise((r) => setTimeout(r, 10));
+
+    // All 3 should have been written to the same dispatcher stdin
+    const lines = mock.stdinWrites.join("").split("\n").filter(Boolean);
+    expect(lines.length).toBe(3);
+
+    const requests = lines.map((l) => JSON.parse(l));
+    expect(requests[0].script).toBe("tool_a");
+    expect(requests[1].script).toBe("tool_b");
+    expect(requests[2].script).toBe("tool_c");
+    expect(requests[0].args).toEqual(["a"]);
+    expect(requests[1].args).toEqual(["b"]);
+    expect(requests[2].args).toEqual(["c"]);
+
+    // Respond to all 3
+    for (const req of requests) {
+      mock.stdout.emit(
+        "data",
+        Buffer.from(
+          JSON.stringify({ id: req.id, exitCode: 0, stdout: `{"script":"${req.script}"}` }) + "\n",
+        ),
+      );
+    }
+
+    const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
+    expect(r1.stdout).toContain("tool_a");
+    expect(r2.stdout).toContain("tool_b");
+    expect(r3.stdout).toContain("tool_c");
+
+    // Only 1 spawn call (the dispatcher)
+    expect(spawn).toHaveBeenCalledTimes(1);
+  });
+
+  it("one failing request does not affect other concurrent requests", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const pOk1 = runPythonWithProgress("ok1.py", []);
+    const pFail = runPythonWithProgress("fail.py", []);
+    const pOk2 = runPythonWithProgress("ok2.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const lines = mock.stdinWrites.join("").split("\n").filter(Boolean);
+    const reqs = lines.map((l) => JSON.parse(l));
+
+    // Fail the middle request
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: reqs[1].id, exitCode: 1, stdout: "" }) + "\n"),
+    );
+    // Succeed the other two
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: reqs[0].id, exitCode: 0, stdout: '{"r": "one"}' }) + "\n"),
+    );
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: reqs[2].id, exitCode: 0, stdout: '{"r": "two"}' }) + "\n"),
+    );
+
+    await expect(pFail).rejects.toThrow();
+    const [r1, r2] = await Promise.all([pOk1, pOk2]);
+    expect(r1.stdout).toContain("one");
+    expect(r2.stdout).toContain("two");
+  });
+
+  it("dispatcher crash rejects all pending concurrent requests with retry", async () => {
+    const mock = createMockProcess();
+    const mockPR1 = createMockProcess();
+    const mockPR2 = createMockProcess();
+    const mockPR3 = createMockProcess();
+    let callCount = 0;
+
+    vi.mocked(spawn).mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) return mock.process;
+      if (callCount === 2) return mockPR1.process;
+      if (callCount === 3) return mockPR2.process;
+      return mockPR3.process;
+    });
+
+    // Make dispatcher ready
+    const initPromise = initDispatcher();
+    mock.stderr.emit("data", Buffer.from('{"ready": true, "gpu": false}\n'));
+    await initPromise;
+
+    const p1 = runPythonWithProgress("a.py", []);
+    const p2 = runPythonWithProgress("b.py", []);
+    const p3 = runPythonWithProgress("c.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Dispatcher crashes -- all pending requests should be rejected
+    mock.emitEvent("close", 1, null);
+    await new Promise((r) => setTimeout(r, 10));
+
+    // All three should retry via per-request. Complete them all.
+    mockPR1.stdout.emit("data", Buffer.from('{"ok": 1}\n'));
+    mockPR1.emitEvent("close", 0, null);
+    mockPR2.stdout.emit("data", Buffer.from('{"ok": 2}\n'));
+    mockPR2.emitEvent("close", 0, null);
+    mockPR3.stdout.emit("data", Buffer.from('{"ok": 3}\n'));
+    mockPR3.emitEvent("close", 0, null);
+
+    // runPythonWithProgress catches "exited unexpectedly" and retries per-request
+    const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
+    expect(r1.stdout).toContain("ok");
+    expect(r2.stdout).toContain("ok");
+    expect(r3.stdout).toContain("ok");
+  });
+
+  it("progress events on stderr are forwarded to all pending requests", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const progress1: Array<{ percent: number; stage: string }> = [];
+    const progress2: Array<{ percent: number; stage: string }> = [];
+
+    const p1 = runPythonWithProgress("a.py", [], {
+      onProgress: (p, s) => progress1.push({ percent: p, stage: s }),
+    });
+    const p2 = runPythonWithProgress("b.py", [], {
+      onProgress: (p, s) => progress2.push({ percent: p, stage: s }),
+    });
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Emit a progress event -- should be forwarded to all pending requests
+    mock.stderr.emit("data", Buffer.from('{"progress": 50, "stage": "Working"}\n'));
+
+    const lines = mock.stdinWrites.join("").split("\n").filter(Boolean);
+    const reqs = lines.map((l) => JSON.parse(l));
+
+    // Complete both requests
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: reqs[0].id, exitCode: 0, stdout: "{}" }) + "\n"),
+    );
+    mock.stdout.emit(
+      "data",
+      Buffer.from(JSON.stringify({ id: reqs[1].id, exitCode: 0, stdout: "{}" }) + "\n"),
+    );
+
+    await Promise.all([p1, p2]);
+    expect(progress1).toEqual([{ percent: 50, stage: "Working" }]);
+    expect(progress2).toEqual([{ percent: 50, stage: "Working" }]);
+  });
+});
+
+// ── extractPythonError edge cases via dispatcher ────────────────────
+
+describe("bridge - extractPythonError via dispatcher responses", () => {
+  let runPythonWithProgress: typeof import("../../../packages/ai/src/bridge.js").runPythonWithProgress;
+  let initDispatcher: typeof import("../../../packages/ai/src/bridge.js").initDispatcher;
+  let shutdownDispatcher: typeof import("../../../packages/ai/src/bridge.js").shutdownDispatcher;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.mocked(spawn).mockReset();
+
+    const mod = await import("../../../packages/ai/src/bridge.js");
+    runPythonWithProgress = mod.runPythonWithProgress;
+    initDispatcher = mod.initDispatcher;
+    shutdownDispatcher = mod.shutdownDispatcher;
+  });
+
+  afterEach(() => {
+    shutdownDispatcher();
+    vi.restoreAllMocks();
+  });
+
+  async function setupReadyDispatcher() {
+    const mock = createMockProcess();
+    vi.mocked(spawn).mockReturnValue(mock.process);
+    const initPromise = initDispatcher();
+    mock.stderr.emit("data", Buffer.from('{"ready": true, "gpu": false}\n'));
+    await initPromise;
+    return mock;
+  }
+
+  it("extracts error from JSON stdout in dispatcher response", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise = runPythonWithProgress("test.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const line = mock.stdinWrites.join("").split("\n").filter(Boolean)[0];
+    const id = JSON.parse(line).id;
+
+    mock.stdout.emit(
+      "data",
+      Buffer.from(
+        JSON.stringify({
+          id,
+          exitCode: 1,
+          stdout: '{"error": "CUDA out of memory"}',
+        }) + "\n",
+      ),
+    );
+
+    await expect(promise).rejects.toThrow("CUDA out of memory");
+  });
+
+  it("extracts error from traceback in dispatcher stderr", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise = runPythonWithProgress("test.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Emit traceback on stderr (collected by pending request)
+    mock.stderr.emit(
+      "data",
+      Buffer.from(
+        "Traceback (most recent call last):\n" +
+          '  File "script.py", line 10\n' +
+          "RuntimeError: model not found\n",
+      ),
+    );
+
+    const line = mock.stdinWrites.join("").split("\n").filter(Boolean)[0];
+    const id = JSON.parse(line).id;
+
+    // Non-zero exit with the traceback captured in stderrLines
+    mock.stdout.emit("data", Buffer.from(JSON.stringify({ id, exitCode: 1, stdout: "" }) + "\n"));
+
+    await expect(promise).rejects.toThrow("RuntimeError: model not found");
+  });
+
+  it("uses generic exit code message when dispatcher stderr and stdout are both empty", async () => {
+    const mock = await setupReadyDispatcher();
+
+    const promise = runPythonWithProgress("test.py", []);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const line = mock.stdinWrites.join("").split("\n").filter(Boolean)[0];
+    const id = JSON.parse(line).id;
+
+    mock.stdout.emit("data", Buffer.from(JSON.stringify({ id, exitCode: 42, stdout: "" }) + "\n"));
+
+    await expect(promise).rejects.toThrow("exited with code 42");
   });
 });
