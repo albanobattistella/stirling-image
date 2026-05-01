@@ -1,4 +1,4 @@
-import { expect, test } from "./helpers";
+import { expect, openSettings, test } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // Settings Dialog -- General, System Settings, About tabs
@@ -6,14 +6,14 @@ import { expect, test } from "./helpers";
 
 test.describe("GUI Settings - Dialog Navigation", () => {
   test("opens settings dialog from sidebar", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     // Dialog sidebar should render with the Settings heading
     await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible();
   });
 
   test("dialog sidebar lists navigable section tabs", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     // All section tabs should be buttons in the dialog sidebar
     for (const label of [
@@ -31,7 +31,7 @@ test.describe("GUI Settings - Dialog Navigation", () => {
   });
 
   test("clicking a tab switches the content pane", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     // Navigate to About section and confirm its heading
     await page.getByRole("button", { name: /about/i }).click();
@@ -43,8 +43,7 @@ test.describe("GUI Settings - Dialog Navigation", () => {
   });
 
   test("closes dialog via the X button", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible();
+    await openSettings(page);
 
     // The close button renders the X icon inside the dialog
     const closeBtn = page.locator("button").filter({ has: page.locator("svg.lucide-x") });
@@ -55,8 +54,7 @@ test.describe("GUI Settings - Dialog Navigation", () => {
   });
 
   test("closes dialog via Escape key", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible();
+    await openSettings(page);
 
     await page.keyboard.press("Escape");
 
@@ -64,8 +62,7 @@ test.describe("GUI Settings - Dialog Navigation", () => {
   });
 
   test("closes dialog by clicking the backdrop", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible();
+    await openSettings(page);
 
     // Click the backdrop overlay (the semi-transparent div behind the dialog)
     await page.locator(".bg-black\\/50").click({ position: { x: 10, y: 10 } });
@@ -76,7 +73,7 @@ test.describe("GUI Settings - Dialog Navigation", () => {
 
 test.describe("GUI Settings - General Tab", () => {
   test("displays username and role badge", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     // General section is the default; username and role should be visible
     await expect(page.getByText("admin").first()).toBeVisible();
@@ -85,7 +82,7 @@ test.describe("GUI Settings - General Tab", () => {
   });
 
   test("shows Default Tool View dropdown with options", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     await expect(page.getByText("Default Tool View")).toBeVisible();
     const select = page.locator("select").first();
@@ -97,7 +94,7 @@ test.describe("GUI Settings - General Tab", () => {
   });
 
   test("shows App Version string", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     await expect(page.getByText("App Version")).toBeVisible();
     // Version is in a monospace span matching semver pattern
@@ -105,13 +102,13 @@ test.describe("GUI Settings - General Tab", () => {
   });
 
   test("has a Save Settings button", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     await expect(page.getByRole("button", { name: /save settings/i })).toBeVisible();
   });
 
   test("logout button redirects to /login", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     const logoutBtn = page.getByRole("button", { name: /log out/i });
     await expect(logoutBtn).toBeVisible();
@@ -126,7 +123,7 @@ test.describe("GUI Settings - General Tab", () => {
 
 test.describe("GUI Settings - System Settings Tab", () => {
   test("shows App Name input", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /system settings/i }).click();
 
     await expect(page.getByText("App Name")).toBeVisible();
@@ -135,7 +132,7 @@ test.describe("GUI Settings - System Settings Tab", () => {
   });
 
   test("shows File Upload Limit input", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /system settings/i }).click();
 
     await expect(page.getByText("File Upload Limit (MB)")).toBeVisible();
@@ -143,7 +140,7 @@ test.describe("GUI Settings - System Settings Tab", () => {
   });
 
   test("shows Default Theme dropdown", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /system settings/i }).click();
 
     await expect(page.getByText("Default Theme")).toBeVisible();
@@ -159,14 +156,14 @@ test.describe("GUI Settings - System Settings Tab", () => {
   });
 
   test("shows Login Attempt Limit input", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /system settings/i }).click();
 
     await expect(page.getByText("Login Attempt Limit")).toBeVisible();
   });
 
   test("Save Settings button persists changes", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /system settings/i }).click();
 
     // Wait for section to load
@@ -182,7 +179,7 @@ test.describe("GUI Settings - System Settings Tab", () => {
 
 test.describe("GUI Settings - About Tab", () => {
   test("displays app description and version", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /about/i }).click();
 
     await expect(page.locator("h3").filter({ hasText: "About" })).toBeVisible();
@@ -195,7 +192,7 @@ test.describe("GUI Settings - About Tab", () => {
   });
 
   test("shows GitHub and documentation links", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /about/i }).click();
 
     await expect(page.getByRole("link", { name: /github repository/i })).toBeVisible();
@@ -203,14 +200,14 @@ test.describe("GUI Settings - About Tab", () => {
   });
 
   test("shows API Reference (Swagger) link", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /about/i }).click();
 
     await expect(page.getByRole("link", { name: /api reference/i })).toBeVisible();
   });
 
   test("version displays a semver string", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /about/i }).click();
 
     // Version text should match semver format (e.g., 1.2.3)
@@ -219,7 +216,7 @@ test.describe("GUI Settings - About Tab", () => {
   });
 
   test("about section has the Links heading", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /about/i }).click();
 
     await expect(page.getByText("Links")).toBeVisible();
@@ -228,7 +225,7 @@ test.describe("GUI Settings - About Tab", () => {
 
 test.describe("GUI Settings - AI Features Tab", () => {
   test("displays AI Features heading and description", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /ai features/i }).click();
 
     await expect(page.locator("h3").filter({ hasText: "AI Features" })).toBeVisible();
@@ -236,14 +233,14 @@ test.describe("GUI Settings - AI Features Tab", () => {
   });
 
   test("shows Install All button", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /ai features/i }).click();
 
     await expect(page.getByRole("button", { name: /install all/i })).toBeVisible();
   });
 
   test("lists feature bundles with install status", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /ai features/i }).click();
 
     // Each bundle card is rendered within a bordered div
@@ -272,7 +269,7 @@ test.describe("GUI Settings - AI Features Tab", () => {
   });
 
   test("bundles show estimated size", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /ai features/i }).click();
 
     // Each bundle should display an estimated size like (~XXX MB)
@@ -282,7 +279,7 @@ test.describe("GUI Settings - AI Features Tab", () => {
 
 test.describe("GUI Settings - Tools Tab (deep)", () => {
   test("all tools are listed with enable/disable toggles", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /tools/i }).click();
 
     await expect(page.locator("h3").filter({ hasText: "Tools" }).first()).toBeVisible();
@@ -297,7 +294,7 @@ test.describe("GUI Settings - Tools Tab (deep)", () => {
   });
 
   test("toggling a tool changes the disabled counter", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /tools/i }).click();
 
     // Read initial disabled count
@@ -320,7 +317,7 @@ test.describe("GUI Settings - Tools Tab (deep)", () => {
   });
 
   test("search filters tools in settings dialog", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /tools/i }).click();
 
     // Wait for the tools to load
@@ -353,7 +350,7 @@ test.describe("GUI Settings - Product Analytics Tab (deep)", () => {
   test("displays description about anonymous data and image privacy", async ({
     loggedInPage: page,
   }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /product analytics/i }).click();
 
     await expect(page.getByText(/share anonymous usage data/i)).toBeVisible();
@@ -361,7 +358,7 @@ test.describe("GUI Settings - Product Analytics Tab (deep)", () => {
   });
 
   test("shows either consent toggle or admin-disabled message", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /product analytics/i }).click();
 
     // Either the toggle button is present, or the admin-disabled message is shown
@@ -381,7 +378,7 @@ test.describe("GUI Settings - Save and Persistence", () => {
     loggedInPage: page,
   }) => {
     // Navigate to System Settings tab
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /system settings/i }).click();
     await expect(page.getByText("App Name")).toBeVisible({ timeout: 5_000 });
 
@@ -403,7 +400,7 @@ test.describe("GUI Settings - Save and Persistence", () => {
     await expect(page.locator("h2").filter({ hasText: "Settings" })).not.toBeVisible();
 
     // Reopen the dialog and go to System Settings
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /system settings/i }).click();
     await expect(page.getByText("App Name")).toBeVisible();
 

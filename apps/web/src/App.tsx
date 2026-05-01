@@ -152,7 +152,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       storeConsent.analyticsConsentRemindAt ?? analyticsConsentRemindAt ?? null,
   };
   const serverEnabled = analyticsConfig?.enabled ?? false;
-  if (authEnabled && shouldShowConsent(effectiveConsent, serverEnabled)) {
+  if (
+    authEnabled &&
+    analyticsConfig !== null &&
+    shouldShowConsent(effectiveConsent, serverEnabled)
+  ) {
     return <Navigate to="/analytics-consent" replace />;
   }
 

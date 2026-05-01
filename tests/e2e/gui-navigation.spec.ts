@@ -1,4 +1,4 @@
-import { expect, test, uploadTestImage } from "./helpers";
+import { expect, openSettings, test, uploadTestImage } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // Login Page (unauthenticated)
@@ -345,7 +345,7 @@ test.describe("Sidebar Navigation", () => {
   });
 
   test("Settings button opens SettingsDialog modal", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     await expect(page.getByRole("heading", { name: "General" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Security" })).toBeVisible();

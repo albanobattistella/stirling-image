@@ -1,5 +1,5 @@
 import { test as base, expect } from "@playwright/test";
-import { login } from "./helpers";
+import { login, openSettings } from "./helpers";
 
 const API = process.env.API_URL || "http://localhost:13490";
 
@@ -116,7 +116,7 @@ base.describe("RBAC Settings Visibility - Admin", () => {
 
   base.test("admin sees all settings tabs including admin-only ones", async ({ page }) => {
     await page.goto("/");
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     // Tabs visible to all roles
     await expect(page.getByRole("button", { name: /general/i })).toBeVisible();
@@ -137,7 +137,7 @@ base.describe("RBAC Settings Visibility - Admin", () => {
 
   base.test("admin can navigate to People tab and see user table", async ({ page }) => {
     await page.goto("/");
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /people/i }).click();
 
     await expect(page.getByText(/\d+ users?/)).toBeVisible({ timeout: 5_000 });
@@ -146,7 +146,7 @@ base.describe("RBAC Settings Visibility - Admin", () => {
 
   base.test("admin can navigate to Audit Log tab and see entries", async ({ page }) => {
     await page.goto("/");
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /audit log/i }).click();
 
     await expect(page.locator("h3").filter({ hasText: "Audit Log" })).toBeVisible();
@@ -158,7 +158,7 @@ base.describe("RBAC Settings Visibility - Admin", () => {
 
   base.test("admin sees all 12 nav items", async ({ page }) => {
     await page.goto("/");
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     // Count the navigation buttons in the settings dialog sidebar
     const navButtons = page.locator(".w-48 button");
@@ -183,7 +183,7 @@ base.describe("RBAC Settings Visibility - Editor", () => {
     "editor sees general, security, api-keys, tools, analytics, about",
     async ({ page }) => {
       await login(page, EDITOR_USER, EDITOR_PASS);
-      await page.locator("aside").getByText("Settings").click();
+      await openSettings(page);
 
       // Should see these tabs
       await expect(page.getByRole("button", { name: /general/i })).toBeVisible();
@@ -199,7 +199,7 @@ base.describe("RBAC Settings Visibility - Editor", () => {
     "editor does NOT see system settings, people, teams, roles, audit log, ai features",
     async ({ page }) => {
       await login(page, EDITOR_USER, EDITOR_PASS);
-      await page.locator("aside").getByText("Settings").click();
+      await openSettings(page);
 
       // Wait for dialog to fully render
       await expect(page.getByRole("button", { name: /general/i })).toBeVisible();
@@ -216,7 +216,7 @@ base.describe("RBAC Settings Visibility - Editor", () => {
 
   base.test("editor sees exactly 6 nav items", async ({ page }) => {
     await login(page, EDITOR_USER, EDITOR_PASS);
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await expect(page.getByRole("button", { name: /general/i })).toBeVisible();
 
     const navButtons = page.locator(".w-48 button");
@@ -226,7 +226,7 @@ base.describe("RBAC Settings Visibility - Editor", () => {
 
   base.test("editor can access Security tab and see change password form", async ({ page }) => {
     await login(page, EDITOR_USER, EDITOR_PASS);
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /security/i }).click();
 
     await expect(page.getByText("Change Password").first()).toBeVisible();
@@ -235,7 +235,7 @@ base.describe("RBAC Settings Visibility - Editor", () => {
 
   base.test("editor can access API Keys tab and generate a key", async ({ page }) => {
     await login(page, EDITOR_USER, EDITOR_PASS);
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     await expect(page.getByRole("button", { name: /generate api key/i })).toBeVisible();
@@ -256,7 +256,7 @@ base.describe("RBAC Settings Visibility - User", () => {
 
   base.test("user sees general, security, api-keys, tools, analytics, about", async ({ page }) => {
     await login(page, USER_USER, USER_PASS);
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     await expect(page.getByRole("button", { name: /general/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /security/i })).toBeVisible();
@@ -270,7 +270,7 @@ base.describe("RBAC Settings Visibility - User", () => {
     "user does NOT see system settings, people, teams, roles, audit log, ai features",
     async ({ page }) => {
       await login(page, USER_USER, USER_PASS);
-      await page.locator("aside").getByText("Settings").click();
+      await openSettings(page);
 
       // Wait for dialog to fully render
       await expect(page.getByRole("button", { name: /general/i })).toBeVisible();
@@ -286,7 +286,7 @@ base.describe("RBAC Settings Visibility - User", () => {
 
   base.test("user sees exactly 6 nav items", async ({ page }) => {
     await login(page, USER_USER, USER_PASS);
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await expect(page.getByRole("button", { name: /general/i })).toBeVisible();
 
     const navButtons = page.locator(".w-48 button");
@@ -296,7 +296,7 @@ base.describe("RBAC Settings Visibility - User", () => {
 
   base.test("user can access About tab and see version", async ({ page }) => {
     await login(page, USER_USER, USER_PASS);
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /about/i }).click();
 
     await expect(page.locator("h3").filter({ hasText: "About" })).toBeVisible();
@@ -305,7 +305,7 @@ base.describe("RBAC Settings Visibility - User", () => {
 
   base.test("user General tab shows correct username and role", async ({ page }) => {
     await login(page, USER_USER, USER_PASS);
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     // General is the default tab; should show the user's username and role
     await expect(page.getByText(USER_USER)).toBeVisible({ timeout: 5_000 });

@@ -1,4 +1,4 @@
-import { expect, test, uploadTestImage, waitForProcessing } from "./helpers";
+import { expect, openSettings, test, uploadTestImage, waitForProcessing } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // GUI Resilience: Error handling, form validation, state reset, stability
@@ -187,10 +187,7 @@ test.describe("Change Password Form Validation", () => {
 test.describe("Add Member Form Validation", () => {
   test("adding a duplicate username shows error", async ({ loggedInPage: page }) => {
     // Open settings dialog and navigate to People section
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible({
-      timeout: 5_000,
-    });
+    await openSettings(page);
 
     // Navigate to People section
     await page.getByRole("button", { name: /people/i }).click();
@@ -424,10 +421,7 @@ test.describe("Memory and Stability", () => {
       const start = Date.now();
 
       // Open settings
-      await page.locator("aside").getByText("Settings").click();
-      await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible({
-        timeout: 5_000,
-      });
+      await openSettings(page);
 
       const openTime = Date.now() - start;
       timings.push(openTime);

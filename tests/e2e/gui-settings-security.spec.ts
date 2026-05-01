@@ -1,4 +1,4 @@
-import { expect, test } from "./helpers";
+import { expect, openSettings, test } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // Settings Dialog -- Security (change password) and API Keys tabs
@@ -6,7 +6,7 @@ import { expect, test } from "./helpers";
 
 test.describe("GUI Settings - Security Tab", () => {
   test("shows Change Password form with required inputs", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /security/i }).click();
 
     await expect(page.locator("h3").filter({ hasText: "Security" })).toBeVisible();
@@ -22,7 +22,7 @@ test.describe("GUI Settings - Security Tab", () => {
   });
 
   test("mismatched passwords show error message", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /security/i }).click();
 
     await page.getByPlaceholder("Current Password").fill("admin");
@@ -35,7 +35,7 @@ test.describe("GUI Settings - Security Tab", () => {
   });
 
   test("password visibility toggles work", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /security/i }).click();
 
     const currentPwInput = page.getByPlaceholder("Current Password");
@@ -49,7 +49,7 @@ test.describe("GUI Settings - Security Tab", () => {
   });
 
   test("short password shows validation error", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /security/i }).click();
 
     await page.getByPlaceholder("Current Password").fill("admin");
@@ -63,7 +63,7 @@ test.describe("GUI Settings - Security Tab", () => {
   });
 
   test("security section shows login attempt limit reference", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /security/i }).click();
 
     await expect(page.getByText(/login attempt limits/i)).toBeVisible();
@@ -75,7 +75,7 @@ test.describe("GUI Settings - Security Tab", () => {
 
 test.describe("GUI Settings - API Keys Tab", () => {
   test("shows Generate API Key button and name input", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     await expect(page.locator("h3").filter({ hasText: "API Keys" })).toBeVisible();
@@ -84,7 +84,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   });
 
   test("generating an API key displays the key once", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     // Give a unique name so we can identify and clean it up
@@ -108,7 +108,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   });
 
   test("generated key appears in existing keys list", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     const keyName = `listTest-${Date.now()}`;
@@ -129,7 +129,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   });
 
   test("permission scoping toggle reveals checkboxes", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     const scopingToggle = page.getByText("Restrict permissions (optional)");
@@ -144,7 +144,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   });
 
   test("deleting an API key removes it from the list", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     // Create a key to delete
@@ -165,7 +165,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   });
 
   test("expiration date input is available", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     await expect(page.getByText("Expires:")).toBeVisible();

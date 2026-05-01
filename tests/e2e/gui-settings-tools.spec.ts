@@ -1,4 +1,4 @@
-import { expect, test } from "./helpers";
+import { expect, openSettings, test } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // Settings Dialog -- Tools tab (enable/disable) and Product Analytics
@@ -6,7 +6,7 @@ import { expect, test } from "./helpers";
 
 test.describe("GUI Settings - Tools Tab", () => {
   test("displays tools list with category headings", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /tools/i }).click();
 
     await expect(page.locator("h3").filter({ hasText: "Tools" }).first()).toBeVisible();
@@ -18,7 +18,7 @@ test.describe("GUI Settings - Tools Tab", () => {
   });
 
   test("Save Tool Settings button and disabled tools counter", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /tools/i }).click();
 
     await expect(page.getByRole("button", { name: /save tool settings/i })).toBeVisible();
@@ -28,7 +28,7 @@ test.describe("GUI Settings - Tools Tab", () => {
   });
 
   test("saving tool settings shows restart banner", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /tools/i }).click();
 
     await page.getByRole("button", { name: /save tool settings/i }).click();
@@ -41,7 +41,7 @@ test.describe("GUI Settings - Tools Tab", () => {
 
 test.describe("GUI Settings - Tools Tab (additional)", () => {
   test("each category has a heading", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /tools/i }).click();
 
     await expect(page.locator("h3").filter({ hasText: "Tools" }).first()).toBeVisible();
@@ -56,7 +56,7 @@ test.describe("GUI Settings - Tools Tab (additional)", () => {
   });
 
   test("tools show both name and description", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /tools/i }).click();
 
     // Wait for tools to load
@@ -70,7 +70,7 @@ test.describe("GUI Settings - Tools Tab (additional)", () => {
 
 test.describe("GUI Settings - Product Analytics Tab", () => {
   test("displays analytics consent section", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /product analytics/i }).click();
 
     await expect(page.getByText("Product Analytics").first()).toBeVisible();
@@ -78,7 +78,7 @@ test.describe("GUI Settings - Product Analytics Tab", () => {
   });
 
   test("analytics toggle is present", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /product analytics/i }).click();
 
     // Either the toggle button is present, or the admin-disabled message is shown
@@ -93,7 +93,7 @@ test.describe("GUI Settings - Product Analytics Tab", () => {
   });
 
   test("privacy policy link is present", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /product analytics/i }).click();
 
     await expect(page.getByRole("link", { name: /learn more/i })).toBeVisible();

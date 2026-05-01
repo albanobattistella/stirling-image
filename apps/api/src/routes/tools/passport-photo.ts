@@ -298,6 +298,27 @@ export function registerPassportPhoto(app: FastifyInstance) {
     },
   );
 
+  // ── Base route: return 501 so generic callers don't get 404 ──────
+  app.post(
+    "/api/v1/tools/passport-photo",
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const toolId = "passport-photo";
+      if (!isToolInstalled(toolId)) {
+        const bundle = getBundleForTool(toolId);
+        return reply.status(501).send({
+          error: "Feature not installed",
+          code: "FEATURE_NOT_INSTALLED",
+          feature: TOOL_BUNDLE_MAP[toolId],
+          featureName: bundle?.name ?? toolId,
+          estimatedSize: bundle?.estimatedSize ?? "unknown",
+        });
+      }
+      return reply.status(400).send({
+        error: "Use /api/v1/tools/passport-photo/analyze or /generate",
+      });
+    },
+  );
+
   // ── Phase 2: Generate (crop + resize + tile) ─────────────────────
   app.post(
     "/api/v1/tools/passport-photo/generate",

@@ -1,4 +1,4 @@
-import { expect, test } from "./helpers";
+import { expect, openSettings, test } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // Viewport definitions
@@ -83,8 +83,7 @@ test.describe("Responsive - Desktop (1280x720)", () => {
   });
 
   test("settings dialog fits within viewport", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.getByRole("heading", { name: "General" })).toBeVisible();
+    await openSettings(page);
 
     const dialogBox = page.locator("[class*='max-w']").filter({ hasText: "General" }).first();
     const box = await dialogBox.boundingBox();
@@ -168,12 +167,7 @@ test.describe("Responsive - Tablet (768x1024)", () => {
   });
 
   test("settings dialog fits within tablet viewport", async ({ loggedInPage: page }) => {
-    const sidebar = page.locator("aside");
-    // On tablet, sidebar may or may not be visible; use it if visible, otherwise use menu
-    if (await sidebar.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await sidebar.getByText("Settings").click();
-    }
-    await expect(page.getByRole("heading", { name: "General" })).toBeVisible({ timeout: 10_000 });
+    await openSettings(page);
 
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);

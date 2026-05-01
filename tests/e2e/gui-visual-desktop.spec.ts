@@ -1,4 +1,4 @@
-import { expect, test, uploadTestImage } from "./helpers";
+import { expect, openSettings, test, uploadTestImage } from "./helpers";
 
 const isDocker = process.env.CI === "true" || process.env.DOCKER === "true";
 
@@ -113,8 +113,7 @@ test.describe("Visual Desktop (1280x720)", () => {
 
   // ---- Settings dialog - General tab ----
   test("settings dialog general tab - light and dark", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.getByRole("heading", { name: "General" })).toBeVisible();
+    await openSettings(page);
     await page.waitForTimeout(500);
 
     await takeThemedScreenshots(page, "settings-general");
@@ -122,8 +121,7 @@ test.describe("Visual Desktop (1280x720)", () => {
 
   // ---- Settings dialog - About tab ----
   test("settings dialog about tab - light and dark", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.getByRole("heading", { name: "General" })).toBeVisible();
+    await openSettings(page);
 
     // Navigate to About tab
     await page.getByRole("button", { name: "About" }).click();

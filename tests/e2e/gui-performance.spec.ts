@@ -1,4 +1,4 @@
-import { expect, test, uploadTestImage } from "./helpers";
+import { expect, openSettings, test, uploadTestImage } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // GUI Performance: Page load budgets, SPA navigation, interaction responsiveness
@@ -160,16 +160,14 @@ test.describe("Settings Dialog Timing", () => {
     await page.waitForLoadState("networkidle");
 
     const start = Date.now();
-    await page.locator("aside").getByText("Settings").click();
-    await page.locator("h2").filter({ hasText: "Settings" }).waitFor({ state: "visible" });
+    await openSettings(page);
     const openTime = Date.now() - start;
 
     expect(openTime).toBeLessThan(300);
   });
 
   test("settings dialog closes within 300ms", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await page.locator("h2").filter({ hasText: "Settings" }).waitFor({ state: "visible" });
+    await openSettings(page);
 
     const start = Date.now();
     await page.keyboard.press("Escape");
@@ -180,8 +178,7 @@ test.describe("Settings Dialog Timing", () => {
   });
 
   test("switching settings tabs renders within 200ms", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await page.locator("h2").filter({ hasText: "Settings" }).waitFor({ state: "visible" });
+    await openSettings(page);
 
     // Switch to About tab
     const start = Date.now();
@@ -362,7 +359,7 @@ test.describe("Repeated Operations Performance", () => {
 
     for (let i = 0; i < 20; i++) {
       const start = Date.now();
-      await page.locator("aside").getByText("Settings").click();
+      await openSettings(page);
       await page.locator("h2").filter({ hasText: "Settings" }).waitFor({ state: "visible" });
       timings.push(Date.now() - start);
 

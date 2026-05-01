@@ -165,4 +165,17 @@ export async function isAiSidecarRunning(page: Page): Promise<boolean> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// openSettings() — reliably open the Settings dialog across all viewports
+// ---------------------------------------------------------------------------
+export async function openSettings(page: Page): Promise<void> {
+  const sidebar = page.locator("aside");
+  if (await sidebar.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await sidebar.getByText("Settings").click();
+  } else {
+    await page.getByRole("button", { name: /settings/i }).click();
+  }
+  await page.getByRole("dialog").waitFor({ state: "visible", timeout: 5000 });
+}
+
 export { expect };

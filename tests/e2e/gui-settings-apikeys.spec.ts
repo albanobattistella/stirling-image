@@ -1,4 +1,4 @@
-import { expect, test } from "./helpers";
+import { expect, openSettings, test } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // Settings Dialog -- API Keys tab (full coverage)
@@ -6,7 +6,7 @@ import { expect, test } from "./helpers";
 
 test.describe("GUI Settings - API Keys Tab", () => {
   test("navigates to API Keys tab and shows heading", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     await expect(page.locator("h3").filter({ hasText: "API Keys" })).toBeVisible();
@@ -14,7 +14,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   });
 
   test("shows Generate API Key button and name input", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     await expect(page.getByPlaceholder("Key name (optional)")).toBeVisible();
@@ -24,7 +24,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   test("generating an API key displays the key with copy button", async ({
     loggedInPage: page,
   }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     const keyName = `apiKeyTest-${Date.now()}`;
@@ -50,7 +50,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   });
 
   test("generated key appears in Existing Keys list", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     const keyName = `listTest-${Date.now()}`;
@@ -71,7 +71,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   });
 
   test("permission scoping toggle reveals checkboxes", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     const scopingToggle = page.getByText("Restrict permissions (optional)");
@@ -86,7 +86,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   });
 
   test("permission scoping checkboxes can be toggled", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     // Open scoping panel
@@ -105,7 +105,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   });
 
   test("deleting an API key removes it from the list", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     // Create a key to delete
@@ -126,7 +126,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   });
 
   test("expiration date input is available", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     await expect(page.getByText("Expires:")).toBeVisible();
@@ -134,7 +134,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   });
 
   test("expiration date Clear button works", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     const dateInput = page.locator("input[type='datetime-local']");
@@ -152,7 +152,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   test("empty state shows no keys message or existing keys list", async ({
     loggedInPage: page,
   }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     // Wait for the API Keys heading to confirm the section loaded
@@ -176,7 +176,7 @@ test.describe("GUI Settings - API Keys Tab", () => {
   test("generating a key with scoped permissions creates a scoped key", async ({
     loggedInPage: page,
   }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
     await page.getByRole("button", { name: /api keys/i }).click();
 
     // Set a key name

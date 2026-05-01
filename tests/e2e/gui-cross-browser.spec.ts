@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { getTestImagePath, test, waitForProcessing } from "./helpers";
+import { getTestImagePath, openSettings, test, waitForProcessing } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // Cross-browser smoke tests -- critical flows validated across browsers.
@@ -105,8 +105,7 @@ test.describe("Cross-browser smoke tests", () => {
     const errors = collectConsoleErrors(page);
     await page.waitForLoadState("networkidle");
 
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.getByRole("heading", { name: "General" })).toBeVisible();
+    await openSettings(page);
 
     await page.getByRole("button", { name: "About" }).click();
     await page.waitForTimeout(300);

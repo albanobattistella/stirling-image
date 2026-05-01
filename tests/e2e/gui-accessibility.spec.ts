@@ -1,4 +1,4 @@
-import { expect, test } from "./helpers";
+import { expect, openSettings, test } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // GUI Accessibility: ARIA semantics, focus management, keyboard navigation
@@ -188,7 +188,7 @@ test.describe("Heading Hierarchy - Tool Pages", () => {
 // ---------------------------------------------------------------------------
 test.describe("Settings Dialog Accessibility", () => {
   test("settings dialog opens as a layered panel with backdrop", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
+    await openSettings(page);
 
     // Dialog content should be visible
     await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible();
@@ -199,8 +199,7 @@ test.describe("Settings Dialog Accessibility", () => {
   });
 
   test("Escape key closes settings dialog", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible();
+    await openSettings(page);
 
     await page.keyboard.press("Escape");
 
@@ -208,8 +207,7 @@ test.describe("Settings Dialog Accessibility", () => {
   });
 
   test("settings dialog can be closed via close button", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible();
+    await openSettings(page);
 
     // Use the X close button
     const closeBtn = page
@@ -222,8 +220,7 @@ test.describe("Settings Dialog Accessibility", () => {
   });
 
   test("settings dialog has a close button", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible();
+    await openSettings(page);
 
     // Close button with X icon
     const closeBtn = page.locator("button").filter({ has: page.locator("svg.lucide-x") });
@@ -234,8 +231,7 @@ test.describe("Settings Dialog Accessibility", () => {
   });
 
   test("settings dialog backdrop is marked aria-hidden", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible();
+    await openSettings(page);
 
     // The backdrop overlay has aria-hidden="true" to keep it out of the a11y tree
     const backdrop = page.locator("div[aria-hidden='true'].absolute.inset-0");
@@ -245,8 +241,7 @@ test.describe("Settings Dialog Accessibility", () => {
   });
 
   test("focus is contained inside settings dialog while open", async ({ loggedInPage: page }) => {
-    await page.locator("aside").getByText("Settings").click();
-    await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible();
+    await openSettings(page);
 
     // Tab through several elements -- focus should stay within the dialog
     for (let i = 0; i < 10; i++) {
@@ -430,9 +425,7 @@ test.describe("Focus Management", () => {
 test.describe("Focus Management - Dialogs", () => {
   test("closing settings dialog returns focus to page", async ({ loggedInPage: page }) => {
     // Open settings
-    const settingsBtn = page.locator("aside").getByText("Settings");
-    await settingsBtn.click();
-    await expect(page.locator("h2").filter({ hasText: "Settings" })).toBeVisible();
+    await openSettings(page);
 
     // Close via Escape
     await page.keyboard.press("Escape");

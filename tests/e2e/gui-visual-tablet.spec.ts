@@ -1,4 +1,4 @@
-import { expect, test, uploadTestImage } from "./helpers";
+import { expect, openSettings, test, uploadTestImage } from "./helpers";
 
 const isDocker = process.env.CI === "true" || process.env.DOCKER === "true";
 const MOD = process.platform === "darwin" ? "Meta" : "Control";
@@ -96,19 +96,7 @@ test.describe("Visual Tablet (768x1024)", () => {
 
   // ---- Settings dialog - General tab ----
   test("settings dialog general tab - light and dark", async ({ loggedInPage: page }) => {
-    // On tablet, the sidebar may or may not be visible; try sidebar first, fallback to nav
-    const sidebar = page.locator("aside");
-    const sidebarVisible = await sidebar.isVisible().catch(() => false);
-
-    if (sidebarVisible) {
-      await sidebar.getByText("Settings").click();
-    } else {
-      // Fallback: bottom nav bar
-      const bottomNav = page.locator("nav.fixed");
-      await bottomNav.getByText("Settings").click();
-    }
-
-    await expect(page.getByRole("heading", { name: "General" })).toBeVisible();
+    await openSettings(page);
     await page.waitForTimeout(500);
 
     await takeThemedScreenshots(page, "settings-general");
@@ -116,17 +104,7 @@ test.describe("Visual Tablet (768x1024)", () => {
 
   // ---- Settings dialog - About tab ----
   test("settings dialog about tab - light and dark", async ({ loggedInPage: page }) => {
-    const sidebar = page.locator("aside");
-    const sidebarVisible = await sidebar.isVisible().catch(() => false);
-
-    if (sidebarVisible) {
-      await sidebar.getByText("Settings").click();
-    } else {
-      const bottomNav = page.locator("nav.fixed");
-      await bottomNav.getByText("Settings").click();
-    }
-
-    await expect(page.getByRole("heading", { name: "General" })).toBeVisible();
+    await openSettings(page);
 
     // Navigate to About tab
     await page.getByRole("button", { name: "About" }).click();
