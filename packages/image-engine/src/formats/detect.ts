@@ -20,6 +20,20 @@ const MAGIC_BYTES: Array<{ bytes: number[]; offset: number; format: string }> = 
   { bytes: [0x38, 0x42, 0x50, 0x53], offset: 0, format: "psd" },
   // OpenEXR
   { bytes: [0x76, 0x2f, 0x31, 0x01], offset: 0, format: "exr" },
+  // CR3 (Canon ISOBMFF RAW) - ftyp box at offset 4
+  { bytes: [0x66, 0x74, 0x79, 0x70], offset: 4, format: "cr3" },
+  // Fujifilm RAF: "FUJIFILMCCD-RAW" at offset 0
+  {
+    bytes: [
+      0x46, 0x55, 0x4a, 0x49, 0x46, 0x49, 0x4c, 0x4d, 0x43, 0x43, 0x44, 0x2d, 0x52, 0x41, 0x57,
+    ],
+    offset: 0,
+    format: "raf",
+  },
+  // Sigma X3F: "FOVb" at offset 0
+  { bytes: [0x46, 0x4f, 0x56, 0x62], offset: 0, format: "x3f" },
+  // Minolta MRW: "\x00MRM" at offset 0
+  { bytes: [0x00, 0x4d, 0x52, 0x4d], offset: 0, format: "mrw" },
 ];
 
 /**
@@ -66,6 +80,12 @@ function detectByMagicBytes(buffer: Buffer): string {
         if (buffer.length < 12) continue;
         const brand = buffer.slice(8, 12).toString("ascii");
         if (brand !== "avif" && brand !== "avis") continue;
+      }
+      // For ftyp, verify CR3 brand at bytes 8-11
+      if (entry.format === "cr3") {
+        if (buffer.length < 12) continue;
+        const brand = buffer.slice(8, 12).toString("ascii");
+        if (brand !== "crx ") continue;
       }
       return entry.format;
     }
