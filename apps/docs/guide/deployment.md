@@ -241,25 +241,9 @@ The server scales linearly with no errors or crashes up to 20 concurrent request
 
 ### Supported Image Formats
 
-| Format | Read | Write | Notes |
-|---|---|---|---|
-| JPEG | Yes | Yes | |
-| PNG | Yes | Yes | |
-| WebP | Yes | Yes | |
-| AVIF | Yes | Yes | Encode is CPU-intensive (~5s on 4 cores for a large image) |
-| GIF | Yes | Yes | Animated GIF supported |
-| TIFF | Yes | Yes | Multi-page supported |
-| SVG | Yes | No | Rasterized on input, sanitized for security |
-| HEIC | Yes | No | Decoded via heif-dec (~0.4s) |
-| HEIF | Yes | No | Very slow decode (~15s) |
-| DNG (RAW) | Yes (Linux) | No | Decoded via dcraw, not available on macOS |
-| PSD | Yes | No | Decoded via ImageMagick |
-| HDR | Yes | No | Tone-mapped on decode |
-| TGA | Yes | No | Decoded via ImageMagick |
-| ICO | Yes | Yes | Via favicon tool |
-| PDF | Yes | Yes | Via pdf-to-image / image-to-pdf tools |
+SnapOtter supports **55+ input formats** and **14 output formats**, including RAW files from 20+ camera brands, professional formats (PSD, EPS, OpenEXR, HDR), modern codecs (JPEG XL, AVIF, HEIC, QOI), and scientific/gaming formats (FITS, DDS).
 
-Not supported: BMP (V4/V5 headers), JPEG XL (JXL), EXR (missing decode delegate in Docker image).
+See the [complete format list](/guide/supported-formats) for details on every supported format, decoder used, and available quality controls.
 
 ### Known Limitations
 
