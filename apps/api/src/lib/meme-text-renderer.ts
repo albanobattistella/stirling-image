@@ -143,8 +143,9 @@ export function autoSizeFontToFit(
   boxHeight: number,
   maxFontSize = DEFAULT_MAX_FONT_SIZE,
 ): number {
+  const effectiveMax = Math.min(maxFontSize, Math.floor(boxHeight / 2), Math.floor(boxWidth / 3));
   let lo = MIN_FONT_SIZE;
-  let hi = maxFontSize;
+  let hi = Math.max(MIN_FONT_SIZE, effectiveMax);
   let best = MIN_FONT_SIZE;
 
   while (lo <= hi) {
@@ -216,6 +217,9 @@ export function renderMemeTextSvg(opts: MemeTextOptions): Buffer {
     const fillAttr = escapeXmlAttr(textColor);
     const strokeAttr = escapeXmlAttr(strokeColor);
 
+    const totalTextHeight = lines.length * lineHeight;
+    const yOffset = by + (bh - totalTextHeight) / 2 + fontSize * 0.85;
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (!line) continue;
@@ -228,12 +232,10 @@ export function renderMemeTextSvg(opts: MemeTextOptions): Buffer {
       } else if (textAlign === "right") {
         x = bx + bw - lineWidth;
       } else {
-        // center
         x = bx + (bw - lineWidth) / 2;
       }
 
-      // Baseline y: top of box + line offset + ascent approximation
-      const y = by + (i + 1) * lineHeight;
+      const y = yOffset + i * lineHeight;
 
       let d: string;
       try {

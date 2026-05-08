@@ -163,46 +163,46 @@ function EditorSettings() {
       </div>
 
       {/* Colors */}
-      <div className="flex gap-3">
-        <div className="flex-1">
+      <div className="flex gap-2">
+        <div className="flex-1 min-w-0">
           <label htmlFor="text-color" className="text-xs text-muted-foreground block mb-0.5">
-            Text Color
+            Text
           </label>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <input
               id="text-color"
               data-testid="text-color"
               type="color"
               value={textColor}
               onChange={(e) => setTextColor(e.target.value)}
-              className="w-8 h-8 rounded border border-border shrink-0 cursor-pointer"
+              className="w-7 h-7 rounded border border-border shrink-0 cursor-pointer"
             />
             <input
               type="text"
               value={textColor}
               onChange={(e) => setTextColor(e.target.value)}
-              className="flex-1 px-1.5 py-1 rounded border border-border bg-background text-xs text-foreground font-mono"
+              className="flex-1 min-w-0 px-1 py-1 rounded border border-border bg-background text-[11px] text-foreground font-mono"
             />
           </div>
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <label htmlFor="stroke-color" className="text-xs text-muted-foreground block mb-0.5">
-            Stroke Color
+            Stroke
           </label>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <input
               id="stroke-color"
               data-testid="stroke-color"
               type="color"
               value={strokeColor}
               onChange={(e) => setStrokeColor(e.target.value)}
-              className="w-8 h-8 rounded border border-border shrink-0 cursor-pointer"
+              className="w-7 h-7 rounded border border-border shrink-0 cursor-pointer"
             />
             <input
               type="text"
               value={strokeColor}
               onChange={(e) => setStrokeColor(e.target.value)}
-              className="flex-1 px-1.5 py-1 rounded border border-border bg-background text-xs text-foreground font-mono"
+              className="flex-1 min-w-0 px-1 py-1 rounded border border-border bg-background text-[11px] text-foreground font-mono"
             />
           </div>
         </div>
