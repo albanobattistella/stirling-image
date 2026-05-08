@@ -1,32 +1,44 @@
 import type React from "react";
-import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame } from "remotion";
+import { AppWindow } from "@/components/AppWindow";
 import { Counter } from "@/components/Counter";
-import { ToolGrid } from "@/components/ToolGrid";
 import { COLOR } from "@/lib/colors";
 import { TEXT } from "@/lib/fonts";
 
 export const ToolGridRevealScene: React.FC = () => {
   const frame = useCurrentFrame();
+  const totalFrames = 180;
 
-  const gridOpacity = interpolate(frame, [0, 20], [0, 1], {
+  const scale = interpolate(frame, [0, totalFrames], [1.0, 1.08], {
+    extrapolateRight: "clamp",
+  });
+  const windowOpacity = interpolate(frame, [0, 20], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   return (
-    <AbsoluteFill>
-      <div
-        style={{
-          position: "absolute",
-          top: 60,
-          left: 40,
-          right: 40,
-          opacity: gridOpacity,
-          transform: "scale(0.85)",
-          transformOrigin: "top center",
-        }}
-      >
-        <ToolGrid startFrame={10} cellWidth={110} cellHeight={26} gap={4} />
+    <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
+      <div style={{ opacity: windowOpacity }}>
+        <AppWindow
+          title="SnapOtter"
+          width={900}
+          height={900}
+          topBarColor="#1a1a2e"
+          bodyColor="#0f172a"
+        >
+          <div style={{ overflow: "hidden", width: "100%", height: "100%" }}>
+            <Img
+              src={staticFile("screenshots/dashboard.png")}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                transform: `scale(${scale})`,
+              }}
+            />
+          </div>
+        </AppWindow>
       </div>
 
       <div style={{ position: "absolute", bottom: 60, right: 80 }}>
@@ -37,7 +49,7 @@ export const ToolGridRevealScene: React.FC = () => {
           duration={90}
           style={{
             ...TEXT.counter,
-            fontSize: 64,
+            fontSize: 120,
             color: COLOR.accent,
           }}
         />
