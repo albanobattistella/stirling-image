@@ -143,7 +143,7 @@ export function autoSizeFontToFit(
   boxHeight: number,
   maxFontSize = DEFAULT_MAX_FONT_SIZE,
 ): number {
-  const effectiveMax = Math.min(maxFontSize, Math.floor(boxHeight / 2), Math.floor(boxWidth / 3));
+  const effectiveMax = Math.min(maxFontSize, Math.floor(boxHeight / 5), Math.floor(boxWidth / 8));
   let lo = MIN_FONT_SIZE;
   let hi = Math.max(MIN_FONT_SIZE, effectiveMax);
   let best = MIN_FONT_SIZE;
