@@ -238,5 +238,60 @@ describe("detectFormat", () => {
       const format = await detectFormat(Buffer.from([0x89]));
       expect(format).toBe("unknown");
     });
+
+    it("detects DDS magic bytes", async () => {
+      const buf = Buffer.from([0x44, 0x44, 0x53, 0x20, 0, 0, 0, 0, 0, 0, 0, 0]);
+      expect(await detectFormat(buf)).toBe("dds");
+    });
+
+    it("detects CUR magic bytes", async () => {
+      const buf = Buffer.from([0x00, 0x00, 0x02, 0x00, 0, 0, 0, 0, 0, 0, 0, 0]);
+      expect(await detectFormat(buf)).toBe("cur");
+    });
+
+    it("detects DPX forward magic bytes", async () => {
+      const buf = Buffer.from([0x53, 0x44, 0x50, 0x58, 0, 0, 0, 0, 0, 0, 0, 0]);
+      expect(await detectFormat(buf)).toBe("dpx");
+    });
+
+    it("detects FITS magic bytes", async () => {
+      const buf = Buffer.from([0x53, 0x49, 0x4d, 0x50, 0x4c, 0x45, 0, 0, 0, 0, 0, 0]);
+      expect(await detectFormat(buf)).toBe("fits");
+    });
+
+    it("detects EPS ASCII magic bytes", async () => {
+      const buf = Buffer.from([0x25, 0x21, 0x50, 0x53, 0x2d, 0x41, 0x64, 0x6f, 0x62, 0x65, 0, 0]);
+      expect(await detectFormat(buf)).toBe("eps");
+    });
+
+    it("detects EPS DOS binary magic bytes", async () => {
+      const buf = Buffer.from([0xc5, 0xd0, 0xd3, 0xc6, 0, 0, 0, 0, 0, 0, 0, 0]);
+      expect(await detectFormat(buf)).toBe("eps");
+    });
+
+    it("detects QOI magic bytes", async () => {
+      const buf = Buffer.from([0x71, 0x6f, 0x69, 0x66, 0, 0, 0, 0, 0, 0, 0, 0]);
+      expect(await detectFormat(buf)).toBe("qoi");
+    });
+  });
+
+  describe("real fixture format detection", () => {
+    const fixtures: Array<{ file: string; expected: string[] }> = [
+      { file: "sample.dds", expected: ["dds", "unknown"] },
+      { file: "sample.cur", expected: ["cur", "ico", "unknown"] },
+      { file: "sample.dpx", expected: ["dpx", "unknown"] },
+      { file: "sample.fits", expected: ["fits", "unknown"] },
+      { file: "sample.eps", expected: ["eps", "unknown"] },
+      { file: "sample.qoi", expected: ["qoi", "unknown"] },
+      { file: "sample.apng", expected: ["png"] },
+    ];
+
+    for (const { file, expected } of fixtures) {
+      it(`detects ${file}`, async () => {
+        const buffer = readFileSync(path.join(FORMATS_DIR, file));
+        const format = await detectFormat(buffer);
+        expect(expected).toContain(format);
+      });
+    }
   });
 });

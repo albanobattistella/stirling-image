@@ -20,6 +20,17 @@ const SUPPORTED_INPUT_FORMATS = new Set([
   "psd",
   "exr",
   "hdr",
+  "jp2",
+  "qoi",
+  "eps",
+  "dds",
+  "cur",
+  "dpx",
+  "fits",
+  "ppm",
+  "pgm",
+  "pbm",
+  "pfm",
 ]);
 
 interface MagicEntry {
@@ -38,6 +49,19 @@ const MAGIC_BYTES: MagicEntry[] = [
   { bytes: [0x4d, 0x4d, 0x00, 0x2a], offset: 0, format: "tiff" },
   { bytes: [0x66, 0x74, 0x79, 0x70], offset: 4, format: "avif" }, // ftyp box; verified below
   { bytes: [0x66, 0x74, 0x79, 0x70], offset: 4, format: "heif" }, // ftyp box; verified below
+  { bytes: [0x66, 0x74, 0x79, 0x70], offset: 4, format: "cr3" }, // ftyp box; verified below
+  // Fujifilm RAF: "FUJIFILMCCD-RAW" at offset 0
+  {
+    bytes: [
+      0x46, 0x55, 0x4a, 0x49, 0x46, 0x49, 0x4c, 0x4d, 0x43, 0x43, 0x44, 0x2d, 0x52, 0x41, 0x57,
+    ],
+    offset: 0,
+    format: "raw",
+  },
+  // Sigma X3F: "FOVb" at offset 0
+  { bytes: [0x46, 0x4f, 0x56, 0x62], offset: 0, format: "raw" },
+  // Minolta MRW: "\x00MRM" at offset 0
+  { bytes: [0x00, 0x4d, 0x52, 0x4d], offset: 0, format: "raw" },
   // JXL ISOBMFF container
   { bytes: [0x00, 0x00, 0x00, 0x0c, 0x4a, 0x58, 0x4c, 0x20], offset: 0, format: "jxl" },
   // JXL raw codestream
@@ -49,6 +73,47 @@ const MAGIC_BYTES: MagicEntry[] = [
   // OpenEXR
   { bytes: [0x76, 0x2f, 0x31, 0x01], offset: 0, format: "exr" },
   // TGA has no reliable magic bytes — detected by extension only
+  // JPEG 2000 JP2 box signature (NOT ISOBMFF)
+  {
+    bytes: [0x00, 0x00, 0x00, 0x0c, 0x6a, 0x50, 0x20, 0x20, 0x0d, 0x0a, 0x87, 0x0a],
+    offset: 0,
+    format: "jp2",
+  },
+  // JPEG 2000 raw codestream (J2K/J2C)
+  { bytes: [0xff, 0x4f, 0xff, 0x51], offset: 0, format: "jp2" },
+  // QOI: "qoif" at offset 0
+  { bytes: [0x71, 0x6f, 0x69, 0x66], offset: 0, format: "qoi" },
+  // DDS: "DDS " at offset 0
+  { bytes: [0x44, 0x44, 0x53, 0x20], offset: 0, format: "dds" },
+  // CUR: Windows cursor (ICO variant, byte 3 = 0x02 vs ICO's 0x01)
+  { bytes: [0x00, 0x00, 0x02, 0x00], offset: 0, format: "cur" },
+  // DPX forward: "SDPX"
+  { bytes: [0x53, 0x44, 0x50, 0x58], offset: 0, format: "dpx" },
+  // DPX reverse: "XPDS"
+  { bytes: [0x58, 0x50, 0x44, 0x53], offset: 0, format: "dpx" },
+  // Cineon
+  { bytes: [0x80, 0x2a, 0x5f, 0xd7], offset: 0, format: "dpx" },
+  // FITS: "SIMPLE" at offset 0
+  { bytes: [0x53, 0x49, 0x4d, 0x50, 0x4c, 0x45], offset: 0, format: "fits" },
+  // EPS ASCII header: "%!PS-Adobe"
+  {
+    bytes: [0x25, 0x21, 0x50, 0x53, 0x2d, 0x41, 0x64, 0x6f, 0x62, 0x65],
+    offset: 0,
+    format: "eps",
+  },
+  // EPS binary (DOS EPS)
+  { bytes: [0xc5, 0xd0, 0xd3, 0xc6], offset: 0, format: "eps" },
+  // Netpbm: P1-P7 headers (these MUST go AFTER the PNG entry to avoid false matches on 0x50)
+  { bytes: [0x50, 0x31], offset: 0, format: "pbm" },
+  { bytes: [0x50, 0x34], offset: 0, format: "pbm" },
+  { bytes: [0x50, 0x32], offset: 0, format: "pgm" },
+  { bytes: [0x50, 0x35], offset: 0, format: "pgm" },
+  { bytes: [0x50, 0x33], offset: 0, format: "ppm" },
+  { bytes: [0x50, 0x36], offset: 0, format: "ppm" },
+  { bytes: [0x50, 0x37], offset: 0, format: "ppm" },
+  // PFM (Portable FloatMap)
+  { bytes: [0x50, 0x46], offset: 0, format: "pfm" },
+  { bytes: [0x50, 0x66], offset: 0, format: "pfm" },
 ];
 
 export interface ValidationResult {
@@ -64,10 +129,50 @@ export interface ValidationError {
 }
 
 /** Camera RAW extensions that share TIFF magic bytes. */
-const RAW_EXTENSIONS = new Set(["dng", "cr2", "nef", "arw", "orf", "rw2"]);
+const RAW_EXTENSIONS = new Set([
+  "dng",
+  "cr2",
+  "cr3",
+  "nef",
+  "nrw",
+  "arw",
+  "orf",
+  "rw2",
+  "raf",
+  "pef",
+  "3fr",
+  "iiq",
+  "srw",
+  "x3f",
+  "rwl",
+  "gpr",
+  "fff",
+  "mrw",
+  "mef",
+  "kdc",
+  "dcr",
+  "erf",
+  "ptx",
+]);
 
 /** Formats that Sharp cannot decode natively — skip dimension check. */
-const CLI_DECODED_FORMATS = new Set(["raw", "ico", "tga", "psd", "exr", "hdr", "bmp", "jxl"]);
+const CLI_DECODED_FORMATS = new Set([
+  "raw",
+  "ico",
+  "tga",
+  "psd",
+  "exr",
+  "hdr",
+  "bmp",
+  "jxl",
+  "jp2",
+  "qoi",
+  "eps",
+  "dds",
+  "cur",
+  "dpx",
+  "fits",
+]);
 
 /**
  * Check whether a file extension corresponds to a Camera RAW format.
@@ -119,6 +224,18 @@ export async function validateImageBuffer(
   // TGA has no magic bytes — detect by extension only
   if (!detectedFormat && ext === "tga") {
     detectedFormat = "tga";
+  }
+
+  // SVGZ: gzip-compressed SVG, detected by extension + gzip magic
+  if (!detectedFormat && ext === "svgz") {
+    if (buffer.length >= 2 && buffer[0] === 0x1f && buffer[1] === 0x8b) {
+      detectedFormat = "svg";
+    }
+  }
+
+  // APNG: Sharp handles as PNG first frame. Accept .apng extension.
+  if (!detectedFormat && ext === "apng") {
+    detectedFormat = "png";
   }
 
   if (!detectedFormat) {
@@ -218,6 +335,13 @@ function detectMagicBytes(buffer: Buffer): string | null {
         if (buffer.length < 12) continue;
         const brand = buffer.slice(8, 12).toString("ascii");
         if (!["heic", "heix", "mif1", "msf1", "hevc", "hevx"].includes(brand)) continue;
+      }
+      // For ftyp, verify CR3 brand at bytes 8-11.
+      if (entry.format === "cr3") {
+        if (buffer.length < 12) continue;
+        const brand = buffer.slice(8, 12).toString("ascii");
+        if (brand !== "crx ") continue;
+        return "raw"; // CR3 is a RAW format, routed through decodeRaw()
       }
       return entry.format;
     }

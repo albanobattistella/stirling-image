@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 import { Toaster } from "sonner";
 import { ConnectionMonitor } from "./components/common/connection-monitor";
 import { KeyboardShortcutProvider } from "./components/common/keyboard-shortcut-provider";
+import { AppLayout } from "./components/layout/app-layout";
 import { useAuth } from "./hooks/use-auth";
 import { identify, initAnalytics, setAnalyticsConsent } from "./lib/analytics";
 import { useAnalyticsStore } from "./stores/analytics-store";
@@ -27,6 +28,9 @@ const PrivacyPolicyPage = lazy(() =>
 );
 const AnalyticsConsentPage = lazy(() =>
   import("./pages/analytics-consent-page").then((m) => ({ default: m.AnalyticsConsentPage })),
+);
+const EditorPage = lazy(() =>
+  import("./pages/editor-page").then((m) => ({ default: m.EditorPage })),
 );
 const ToolPage = lazy(() => import("./pages/tool-page").then((m) => ({ default: m.ToolPage })));
 
@@ -224,6 +228,14 @@ export function App() {
                 <Route path="/color-channels" element={<Navigate to="/adjust-colors" replace />} />
                 <Route path="/color-effects" element={<Navigate to="/adjust-colors" replace />} />
                 <Route path="/analytics-consent" element={<AnalyticsConsentPage />} />
+                <Route
+                  path="/editor"
+                  element={
+                    <AppLayout showToolPanel={false}>
+                      <EditorPage />
+                    </AppLayout>
+                  }
+                />
                 <Route path="/:toolId" element={<ToolPage />} />
                 <Route path="/" element={<HomePage />} />
               </Routes>

@@ -310,6 +310,7 @@ export const en = {
     tools: "Tools",
     reader: "Reader",
     automate: "Automate",
+    editor: "Editor",
     files: "Files",
     help: "Help",
     settings: "Settings",

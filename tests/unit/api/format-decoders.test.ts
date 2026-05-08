@@ -69,11 +69,38 @@ describe("needsCliDecode", () => {
   it("returns false for unknown format", () => {
     expect(needsCliDecode("xyz")).toBe(false);
   });
-});
 
-// ==========================================================================
-// decodeToSharpCompat — routing logic (default passthrough)
-// ==========================================================================
+  it("returns true for jp2 format", () => {
+    expect(needsCliDecode("jp2")).toBe(true);
+  });
+  it("returns true for eps format", () => {
+    expect(needsCliDecode("eps")).toBe(true);
+  });
+  it("returns true for dds format", () => {
+    expect(needsCliDecode("dds")).toBe(true);
+  });
+  it("returns true for cur format", () => {
+    expect(needsCliDecode("cur")).toBe(true);
+  });
+  it("returns true for dpx format", () => {
+    expect(needsCliDecode("dpx")).toBe(true);
+  });
+  it("returns true for fits format", () => {
+    expect(needsCliDecode("fits")).toBe(true);
+  });
+  it("returns true for qoi format", () => {
+    expect(needsCliDecode("qoi")).toBe(true);
+  });
+  it("returns true for ppm format", () => {
+    expect(needsCliDecode("ppm")).toBe(true);
+  });
+  it("returns true for pgm format", () => {
+    expect(needsCliDecode("pgm")).toBe(true);
+  });
+  it("returns true for pbm format", () => {
+    expect(needsCliDecode("pbm")).toBe(true);
+  });
+});
 
 describe("decodeToSharpCompat", () => {
   it("returns buffer unchanged for unknown/native formats", async () => {

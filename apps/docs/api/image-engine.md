@@ -52,7 +52,7 @@ Change the image format.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `format` | string | Target format: `jpeg`, `png`, `webp`, `avif`, `tiff`, `gif`, `heic` |
+| `format` | string | Target format: `jpeg`, `png`, `webp`, `avif`, `tiff`, `gif`, `jxl`, `heic`, `heif`, `bmp`, `ico`, `jp2`, `qoi` |
 | `quality` | number | Compression quality (1-100, applies to lossy formats) |
 
 ### compress
@@ -100,9 +100,11 @@ Adjust individual RGB color channels.
 
 ## Format detection
 
-The engine detects input formats automatically from file headers, not just file extensions. This means a `.jpg` file that is actually a PNG will be handled correctly.
+The engine detects input formats automatically from file headers, not just file extensions. This means a `.jpg` file that is actually a PNG will be handled correctly. Detection uses a multi-layer approach: magic bytes first, then file extension as fallback.
 
-Supported input formats: JPEG, PNG, WebP, AVIF, TIFF, GIF, HEIC/HEIF, SVG, RAW (via libraw).
+SnapOtter supports **55+ input formats** and **14 output formats**, including 23 camera RAW formats from 20+ brands, professional formats (PSD, EPS, OpenEXR, HDR), modern codecs (JPEG XL, AVIF, HEIC, QOI, JPEG 2000), and scientific/gaming formats (FITS, DDS). Decoding is handled by Sharp natively where possible, with automatic fallback to ImageMagick, LibRaw, and specialized CLI decoders.
+
+See the [Supported Formats](/guide/supported-formats) page for the complete list.
 
 ## Metadata extraction
 

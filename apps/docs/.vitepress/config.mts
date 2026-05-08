@@ -74,6 +74,7 @@ export default defineConfig({
           { text: "Configuration", link: "/guide/configuration" },
           { text: "Database", link: "/guide/database" },
           { text: "Deployment", link: "/guide/deployment" },
+          { text: "Supported Formats", link: "/guide/supported-formats" },
           { text: "Hardware requirements", link: "/guide/deployment#hardware-requirements" },
           { text: "Docker tags", link: "/guide/docker-tags" },
           { text: "Developer guide", link: "/guide/developer" },

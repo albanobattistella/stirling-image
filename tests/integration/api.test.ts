@@ -1000,7 +1000,7 @@ describe("Tool processing", () => {
     it("rejects unsupported format", async () => {
       const { body: payload, contentType } = createMultipartPayload([
         { name: "file", filename: "convert.png", contentType: "image/png", content: PNG_1x1 },
-        { name: "settings", content: JSON.stringify({ format: "bmp" }) },
+        { name: "settings", content: JSON.stringify({ format: "xyz" }) },
       ]);
 
       const res = await app.inject({

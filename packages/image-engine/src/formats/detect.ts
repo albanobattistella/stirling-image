@@ -20,6 +20,53 @@ const MAGIC_BYTES: Array<{ bytes: number[]; offset: number; format: string }> = 
   { bytes: [0x38, 0x42, 0x50, 0x53], offset: 0, format: "psd" },
   // OpenEXR
   { bytes: [0x76, 0x2f, 0x31, 0x01], offset: 0, format: "exr" },
+  // CR3 (Canon ISOBMFF RAW) - ftyp box at offset 4
+  { bytes: [0x66, 0x74, 0x79, 0x70], offset: 4, format: "cr3" },
+  // Fujifilm RAF: "FUJIFILMCCD-RAW" at offset 0
+  {
+    bytes: [
+      0x46, 0x55, 0x4a, 0x49, 0x46, 0x49, 0x4c, 0x4d, 0x43, 0x43, 0x44, 0x2d, 0x52, 0x41, 0x57,
+    ],
+    offset: 0,
+    format: "raf",
+  },
+  // Sigma X3F: "FOVb" at offset 0
+  { bytes: [0x46, 0x4f, 0x56, 0x62], offset: 0, format: "x3f" },
+  // Minolta MRW: "\x00MRM" at offset 0
+  { bytes: [0x00, 0x4d, 0x52, 0x4d], offset: 0, format: "mrw" },
+  // JP2 box signature
+  {
+    bytes: [0x00, 0x00, 0x00, 0x0c, 0x6a, 0x50, 0x20, 0x20, 0x0d, 0x0a, 0x87, 0x0a],
+    offset: 0,
+    format: "jp2",
+  },
+  // J2K raw codestream
+  { bytes: [0xff, 0x4f, 0xff, 0x51], offset: 0, format: "jp2" },
+  // QOI
+  { bytes: [0x71, 0x6f, 0x69, 0x66], offset: 0, format: "qoi" },
+  // DDS
+  { bytes: [0x44, 0x44, 0x53, 0x20], offset: 0, format: "dds" },
+  // CUR
+  { bytes: [0x00, 0x00, 0x02, 0x00], offset: 0, format: "cur" },
+  // DPX forward
+  { bytes: [0x53, 0x44, 0x50, 0x58], offset: 0, format: "dpx" },
+  // DPX reverse
+  { bytes: [0x58, 0x50, 0x44, 0x53], offset: 0, format: "dpx" },
+  // Cineon
+  { bytes: [0x80, 0x2a, 0x5f, 0xd7], offset: 0, format: "cin" },
+  // FITS
+  { bytes: [0x53, 0x49, 0x4d, 0x50, 0x4c, 0x45], offset: 0, format: "fits" },
+  // EPS ASCII
+  {
+    bytes: [0x25, 0x21, 0x50, 0x53, 0x2d, 0x41, 0x64, 0x6f, 0x62, 0x65],
+    offset: 0,
+    format: "eps",
+  },
+  // EPS binary (DOS)
+  { bytes: [0xc5, 0xd0, 0xd3, 0xc6], offset: 0, format: "eps" },
+  // PPM (P3/P6)
+  { bytes: [0x50, 0x33], offset: 0, format: "ppm" },
+  { bytes: [0x50, 0x36], offset: 0, format: "ppm" },
 ];
 
 /**
@@ -66,6 +113,12 @@ function detectByMagicBytes(buffer: Buffer): string {
         if (buffer.length < 12) continue;
         const brand = buffer.slice(8, 12).toString("ascii");
         if (brand !== "avif" && brand !== "avis") continue;
+      }
+      // For ftyp, verify CR3 brand at bytes 8-11
+      if (entry.format === "cr3") {
+        if (buffer.length < 12) continue;
+        const brand = buffer.slice(8, 12).toString("ascii");
+        if (brand !== "crx ") continue;
       }
       return entry.format;
     }

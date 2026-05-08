@@ -152,6 +152,8 @@ RUN for i in 1 2 3; do apt-get -o Acquire::Retries=3 update && break || sleep $(
     libraw-dev \
     libopenexr-dev \
     potrace \
+    ghostscript \
+    libopenjp2-tools \
     curl \
     gosu \
     libheif-examples \
@@ -175,6 +177,16 @@ RUN for i in 1 2 3; do apt-get -o Acquire::Retries=3 update && break || sleep $(
          apt-get install -y --no-install-recommends libcublas-12-6; \
        fi \
     && rm -rf /var/lib/apt/lists/*
+
+# Allow ImageMagick to use Ghostscript delegate for EPS decode (read-only).
+# Modern Debian blocks EPS/PS by default. We only grant read rights.
+RUN POLICY_FILE=$(find /etc/ImageMagick* -name policy.xml 2>/dev/null | head -1) && \
+    if [ -n "$POLICY_FILE" ]; then \
+      sed -i 's/<policy domain="coder" rights="none" pattern="EPS"/<policy domain="coder" rights="read" pattern="EPS"/' "$POLICY_FILE" && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="PS"/<policy domain="coder" rights="read" pattern="PS"/' "$POLICY_FILE" && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="PDF"/<policy domain="coder" rights="read" pattern="PDF"/' "$POLICY_FILE" && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="XPS"/<policy domain="coder" rights="read" pattern="XPS"/' "$POLICY_FILE"; \
+    fi
 
 # Caire binary (content-aware seam carving)
 COPY --from=caire-builder /tmp/caire /usr/local/bin/caire

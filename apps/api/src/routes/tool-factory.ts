@@ -16,7 +16,7 @@ import { sanitizeFilename } from "../lib/filename.js";
 import { decodeToSharpCompat, needsCliDecode } from "../lib/format-decoders.js";
 import { decodeHeic } from "../lib/heic-converter.js";
 import type { WorkerInput, WorkerOutput } from "../lib/image-worker.js";
-import { sanitizeSvg } from "../lib/svg-sanitize.js";
+import { decompressSvgz, sanitizeSvg } from "../lib/svg-sanitize.js";
 import { computeTimeout } from "../lib/timeout.js";
 import { getWorkerPool } from "../lib/worker-pool.js";
 import { createWorkspace } from "../lib/workspace.js";
@@ -192,9 +192,12 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
 
       // Decode CLI-decoded formats (RAW, PSD, TGA, EXR, HDR) via external tools.
       // The decoded buffer is PNG, so update the filename extension to match.
+      // Pass the original file extension so RAW decoder can use the correct
+      // temp file suffix (e.g. .cr3, .nef) for format identification.
       if (needsCliDecode(validation.format)) {
         try {
-          fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format);
+          const fileExt = filename.split(".").pop()?.toLowerCase();
+          fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format, fileExt);
           const ext = filename.match(/\.[^.]+$/)?.[0];
           if (ext) filename = `${filename.slice(0, -ext.length)}.png`;
         } catch (err) {
@@ -209,6 +212,7 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
       const isSvg = validation.format === "svg";
       if (isSvg) {
         try {
+          fileBuffer = decompressSvgz(fileBuffer);
           fileBuffer = sanitizeSvg(fileBuffer);
         } catch (err) {
           return reply.status(400).send({
@@ -314,6 +318,18 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
           "image/bmp": ".bmp",
           "image/heic": ".heic",
           "image/heif": ".heif",
+          "image/jxl": ".jxl",
+          "image/x-icon": ".ico",
+          "image/vnd.adobe.photoshop": ".psd",
+          "image/x-exr": ".exr",
+          "image/vnd.radiance": ".hdr",
+          "image/x-targa": ".tga",
+          "image/jp2": ".jp2",
+          "image/qoi": ".qoi",
+          "application/postscript": ".eps",
+          "image/vnd.ms-dds": ".dds",
+          "image/x-dpx": ".dpx",
+          "image/fits": ".fits",
         };
         const expectedExt = CONTENT_TYPE_TO_EXT[result.contentType];
         if (expectedExt) {

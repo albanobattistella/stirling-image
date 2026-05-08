@@ -1,3 +1,4 @@
+import { gunzipSync } from "node:zlib";
 import { env } from "../config.js";
 
 /**
@@ -34,6 +35,24 @@ export function sanitizeSvg(buffer: Buffer): Buffer {
   svg = svg.replace(/url\s*\(\s*["']?https?:\/\//gi, 'url("data:,');
   svg = svg.replace(/url\s*\(\s*["']?file:/gi, 'url("data:,');
   return Buffer.from(svg, "utf-8");
+}
+
+const MAX_SVGZ_DECOMPRESSED_SIZE = 50 * 1024 * 1024;
+
+/**
+ * Decompress an SVGZ (gzip-compressed SVG) buffer.
+ * Returns the buffer unchanged if it is not gzip-compressed.
+ * Throws on decompression bomb or invalid SVG content.
+ */
+export function decompressSvgz(buffer: Buffer): Buffer {
+  if (buffer.length < 2 || buffer[0] !== 0x1f || buffer[1] !== 0x8b) {
+    return buffer;
+  }
+  const decompressed = gunzipSync(buffer, { maxOutputLength: MAX_SVGZ_DECOMPRESSED_SIZE });
+  if (!isSvgBuffer(decompressed)) {
+    throw new Error("SVGZ file does not contain valid SVG content after decompression");
+  }
+  return decompressed;
 }
 
 /**
