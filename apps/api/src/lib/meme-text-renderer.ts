@@ -213,7 +213,7 @@ export function renderMemeTextSvg(opts: MemeTextOptions): Buffer {
     const fontSize = fixedFontSize ?? autoSizeFontToFit(text, fontFamily, bw, bh);
     const lineHeight = fontSize * LINE_HEIGHT_FACTOR;
     const lines = wrapText(text, fontFamily, fontSize, bw);
-    const strokeWidth = Math.max(1, Math.round(fontSize * 0.06));
+    const strokeWidth = Math.max(1, Math.round(fontSize * 0.04));
 
     const fillAttr = escapeXmlAttr(textColor);
     const strokeAttr = escapeXmlAttr(strokeColor);

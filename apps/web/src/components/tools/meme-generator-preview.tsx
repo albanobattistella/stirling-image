@@ -8,7 +8,7 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   CATEGORIES,
@@ -35,6 +35,7 @@ function TextPreviewOverlay({
   strokeColor,
   textAlign,
   allCaps,
+  containerWidth,
 }: {
   boxes: TemplateTextBox[];
   textValues: TextBoxValue[];
@@ -44,6 +45,7 @@ function TextPreviewOverlay({
   strokeColor: string;
   textAlign: string;
   allCaps: boolean;
+  containerWidth: number;
 }) {
   const cssFontFamily = FONT_FAMILY_MAP[fontFamily] ?? FONT_FAMILY_MAP.anton;
 
@@ -53,8 +55,11 @@ function TextPreviewOverlay({
         const value = textValues.find((v) => v.id === box.id);
         const text = value?.text || box.defaultText || "";
         const displayText = allCaps ? text.toUpperCase() : text;
-        const autoSize = `clamp(10px, ${box.height * 0.35}vw, 60px)`;
-        const appliedSize = fontSize > 0 ? `${fontSize}px` : autoSize;
+        const boxPxW = (box.width / 100) * containerWidth;
+        const boxPxH = (box.height / 100) * containerWidth;
+        const autoSize = Math.max(10, Math.min(Math.floor(boxPxW / 8), Math.floor(boxPxH / 2), 48));
+        const appliedSize = fontSize > 0 ? fontSize : autoSize;
+        const stroke = Math.max(1, Math.round(appliedSize * 0.04));
 
         return (
           <div
@@ -74,20 +79,12 @@ function TextPreviewOverlay({
               className="w-full leading-tight break-words whitespace-pre-wrap"
               style={{
                 fontFamily: cssFontFamily,
-                fontSize: appliedSize,
+                fontSize: `${appliedSize}px`,
                 color: textColor,
                 textAlign: textAlign as "left" | "center" | "right",
-                WebkitTextStroke: `1.5px ${strokeColor}`,
-                textShadow: [
-                  `1px 1px 0 ${strokeColor}`,
-                  `-1px -1px 0 ${strokeColor}`,
-                  `1px -1px 0 ${strokeColor}`,
-                  `-1px 1px 0 ${strokeColor}`,
-                  `0 1px 0 ${strokeColor}`,
-                  `0 -1px 0 ${strokeColor}`,
-                  `1px 0 0 ${strokeColor}`,
-                  `-1px 0 0 ${strokeColor}`,
-                ].join(", "),
+                WebkitTextStroke: `${stroke}px ${strokeColor}`,
+                paintOrder: "stroke fill",
+                textShadow: `1px 1px 2px rgba(0,0,0,0.5)`,
               }}
             >
               {displayText}
@@ -334,6 +331,21 @@ function EditorPreview() {
   const textAlign = useMemeStore((s) => s.textAlign);
   const allCaps = useMemeStore((s) => s.allCaps);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(600);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const imageSrc = selectedTemplate
     ? `/api/v1/meme-templates/full/${selectedTemplate.filename}`
     : (customImageUrl ?? "");
@@ -346,6 +358,7 @@ function EditorPreview() {
     <div className="h-full flex items-center justify-center p-4 overflow-auto">
       <div className="max-w-2xl w-full">
         <div
+          ref={containerRef}
           data-testid="meme-editor-preview"
           className="relative w-full rounded-lg overflow-hidden border border-border bg-muted/30"
         >
@@ -359,6 +372,7 @@ function EditorPreview() {
             strokeColor={strokeColor}
             textAlign={textAlign}
             allCaps={allCaps}
+            containerWidth={containerWidth}
           />
         </div>
       </div>
