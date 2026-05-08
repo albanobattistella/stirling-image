@@ -24,6 +24,9 @@ const CLI_DECODED_FORMATS = new Set([
   "dds",
   "cur",
   "dpx",
+  "ppm",
+  "pgm",
+  "pbm",
   "fits",
 ]);
 
@@ -77,6 +80,11 @@ export async function decodeToSharpCompat(
     case "fits":
       return decodeFits(buffer);
     case "qoi":
+      return decodeQoi(buffer);
+    case "ppm":
+    case "pgm":
+    case "pbm":
+      return decodeNetpbm(buffer, format);
       return decodeQoi(buffer);
     default:
       return buffer;
@@ -451,4 +459,28 @@ async function decodeQoi(buffer: Buffer): Promise<Buffer> {
   })
     .png()
     .toBuffer();
+}
+
+// ── Netpbm (PPM/PGM/PBM) decoder ──
+
+async function decodeNetpbm(buffer: Buffer, format: string): Promise<Buffer> {
+  try {
+    return await sharp(buffer).png().toBuffer();
+  } catch {
+    const cmd = await findMagickCmd();
+    const id = randomUUID();
+    const ext = format === "pgm" ? "pgm" : format === "pbm" ? "pbm" : "ppm";
+    const inputPath = join(tmpdir(), `netpbm-in-${id}.${ext}`);
+    const outputPath = join(tmpdir(), `netpbm-out-${id}.png`);
+    try {
+      await writeFile(inputPath, buffer);
+      await execFileAsync(cmd, magickArgs(cmd, [inputPath, `png:${outputPath}`]), {
+        timeout: 120_000,
+      });
+      return await readFile(outputPath);
+    } finally {
+      await rm(inputPath, { force: true }).catch(() => {});
+      await rm(outputPath, { force: true }).catch(() => {});
+    }
+  }
 }
