@@ -26,7 +26,19 @@ fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 console.log("Bundling Remotion project...");
 const bundleLocation = await bundle({
   entryPoint: path.resolve(__dirname, "../src/index.ts"),
-  webpackOverride: (config) => enableTailwind(config),
+  webpackOverride: (config) => {
+    const tailwindConfig = enableTailwind(config);
+    return {
+      ...tailwindConfig,
+      resolve: {
+        ...tailwindConfig.resolve,
+        alias: {
+          ...tailwindConfig.resolve?.alias,
+          "@": path.resolve(__dirname, "../src"),
+        },
+      },
+    };
+  },
 });
 console.log("Bundle complete.\n");
 
