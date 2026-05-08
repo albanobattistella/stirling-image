@@ -308,6 +308,11 @@ const TransparencyFixerSettings = lazy(() =>
     default: m.TransparencyFixerSettings,
   })),
 );
+const MemeGeneratorSettings = lazy(() =>
+  import("@/components/tools/meme-generator-settings").then((m) => ({
+    default: m.MemeGeneratorSettings,
+  })),
+);
 
 // ── Color tool wrapper ─────────────────────────────────────────────
 // Color tools share a single component but differ by toolId.
@@ -370,6 +375,7 @@ export const toolRegistry = new Map<string, ToolRegistryEntry>([
   ["watermark-image", { displayMode: "before-after", Settings: WatermarkImageSettings }],
   ["text-overlay", { displayMode: "before-after", Settings: TextOverlaySettings }],
   ["compose", { displayMode: "before-after", Settings: ComposeSettings }],
+  ["meme-generator", { displayMode: "no-dropzone", Settings: MemeGeneratorSettings }],
 
   // Utilities
   ["info", { displayMode: "before-after", Settings: InfoSettings }],
