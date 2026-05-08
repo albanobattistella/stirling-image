@@ -1,0 +1,3062 @@
+{
+  "version": 1,
+  "categories": ["reaction", "comparison", "opinion", "animals", "classic"],
+  "templates": [
+    {
+      "id": "drake-hotline-bling",
+      "name": "Drake Hotline Bling",
+      "aliases": [],
+      "tags": ["drake", "hotline", "bling"],
+      "category": "reaction",
+      "filename": "drake-hotline-bling.jpg",
+      "width": 1200,
+      "height": 1200,
+      "popularity": 1,
+      "textBoxes": [
+        {
+          "id": "reject",
+          "x": 52,
+          "y": 0,
+          "width": 48,
+          "height": 50,
+          "defaultText": "Thing I reject"
+        },
+        {
+          "id": "approve",
+          "x": 52,
+          "y": 50,
+          "width": 48,
+          "height": 50,
+          "defaultText": "Thing I approve"
+        }
+      ]
+    },
+    {
+      "id": "two-buttons",
+      "name": "Two Buttons",
+      "aliases": [],
+      "tags": ["two", "buttons"],
+      "category": "reaction",
+      "filename": "two-buttons.jpg",
+      "width": 600,
+      "height": 908,
+      "popularity": 2,
+      "textBoxes": [
+        {
+          "id": "left-button",
+          "x": 5,
+          "y": 2,
+          "width": 38,
+          "height": 22,
+          "defaultText": "Option A"
+        },
+        {
+          "id": "right-button",
+          "x": 45,
+          "y": 2,
+          "width": 38,
+          "height": 22,
+          "defaultText": "Option B"
+        }
+      ]
+    },
+    {
+      "id": "distracted-boyfriend",
+      "name": "Distracted Boyfriend",
+      "aliases": [],
+      "tags": ["distracted", "boyfriend"],
+      "category": "comparison",
+      "filename": "distracted-boyfriend.jpg",
+      "width": 1200,
+      "height": 800,
+      "popularity": 3,
+      "textBoxes": [
+        {
+          "id": "girl-behind",
+          "x": 58,
+          "y": 15,
+          "width": 30,
+          "height": 30,
+          "defaultText": "Current thing"
+        },
+        {
+          "id": "guy",
+          "x": 32,
+          "y": 5,
+          "width": 25,
+          "height": 30,
+          "defaultText": "Me"
+        },
+        {
+          "id": "girl-front",
+          "x": 2,
+          "y": 15,
+          "width": 28,
+          "height": 30,
+          "defaultText": "New shiny thing"
+        }
+      ]
+    },
+    {
+      "id": "uno-draw-25-cards",
+      "name": "UNO Draw 25 Cards",
+      "aliases": [],
+      "tags": ["uno", "draw", "cards"],
+      "category": "comparison",
+      "filename": "uno-draw-25-cards.jpg",
+      "width": 500,
+      "height": 494,
+      "popularity": 4,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "bernie-i-am-once-again-asking-for-your-support",
+      "name": "Bernie I Am Once Again Asking For Your Support",
+      "aliases": [],
+      "tags": ["bernie", "once", "again", "asking", "for", "your", "support"],
+      "category": "opinion",
+      "filename": "bernie-i-am-once-again-asking-for-your-support.jpg",
+      "width": 750,
+      "height": 750,
+      "popularity": 5,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "left-exit-12-off-ramp",
+      "name": "Left Exit 12 Off Ramp",
+      "aliases": [],
+      "tags": ["left", "exit", "off", "ramp"],
+      "category": "comparison",
+      "filename": "left-exit-12-off-ramp.jpg",
+      "width": 804,
+      "height": 767,
+      "popularity": 6,
+      "textBoxes": [
+        {
+          "id": "straight",
+          "x": 35,
+          "y": 2,
+          "width": 30,
+          "height": 15,
+          "defaultText": "Good choice"
+        },
+        {
+          "id": "exit",
+          "x": 65,
+          "y": 2,
+          "width": 30,
+          "height": 15,
+          "defaultText": "Bad choice"
+        },
+        {
+          "id": "car",
+          "x": 35,
+          "y": 65,
+          "width": 40,
+          "height": 20,
+          "defaultText": "Me"
+        }
+      ]
+    },
+    {
+      "id": "always-has-been",
+      "name": "Always Has Been",
+      "aliases": [],
+      "tags": ["always", "has", "been"],
+      "category": "reaction",
+      "filename": "always-has-been.jpg",
+      "width": 960,
+      "height": 540,
+      "popularity": 7,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "running-away-balloon",
+      "name": "Running Away Balloon",
+      "aliases": [],
+      "tags": ["running", "away", "balloon"],
+      "category": "opinion",
+      "filename": "running-away-balloon.jpg",
+      "width": 761,
+      "height": 1024,
+      "popularity": 8,
+      "textBoxes": [
+        {
+          "id": "person",
+          "x": 50,
+          "y": 55,
+          "width": 25,
+          "height": 15,
+          "defaultText": "Me"
+        },
+        {
+          "id": "balloon",
+          "x": 55,
+          "y": 5,
+          "width": 30,
+          "height": 15,
+          "defaultText": "Responsibilities"
+        },
+        {
+          "id": "distraction",
+          "x": 2,
+          "y": 55,
+          "width": 25,
+          "height": 15,
+          "defaultText": "Distraction"
+        }
+      ]
+    },
+    {
+      "id": "anakin-padme-4-panel",
+      "name": "Anakin Padme 4 Panel",
+      "aliases": [],
+      "tags": ["anakin", "padme", "panel"],
+      "category": "reaction",
+      "filename": "anakin-padme-4-panel.jpg",
+      "width": 768,
+      "height": 768,
+      "popularity": 9,
+      "textBoxes": [
+        {
+          "id": "anakin-1",
+          "x": 0,
+          "y": 0,
+          "width": 50,
+          "height": 15,
+          "defaultText": "Statement"
+        },
+        {
+          "id": "padme-1",
+          "x": 50,
+          "y": 0,
+          "width": 50,
+          "height": 50,
+          "defaultText": "Right...?"
+        },
+        {
+          "id": "anakin-2",
+          "x": 0,
+          "y": 50,
+          "width": 50,
+          "height": 50,
+          "defaultText": "..."
+        }
+      ]
+    },
+    {
+      "id": "gru-s-plan",
+      "name": "Gru's Plan",
+      "aliases": [],
+      "tags": ["grus", "plan"],
+      "category": "comparison",
+      "filename": "gru-s-plan.jpg",
+      "width": 700,
+      "height": 449,
+      "popularity": 10,
+      "textBoxes": [
+        {
+          "id": "step-1",
+          "x": 52,
+          "y": 0,
+          "width": 46,
+          "height": 25,
+          "defaultText": "Step 1"
+        },
+        {
+          "id": "step-2",
+          "x": 52,
+          "y": 25,
+          "width": 46,
+          "height": 25,
+          "defaultText": "Step 2"
+        },
+        {
+          "id": "step-3",
+          "x": 52,
+          "y": 50,
+          "width": 46,
+          "height": 25,
+          "defaultText": "Unexpected result"
+        },
+        {
+          "id": "realization",
+          "x": 52,
+          "y": 75,
+          "width": 46,
+          "height": 25,
+          "defaultText": "Wait..."
+        }
+      ]
+    },
+    {
+      "id": "epic-handshake",
+      "name": "Epic Handshake",
+      "aliases": [],
+      "tags": ["epic", "handshake"],
+      "category": "comparison",
+      "filename": "epic-handshake.jpg",
+      "width": 900,
+      "height": 645,
+      "popularity": 11,
+      "textBoxes": [
+        {
+          "id": "left",
+          "x": 2,
+          "y": 2,
+          "width": 30,
+          "height": 20,
+          "defaultText": "Group A"
+        },
+        {
+          "id": "center",
+          "x": 25,
+          "y": 70,
+          "width": 50,
+          "height": 25,
+          "defaultText": "Shared thing"
+        },
+        {
+          "id": "right",
+          "x": 68,
+          "y": 2,
+          "width": 30,
+          "height": 20,
+          "defaultText": "Group B"
+        }
+      ]
+    },
+    {
+      "id": "disaster-girl",
+      "name": "Disaster Girl",
+      "aliases": [],
+      "tags": ["disaster", "girl"],
+      "category": "reaction",
+      "filename": "disaster-girl.jpg",
+      "width": 500,
+      "height": 375,
+      "popularity": 12,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "sad-pablo-escobar",
+      "name": "Sad Pablo Escobar",
+      "aliases": [],
+      "tags": ["sad", "pablo", "escobar"],
+      "category": "reaction",
+      "filename": "sad-pablo-escobar.jpg",
+      "width": 720,
+      "height": 709,
+      "popularity": 13,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "When you..."
+        },
+        {
+          "id": "middle",
+          "x": 5,
+          "y": 40,
+          "width": 90,
+          "height": 20
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "...sad"
+        }
+      ]
+    },
+    {
+      "id": "waiting-skeleton",
+      "name": "Waiting Skeleton",
+      "aliases": [],
+      "tags": ["waiting", "skeleton"],
+      "category": "animals",
+      "filename": "waiting-skeleton.jpg",
+      "width": 298,
+      "height": 403,
+      "popularity": 14,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "x-x-everywhere",
+      "name": "X, X Everywhere",
+      "aliases": [],
+      "tags": ["everywhere"],
+      "category": "opinion",
+      "filename": "x-x-everywhere.jpg",
+      "width": 2118,
+      "height": 1440,
+      "popularity": 15,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "woman-yelling-at-cat",
+      "name": "Woman Yelling At Cat",
+      "aliases": [],
+      "tags": ["woman", "yelling", "cat"],
+      "category": "animals",
+      "filename": "woman-yelling-at-cat.jpg",
+      "width": 680,
+      "height": 438,
+      "popularity": 16,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "change-my-mind",
+      "name": "Change My Mind",
+      "aliases": [],
+      "tags": ["change", "mind"],
+      "category": "opinion",
+      "filename": "change-my-mind.jpg",
+      "width": 482,
+      "height": 361,
+      "popularity": 17,
+      "textBoxes": [
+        {
+          "id": "sign",
+          "x": 24,
+          "y": 55,
+          "width": 50,
+          "height": 30,
+          "defaultText": "Your hot take here"
+        }
+      ]
+    },
+    {
+      "id": "buff-doge-vs-cheems",
+      "name": "Buff Doge vs. Cheems",
+      "aliases": [],
+      "tags": ["buff", "doge", "cheems"],
+      "category": "comparison",
+      "filename": "buff-doge-vs-cheems.jpg",
+      "width": 937,
+      "height": 720,
+      "popularity": 18,
+      "textBoxes": [
+        {
+          "id": "buff-label",
+          "x": 2,
+          "y": 2,
+          "width": 45,
+          "height": 15,
+          "defaultText": "Strong version"
+        },
+        {
+          "id": "buff-text",
+          "x": 2,
+          "y": 75,
+          "width": 45,
+          "height": 23,
+          "defaultText": "Chad description"
+        },
+        {
+          "id": "cheems-label",
+          "x": 52,
+          "y": 2,
+          "width": 45,
+          "height": 15,
+          "defaultText": "Weak version"
+        },
+        {
+          "id": "cheems-text",
+          "x": 52,
+          "y": 75,
+          "width": 45,
+          "height": 23,
+          "defaultText": "Sad description"
+        }
+      ]
+    },
+    {
+      "id": "batman-slapping-robin",
+      "name": "Batman Slapping Robin",
+      "aliases": [],
+      "tags": ["batman", "slapping", "robin"],
+      "category": "classic",
+      "filename": "batman-slapping-robin.jpg",
+      "width": 400,
+      "height": 387,
+      "popularity": 19,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "mocking-spongebob",
+      "name": "Mocking Spongebob",
+      "aliases": [],
+      "tags": ["mocking", "spongebob"],
+      "category": "animals",
+      "filename": "mocking-spongebob.jpg",
+      "width": 502,
+      "height": 353,
+      "popularity": 20,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "expanding-brain",
+      "name": "Expanding Brain",
+      "aliases": [],
+      "tags": ["expanding", "brain"],
+      "category": "comparison",
+      "filename": "expanding-brain.jpg",
+      "width": 857,
+      "height": 1202,
+      "popularity": 21,
+      "textBoxes": [
+        {
+          "id": "panel-1",
+          "x": 0,
+          "y": 0,
+          "width": 50,
+          "height": 25,
+          "defaultText": "Normal idea"
+        },
+        {
+          "id": "panel-2",
+          "x": 0,
+          "y": 25,
+          "width": 50,
+          "height": 25,
+          "defaultText": "Smarter idea"
+        },
+        {
+          "id": "panel-3",
+          "x": 0,
+          "y": 50,
+          "width": 50,
+          "height": 25,
+          "defaultText": "Big brain idea"
+        },
+        {
+          "id": "panel-4",
+          "x": 0,
+          "y": 75,
+          "width": 50,
+          "height": 25,
+          "defaultText": "Galaxy brain idea"
+        }
+      ]
+    },
+    {
+      "id": "trade-offer",
+      "name": "Trade Offer",
+      "aliases": [],
+      "tags": ["trade", "offer"],
+      "category": "reaction",
+      "filename": "trade-offer.jpg",
+      "width": 607,
+      "height": 794,
+      "popularity": 22,
+      "textBoxes": [
+        {
+          "id": "i-receive",
+          "x": 5,
+          "y": 32,
+          "width": 42,
+          "height": 32,
+          "defaultText": "I receive"
+        },
+        {
+          "id": "you-receive",
+          "x": 53,
+          "y": 32,
+          "width": 42,
+          "height": 32,
+          "defaultText": "You receive"
+        }
+      ]
+    },
+    {
+      "id": "y-all-got-any-more-of-that",
+      "name": "Y'all Got Any More Of That",
+      "aliases": [],
+      "tags": ["yall", "got", "any", "more", "that"],
+      "category": "reaction",
+      "filename": "y-all-got-any-more-of-that.jpg",
+      "width": 600,
+      "height": 471,
+      "popularity": 23,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "tuxedo-winnie-the-pooh",
+      "name": "Tuxedo Winnie The Pooh",
+      "aliases": [],
+      "tags": ["tuxedo", "winnie", "the", "pooh"],
+      "category": "comparison",
+      "filename": "tuxedo-winnie-the-pooh.jpg",
+      "width": 800,
+      "height": 582,
+      "popularity": 24,
+      "textBoxes": [
+        {
+          "id": "regular",
+          "x": 52,
+          "y": 2,
+          "width": 46,
+          "height": 48,
+          "defaultText": "Regular way"
+        },
+        {
+          "id": "fancy",
+          "x": 52,
+          "y": 52,
+          "width": 46,
+          "height": 46,
+          "defaultText": "Fancy way"
+        }
+      ]
+    },
+    {
+      "id": "this-is-fine",
+      "name": "This Is Fine",
+      "aliases": [],
+      "tags": ["this", "fine"],
+      "category": "reaction",
+      "filename": "this-is-fine.jpg",
+      "width": 580,
+      "height": 282,
+      "popularity": 25,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "ancient-aliens",
+      "name": "Ancient Aliens",
+      "aliases": [],
+      "tags": ["ancient", "aliens"],
+      "category": "classic",
+      "filename": "ancient-aliens.jpg",
+      "width": 500,
+      "height": 437,
+      "popularity": 26,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "bike-fall",
+      "name": "Bike Fall",
+      "aliases": [],
+      "tags": ["bike", "fall"],
+      "category": "comparison",
+      "filename": "bike-fall.jpg",
+      "width": 500,
+      "height": 680,
+      "popularity": 27,
+      "textBoxes": [
+        {
+          "id": "stick",
+          "x": 50,
+          "y": 0,
+          "width": 48,
+          "height": 33,
+          "defaultText": "My plan"
+        },
+        {
+          "id": "wheel",
+          "x": 5,
+          "y": 33,
+          "width": 48,
+          "height": 33,
+          "defaultText": "What went wrong"
+        },
+        {
+          "id": "ground",
+          "x": 50,
+          "y": 66,
+          "width": 48,
+          "height": 33,
+          "defaultText": "The consequence"
+        }
+      ]
+    },
+    {
+      "id": "they-re-the-same-picture",
+      "name": "They're The Same Picture",
+      "aliases": [],
+      "tags": ["theyre", "the", "same", "picture"],
+      "category": "comparison",
+      "filename": "they-re-the-same-picture.jpg",
+      "width": 1363,
+      "height": 1524,
+      "popularity": 28,
+      "textBoxes": [
+        {
+          "id": "left-image",
+          "x": 10,
+          "y": 8,
+          "width": 35,
+          "height": 25,
+          "defaultText": "Thing A"
+        },
+        {
+          "id": "right-image",
+          "x": 55,
+          "y": 8,
+          "width": 35,
+          "height": 25,
+          "defaultText": "Thing B"
+        },
+        {
+          "id": "caption",
+          "x": 10,
+          "y": 72,
+          "width": 80,
+          "height": 15,
+          "defaultText": "They're the same picture"
+        }
+      ]
+    },
+    {
+      "id": "one-does-not-simply",
+      "name": "One Does Not Simply",
+      "aliases": [],
+      "tags": ["one", "does", "not", "simply"],
+      "category": "classic",
+      "filename": "one-does-not-simply.jpg",
+      "width": 568,
+      "height": 335,
+      "popularity": 29,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "is-this-a-pigeon",
+      "name": "Is This A Pigeon",
+      "aliases": [],
+      "tags": ["this", "pigeon"],
+      "category": "animals",
+      "filename": "is-this-a-pigeon.jpg",
+      "width": 1587,
+      "height": 1425,
+      "popularity": 30,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "this-is-where-i-d-put-my-trophy-if-i-had-one",
+      "name": "This Is Where I'd Put My Trophy If I Had One",
+      "aliases": [],
+      "tags": ["this", "where", "put", "trophy", "had", "one"],
+      "category": "reaction",
+      "filename": "this-is-where-i-d-put-my-trophy-if-i-had-one.jpg",
+      "width": 300,
+      "height": 418,
+      "popularity": 31,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "monkey-puppet",
+      "name": "Monkey Puppet",
+      "aliases": [],
+      "tags": ["monkey", "puppet"],
+      "category": "animals",
+      "filename": "monkey-puppet.jpg",
+      "width": 923,
+      "height": 768,
+      "popularity": 32,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "0-days-without-lenny-simpsons",
+      "name": "0 days without (Lenny, Simpsons)",
+      "aliases": [],
+      "tags": ["days", "without", "lenny", "simpsons"],
+      "category": "reaction",
+      "filename": "0-days-without-lenny-simpsons.jpg",
+      "width": 619,
+      "height": 403,
+      "popularity": 33,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "absolute-cinema",
+      "name": "Absolute Cinema",
+      "aliases": [],
+      "tags": ["absolute", "cinema"],
+      "category": "reaction",
+      "filename": "absolute-cinema.jpg",
+      "width": 936,
+      "height": 725,
+      "popularity": 34,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "mother-ignoring-kid-drowning-in-a-pool",
+      "name": "Mother Ignoring Kid Drowning In A Pool",
+      "aliases": [],
+      "tags": ["mother", "ignoring", "kid", "drowning", "pool"],
+      "category": "reaction",
+      "filename": "mother-ignoring-kid-drowning-in-a-pool.jpg",
+      "width": 782,
+      "height": 1032,
+      "popularity": 35,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "marked-safe-from",
+      "name": "Marked Safe From",
+      "aliases": [],
+      "tags": ["marked", "safe", "from"],
+      "category": "reaction",
+      "filename": "marked-safe-from.jpg",
+      "width": 618,
+      "height": 499,
+      "popularity": 36,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "bernie-sanders-once-again-asking",
+      "name": "Bernie Sanders Once Again Asking",
+      "aliases": [],
+      "tags": ["bernie", "sanders", "once", "again", "asking"],
+      "category": "opinion",
+      "filename": "bernie-sanders-once-again-asking.jpg",
+      "width": 926,
+      "height": 688,
+      "popularity": 37,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "you-guys-are-getting-paid",
+      "name": "You Guys are Getting Paid",
+      "aliases": [],
+      "tags": ["you", "guys", "are", "getting", "paid"],
+      "category": "opinion",
+      "filename": "you-guys-are-getting-paid.jpg",
+      "width": 520,
+      "height": 358,
+      "popularity": 38,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "i-bet-he-s-thinking-about-other-women",
+      "name": "I Bet He's Thinking About Other Women",
+      "aliases": [],
+      "tags": ["bet", "hes", "thinking", "about", "other", "women"],
+      "category": "reaction",
+      "filename": "i-bet-he-s-thinking-about-other-women.jpg",
+      "width": 1654,
+      "height": 930,
+      "popularity": 39,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "clown-applying-makeup",
+      "name": "Clown Applying Makeup",
+      "aliases": [],
+      "tags": ["clown", "applying", "makeup"],
+      "category": "comparison",
+      "filename": "clown-applying-makeup.jpg",
+      "width": 750,
+      "height": 798,
+      "popularity": 40,
+      "textBoxes": [
+        {
+          "id": "panel-1",
+          "x": 52,
+          "y": 0,
+          "width": 46,
+          "height": 25,
+          "defaultText": "Step 1"
+        },
+        {
+          "id": "panel-2",
+          "x": 52,
+          "y": 25,
+          "width": 46,
+          "height": 25,
+          "defaultText": "Step 2"
+        },
+        {
+          "id": "panel-3",
+          "x": 52,
+          "y": 50,
+          "width": 46,
+          "height": 25,
+          "defaultText": "Step 3"
+        },
+        {
+          "id": "panel-4",
+          "x": 52,
+          "y": 75,
+          "width": 46,
+          "height": 25,
+          "defaultText": "Full clown"
+        }
+      ]
+    },
+    {
+      "id": "oprah-you-get-a",
+      "name": "Oprah You Get A",
+      "aliases": [],
+      "tags": ["oprah", "you", "get"],
+      "category": "reaction",
+      "filename": "oprah-you-get-a.jpg",
+      "width": 620,
+      "height": 465,
+      "popularity": 41,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "megamind-peeking",
+      "name": "Megamind peeking",
+      "aliases": [],
+      "tags": ["megamind", "peeking"],
+      "category": "opinion",
+      "filename": "megamind-peeking.jpg",
+      "width": 540,
+      "height": 540,
+      "popularity": 42,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "squidward-window",
+      "name": "Squidward window",
+      "aliases": [],
+      "tags": ["squidward", "window"],
+      "category": "reaction",
+      "filename": "squidward-window.jpg",
+      "width": 598,
+      "height": 420,
+      "popularity": 43,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "hide-the-pain-harold",
+      "name": "Hide the Pain Harold",
+      "aliases": [],
+      "tags": ["hide", "the", "pain", "harold"],
+      "category": "reaction",
+      "filename": "hide-the-pain-harold.jpg",
+      "width": 480,
+      "height": 601,
+      "popularity": 44,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "evil-kermit",
+      "name": "Evil Kermit",
+      "aliases": [],
+      "tags": ["evil", "kermit"],
+      "category": "animals",
+      "filename": "evil-kermit.jpg",
+      "width": 700,
+      "height": 325,
+      "popularity": 45,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "laughing-leo",
+      "name": "Laughing Leo",
+      "aliases": [],
+      "tags": ["laughing", "leo"],
+      "category": "reaction",
+      "filename": "laughing-leo.jpg",
+      "width": 470,
+      "height": 470,
+      "popularity": 46,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "boardroom-meeting-suggestion",
+      "name": "Boardroom Meeting Suggestion",
+      "aliases": [],
+      "tags": ["boardroom", "meeting", "suggestion"],
+      "category": "opinion",
+      "filename": "boardroom-meeting-suggestion.jpg",
+      "width": 500,
+      "height": 649,
+      "popularity": 47,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "pawn-stars-best-i-can-do",
+      "name": "Pawn Stars Best I Can Do",
+      "aliases": [],
+      "tags": ["pawn", "stars", "best", "can"],
+      "category": "reaction",
+      "filename": "pawn-stars-best-i-can-do.jpg",
+      "width": 624,
+      "height": 352,
+      "popularity": 48,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "roll-safe-think-about-it",
+      "name": "Roll Safe Think About It",
+      "aliases": [],
+      "tags": ["roll", "safe", "think", "about"],
+      "category": "reaction",
+      "filename": "roll-safe-think-about-it.jpg",
+      "width": 702,
+      "height": 395,
+      "popularity": 49,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "spider-man-triple",
+      "name": "Spider Man Triple",
+      "aliases": [],
+      "tags": ["spider", "man", "triple"],
+      "category": "reaction",
+      "filename": "spider-man-triple.jpg",
+      "width": 600,
+      "height": 551,
+      "popularity": 50,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "soldier-protecting-sleeping-child",
+      "name": "Soldier protecting sleeping child",
+      "aliases": [],
+      "tags": ["soldier", "protecting", "sleeping", "child"],
+      "category": "reaction",
+      "filename": "soldier-protecting-sleeping-child.jpg",
+      "width": 540,
+      "height": 440,
+      "popularity": 51,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "blank-nut-button",
+      "name": "Blank Nut Button",
+      "aliases": [],
+      "tags": ["blank", "nut", "button"],
+      "category": "reaction",
+      "filename": "blank-nut-button.jpg",
+      "width": 600,
+      "height": 446,
+      "popularity": 52,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "bell-curve",
+      "name": "Bell Curve",
+      "aliases": [],
+      "tags": ["bell", "curve"],
+      "category": "comparison",
+      "filename": "bell-curve.jpg",
+      "width": 675,
+      "height": 499,
+      "popularity": 53,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "futurama-fry",
+      "name": "Futurama Fry",
+      "aliases": [],
+      "tags": ["futurama", "fry"],
+      "category": "classic",
+      "filename": "futurama-fry.jpg",
+      "width": 552,
+      "height": 414,
+      "popularity": 54,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "panik-kalm-panik",
+      "name": "Panik Kalm Panik",
+      "aliases": [],
+      "tags": ["panik", "kalm"],
+      "category": "reaction",
+      "filename": "panik-kalm-panik.jpg",
+      "width": 640,
+      "height": 881,
+      "popularity": 55,
+      "textBoxes": [
+        {
+          "id": "panik-1",
+          "x": 0,
+          "y": 0,
+          "width": 50,
+          "height": 33,
+          "defaultText": "Scary thing"
+        },
+        {
+          "id": "kalm",
+          "x": 0,
+          "y": 33,
+          "width": 50,
+          "height": 33,
+          "defaultText": "Resolution"
+        },
+        {
+          "id": "panik-2",
+          "x": 0,
+          "y": 66,
+          "width": 50,
+          "height": 33,
+          "defaultText": "Even scarier"
+        }
+      ]
+    },
+    {
+      "id": "surprised-pikachu",
+      "name": "Surprised Pikachu",
+      "aliases": [],
+      "tags": ["surprised", "pikachu"],
+      "category": "reaction",
+      "filename": "surprised-pikachu.jpg",
+      "width": 1893,
+      "height": 1893,
+      "popularity": 56,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "sleeping-shaq",
+      "name": "Sleeping Shaq",
+      "aliases": [],
+      "tags": ["sleeping", "shaq"],
+      "category": "reaction",
+      "filename": "sleeping-shaq.jpg",
+      "width": 640,
+      "height": 631,
+      "popularity": 57,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "leonardo-dicaprio-cheers",
+      "name": "Leonardo Dicaprio Cheers",
+      "aliases": [],
+      "tags": ["leonardo", "dicaprio", "cheers"],
+      "category": "reaction",
+      "filename": "leonardo-dicaprio-cheers.jpg",
+      "width": 600,
+      "height": 400,
+      "popularity": 58,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "they-don-t-know",
+      "name": "They don't know",
+      "aliases": [],
+      "tags": ["they", "dont", "know"],
+      "category": "reaction",
+      "filename": "they-don-t-know.jpg",
+      "width": 671,
+      "height": 673,
+      "popularity": 59,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "flex-tape",
+      "name": "Flex Tape",
+      "aliases": [],
+      "tags": ["flex", "tape"],
+      "category": "classic",
+      "filename": "flex-tape.jpg",
+      "width": 510,
+      "height": 572,
+      "popularity": 60,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "where-monkey",
+      "name": "where monkey",
+      "aliases": [],
+      "tags": ["where", "monkey"],
+      "category": "animals",
+      "filename": "where-monkey.jpg",
+      "width": 1113,
+      "height": 629,
+      "popularity": 61,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "imagination-spongebob",
+      "name": "Imagination Spongebob",
+      "aliases": [],
+      "tags": ["imagination", "spongebob"],
+      "category": "animals",
+      "filename": "imagination-spongebob.jpg",
+      "width": 500,
+      "height": 366,
+      "popularity": 62,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "two-guys-on-a-bus",
+      "name": "Two guys on a bus",
+      "aliases": [],
+      "tags": ["two", "guys", "bus"],
+      "category": "reaction",
+      "filename": "two-guys-on-a-bus.jpg",
+      "width": 762,
+      "height": 675,
+      "popularity": 63,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "george-bush-9-11",
+      "name": "George Bush 9/11",
+      "aliases": [],
+      "tags": ["george", "bush", "911"],
+      "category": "reaction",
+      "filename": "george-bush-9-11.jpg",
+      "width": 300,
+      "height": 180,
+      "popularity": 64,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "inhaling-seagull",
+      "name": "Inhaling Seagull",
+      "aliases": [],
+      "tags": ["inhaling", "seagull"],
+      "category": "reaction",
+      "filename": "inhaling-seagull.jpg",
+      "width": 1269,
+      "height": 2825,
+      "popularity": 65,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "friendship-ended",
+      "name": "Friendship ended",
+      "aliases": [],
+      "tags": ["friendship", "ended"],
+      "category": "reaction",
+      "filename": "friendship-ended.jpg",
+      "width": 800,
+      "height": 600,
+      "popularity": 66,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "third-world-skeptical-kid",
+      "name": "Third World Skeptical Kid",
+      "aliases": [],
+      "tags": ["third", "world", "skeptical", "kid"],
+      "category": "reaction",
+      "filename": "third-world-skeptical-kid.jpg",
+      "width": 426,
+      "height": 426,
+      "popularity": 67,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "aj-styles-undertaker",
+      "name": "AJ Styles & Undertaker",
+      "aliases": [],
+      "tags": ["styles", "undertaker"],
+      "category": "reaction",
+      "filename": "aj-styles-undertaker.jpg",
+      "width": 933,
+      "height": 525,
+      "popularity": 68,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "types-of-headaches-meme",
+      "name": "Types of Headaches meme",
+      "aliases": [],
+      "tags": ["types", "headaches", "meme"],
+      "category": "reaction",
+      "filename": "types-of-headaches-meme.jpg",
+      "width": 483,
+      "height": 497,
+      "popularity": 69,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "no-yes",
+      "name": "No - Yes",
+      "aliases": [],
+      "tags": ["yes"],
+      "category": "reaction",
+      "filename": "no-yes.jpg",
+      "width": 429,
+      "height": 343,
+      "popularity": 70,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "grandma-finds-the-internet",
+      "name": "Grandma Finds The Internet",
+      "aliases": [],
+      "tags": ["grandma", "finds", "the", "internet"],
+      "category": "reaction",
+      "filename": "grandma-finds-the-internet.jpg",
+      "width": 640,
+      "height": 480,
+      "popularity": 71,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "a-train-hitting-a-school-bus",
+      "name": "A train hitting a school bus",
+      "aliases": [],
+      "tags": ["train", "hitting", "school", "bus"],
+      "category": "reaction",
+      "filename": "a-train-hitting-a-school-bus.jpg",
+      "width": 920,
+      "height": 1086,
+      "popularity": 72,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "grant-gustin-over-grave",
+      "name": "Grant Gustin over grave",
+      "aliases": [],
+      "tags": ["grant", "gustin", "over", "grave"],
+      "category": "reaction",
+      "filename": "grant-gustin-over-grave.jpg",
+      "width": 500,
+      "height": 475,
+      "popularity": 73,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "whisper-and-goosebumps",
+      "name": "Whisper and Goosebumps",
+      "aliases": [],
+      "tags": ["whisper", "and", "goosebumps"],
+      "category": "reaction",
+      "filename": "whisper-and-goosebumps.jpg",
+      "width": 600,
+      "height": 600,
+      "popularity": 74,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "three-headed-dragon",
+      "name": "Three-headed Dragon",
+      "aliases": [],
+      "tags": ["threeheaded", "dragon"],
+      "category": "reaction",
+      "filename": "three-headed-dragon.jpg",
+      "width": 680,
+      "height": 544,
+      "popularity": 75,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "anime-girl-hiding-from-terminator",
+      "name": "Anime Girl Hiding from Terminator",
+      "aliases": [],
+      "tags": ["anime", "girl", "hiding", "from", "terminator"],
+      "category": "reaction",
+      "filename": "anime-girl-hiding-from-terminator.jpg",
+      "width": 581,
+      "height": 633,
+      "popularity": 76,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "two-paths",
+      "name": "Two Paths",
+      "aliases": [],
+      "tags": ["two", "paths"],
+      "category": "reaction",
+      "filename": "two-paths.jpg",
+      "width": 416,
+      "height": 416,
+      "popularity": 77,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "the-rock-driving",
+      "name": "The Rock Driving",
+      "aliases": [],
+      "tags": ["the", "rock", "driving"],
+      "category": "reaction",
+      "filename": "the-rock-driving.jpg",
+      "width": 568,
+      "height": 700,
+      "popularity": 78,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "all-my-homies-hate",
+      "name": "All My Homies Hate",
+      "aliases": [],
+      "tags": ["all", "homies", "hate"],
+      "category": "reaction",
+      "filename": "all-my-homies-hate.jpg",
+      "width": 680,
+      "height": 615,
+      "popularity": 79,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "trump-bill-signing",
+      "name": "Trump Bill Signing",
+      "aliases": [],
+      "tags": ["trump", "bill", "signing"],
+      "category": "reaction",
+      "filename": "trump-bill-signing.jpg",
+      "width": 1866,
+      "height": 1529,
+      "popularity": 80,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "spiderman-pointing-at-spiderman",
+      "name": "spiderman pointing at spiderman",
+      "aliases": [],
+      "tags": ["spiderman", "pointing"],
+      "category": "reaction",
+      "filename": "spiderman-pointing-at-spiderman.jpg",
+      "width": 800,
+      "height": 450,
+      "popularity": 81,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "star-wars-yoda",
+      "name": "Star Wars Yoda",
+      "aliases": [],
+      "tags": ["star", "wars", "yoda"],
+      "category": "reaction",
+      "filename": "star-wars-yoda.jpg",
+      "width": 620,
+      "height": 714,
+      "popularity": 82,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "look-at-me",
+      "name": "Look At Me",
+      "aliases": [],
+      "tags": ["look"],
+      "category": "reaction",
+      "filename": "look-at-me.jpg",
+      "width": 300,
+      "height": 300,
+      "popularity": 83,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "the-scroll-of-truth",
+      "name": "The Scroll Of Truth",
+      "aliases": [],
+      "tags": ["the", "scroll", "truth"],
+      "category": "comparison",
+      "filename": "the-scroll-of-truth.jpg",
+      "width": 1280,
+      "height": 1236,
+      "popularity": 84,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "who-killed-hannibal",
+      "name": "Who Killed Hannibal",
+      "aliases": [],
+      "tags": ["who", "killed", "hannibal"],
+      "category": "opinion",
+      "filename": "who-killed-hannibal.jpg",
+      "width": 1280,
+      "height": 1440,
+      "popularity": 85,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "megamind-no-bitches",
+      "name": "Megamind no bitches",
+      "aliases": [],
+      "tags": ["megamind", "bitches"],
+      "category": "opinion",
+      "filename": "megamind-no-bitches.jpg",
+      "width": 674,
+      "height": 734,
+      "popularity": 86,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "success-kid",
+      "name": "Success Kid",
+      "aliases": [],
+      "tags": ["success", "kid"],
+      "category": "classic",
+      "filename": "success-kid.jpg",
+      "width": 500,
+      "height": 500,
+      "popularity": 87,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "yo-dawg-heard-you",
+      "name": "Yo Dawg Heard You",
+      "aliases": [],
+      "tags": ["dawg", "heard", "you"],
+      "category": "reaction",
+      "filename": "yo-dawg-heard-you.jpg",
+      "width": 500,
+      "height": 323,
+      "popularity": 88,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "is-this-butterfly",
+      "name": "is this butterfly",
+      "aliases": [],
+      "tags": ["this", "butterfly"],
+      "category": "reaction",
+      "filename": "is-this-butterfly.jpg",
+      "width": 1587,
+      "height": 1425,
+      "popularity": 89,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "american-chopper-argument",
+      "name": "American Chopper Argument",
+      "aliases": [],
+      "tags": ["american", "chopper", "argument"],
+      "category": "reaction",
+      "filename": "american-chopper-argument.jpg",
+      "width": 640,
+      "height": 1800,
+      "popularity": 90,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "scooby-doo-mask-reveal",
+      "name": "Scooby doo mask reveal",
+      "aliases": [],
+      "tags": ["scooby", "doo", "mask", "reveal"],
+      "category": "reaction",
+      "filename": "scooby-doo-mask-reveal.jpg",
+      "width": 720,
+      "height": 960,
+      "popularity": 91,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "whe-i-m-in-a-competition-and-my-opponent-is",
+      "name": "whe i'm in a competition and my opponent is",
+      "aliases": [],
+      "tags": ["whe", "competition", "and", "opponent"],
+      "category": "reaction",
+      "filename": "whe-i-m-in-a-competition-and-my-opponent-is.jpg",
+      "width": 916,
+      "height": 900,
+      "popularity": 92,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "disappointed-black-guy",
+      "name": "Disappointed Black Guy",
+      "aliases": [],
+      "tags": ["disappointed", "black", "guy"],
+      "category": "reaction",
+      "filename": "disappointed-black-guy.jpg",
+      "width": 1172,
+      "height": 756,
+      "popularity": 93,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "patrick-to-do-list-actually-blank",
+      "name": "patrick to do list actually blank",
+      "aliases": [],
+      "tags": ["patrick", "list", "actually", "blank"],
+      "category": "reaction",
+      "filename": "patrick-to-do-list-actually-blank.jpg",
+      "width": 1000,
+      "height": 625,
+      "popularity": 94,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "say-the-line-bart-simpsons",
+      "name": "say the line bart! simpsons",
+      "aliases": [],
+      "tags": ["say", "the", "line", "bart", "simpsons"],
+      "category": "reaction",
+      "filename": "say-the-line-bart-simpsons.jpg",
+      "width": 395,
+      "height": 650,
+      "popularity": 95,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "domino-effect",
+      "name": "Domino Effect",
+      "aliases": [],
+      "tags": ["domino", "effect"],
+      "category": "reaction",
+      "filename": "domino-effect.jpg",
+      "width": 820,
+      "height": 565,
+      "popularity": 96,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "charlie-conspiracy-always-sunny-in-philidelphia",
+      "name": "Charlie Conspiracy (Always Sunny in Philidelphia)",
+      "aliases": [],
+      "tags": ["charlie", "conspiracy", "always", "sunny", "philidelphia"],
+      "category": "reaction",
+      "filename": "charlie-conspiracy-always-sunny-in-philidelphia.jpg",
+      "width": 1024,
+      "height": 768,
+      "popularity": 97,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "finding-neverland",
+      "name": "Finding Neverland",
+      "aliases": [],
+      "tags": ["finding", "neverland"],
+      "category": "reaction",
+      "filename": "finding-neverland.jpg",
+      "width": 423,
+      "height": 600,
+      "popularity": 98,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "i-m-the-captain-now",
+      "name": "I'm The Captain Now",
+      "aliases": [],
+      "tags": ["the", "captain", "now"],
+      "category": "reaction",
+      "filename": "i-m-the-captain-now.jpg",
+      "width": 478,
+      "height": 350,
+      "popularity": 99,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "grim-reaper-knocking-door",
+      "name": "Grim Reaper Knocking Door",
+      "aliases": [],
+      "tags": ["grim", "reaper", "knocking", "door"],
+      "category": "reaction",
+      "filename": "grim-reaper-knocking-door.jpg",
+      "width": 500,
+      "height": 312,
+      "popularity": 100,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    },
+    {
+      "id": "grumpy-cat",
+      "name": "Grumpy Cat",
+      "aliases": [],
+      "tags": ["grumpy", "cat"],
+      "category": "animals",
+      "filename": "grumpy-cat.jpg",
+      "width": 800,
+      "height": 600,
+      "popularity": 101,
+      "textBoxes": [
+        {
+          "id": "top",
+          "x": 5,
+          "y": 2,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Top text"
+        },
+        {
+          "id": "bottom",
+          "x": 5,
+          "y": 78,
+          "width": 90,
+          "height": 20,
+          "defaultText": "Bottom text"
+        }
+      ]
+    }
+  ]
+}

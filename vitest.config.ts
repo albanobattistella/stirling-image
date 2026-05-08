@@ -107,6 +107,7 @@ export default defineConfig({
       jsqr: path.join(apiNodeModules, "jsqr"),
       pdfkit: path.join(apiNodeModules, "pdfkit"),
       sharp: path.join(apiNodeModules, "sharp"),
+      "opentype.js": path.join(apiNodeModules, "opentype.js"),
       react: path.join(webNodeModules, "react"),
       "react-dom": path.join(webNodeModules, "react-dom"),
       "react-router-dom": path.join(webNodeModules, "react-router-dom"),

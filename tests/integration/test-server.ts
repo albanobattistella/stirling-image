@@ -38,6 +38,7 @@ import { auditLogRoutes } from "../../apps/api/src/routes/audit-log.js";
 import { registerBatchRoutes } from "../../apps/api/src/routes/batch.js";
 import { docsRoutes } from "../../apps/api/src/routes/docs.js";
 import { fileRoutes } from "../../apps/api/src/routes/files.js";
+import { registerMemeTemplates } from "../../apps/api/src/routes/meme-templates.js";
 import { registerPipelineRoutes } from "../../apps/api/src/routes/pipeline.js";
 import { registerProgressRoutes } from "../../apps/api/src/routes/progress.js";
 import { rolesRoutes } from "../../apps/api/src/routes/roles.js";
@@ -89,6 +90,9 @@ export async function buildTestApp(): Promise<TestApp> {
 
   // User file library routes (persistent file management with versioning)
   await userFileRoutes(app);
+
+  // Meme template routes
+  await registerMemeTemplates(app);
 
   // Tool routes
   await registerToolRoutes(app);

@@ -311,6 +311,16 @@ const TransparencyFixerSettings = lazy(() =>
     default: m.TransparencyFixerSettings,
   })),
 );
+const MemeGeneratorSettings = lazy(() =>
+  import("@/components/tools/meme-generator-settings").then((m) => ({
+    default: m.MemeGeneratorSettings,
+  })),
+);
+const MemeGeneratorPreview = lazy(() =>
+  import("@/components/tools/meme-generator-preview").then((m) => ({
+    default: m.MemeGeneratorPreview,
+  })),
+);
 const ColorBlindnessSettings = lazy(() =>
   import("@/components/tools/color-blindness-settings").then((m) => ({
     default: m.ColorBlindnessSettings,
@@ -378,6 +388,14 @@ export const toolRegistry = new Map<string, ToolRegistryEntry>([
   ["watermark-image", { displayMode: "before-after", Settings: WatermarkImageSettings }],
   ["text-overlay", { displayMode: "before-after", Settings: TextOverlaySettings }],
   ["compose", { displayMode: "before-after", Settings: ComposeSettings }],
+  [
+    "meme-generator",
+    {
+      displayMode: "no-dropzone",
+      Settings: MemeGeneratorSettings,
+      ResultsPanel: MemeGeneratorPreview,
+    },
+  ],
 
   // Utilities
   ["info", { displayMode: "before-after", Settings: InfoSettings }],

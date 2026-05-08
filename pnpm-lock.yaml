@@ -144,6 +144,9 @@ importers:
       mupdf:
         specifier: ^1.27.0
         version: 1.27.0
+      opentype.js:
+        specifier: ^2.0.0
+        version: 2.0.0
       p-queue:
         specifier: ^9.1.0
         version: 9.1.0
@@ -187,6 +190,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.15
+      '@types/opentype.js':
+        specifier: ^1.3.9
+        version: 1.3.9
       '@types/pdfkit':
         specifier: ^0.17.5
         version: 0.17.5
@@ -3398,6 +3404,9 @@ packages:
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
 
+  '@types/opentype.js@1.3.9':
+    resolution: {integrity: sha512-KOGywvDPncA4/tTWV5xKNhjpsoSSAHIx3mHOhL5l3XX+c6Xu2dQnHvGs7mRNQsQRte1EqmQ0cPQQ8Z14lkv+yw==}
+
   '@types/pdfkit@0.17.5':
     resolution: {integrity: sha512-T3ZHnvF91HsEco5ClhBCOuBwobZfPcI2jaiSHybkkKYq4KhVIIurod94JVKvDIG0JXT6o3KiERC0X0//m8dyrg==}
 
@@ -5560,6 +5569,10 @@ packages:
 
   oniguruma-to-es@3.1.1:
     resolution: {integrity: sha512-bUH8SDvPkH3ho3dvwJwfonjlQ4R80vjyvrU8YpxuROddv55vAEJrTuCuCVUhhsHbtlD9tGGbaNApGQckXhS8iQ==}
+
+  opentype.js@2.0.0:
+    resolution: {integrity: sha512-kCyjv6xdDY1W/jLWZ/L3QhhTlKUqDZMQ5+Jdlw12b3dXkKNpYBqqlMMj0YDQPShWFTMwgZI1hG14kN3XUDSg/A==}
+    hasBin: true
 
   p-each-series@3.0.0:
     resolution: {integrity: sha512-lastgtAdoH9YaLyDa5i5z64q+kzOcQHsQ5SsZJD3q0VEyI8mq872S3geuNbRUQLVAE9siMfgKrpj7MloKFHruw==}
@@ -9814,6 +9827,8 @@ snapshots:
 
   '@types/normalize-package-data@2.4.4': {}
 
+  '@types/opentype.js@1.3.9': {}
+
   '@types/pdfkit@0.17.5':
     dependencies:
       '@types/node': 22.19.15
@@ -12067,6 +12082,8 @@ snapshots:
       emoji-regex-xs: 1.0.0
       regex: 6.1.0
       regex-recursion: 6.0.2
+
+  opentype.js@2.0.0: {}
 
   p-each-series@3.0.0: {}
 

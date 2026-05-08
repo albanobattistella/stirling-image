@@ -225,6 +225,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store/v3 \
 # Copy source code for API (tsx runs TS directly - no build step needed)
 COPY apps/api/src ./apps/api/src
 COPY apps/api/drizzle ./apps/api/drizzle
+COPY apps/api/static ./apps/api/static
 
 # Copy workspace packages source (referenced by API at runtime)
 COPY packages/shared/src ./packages/shared/src
