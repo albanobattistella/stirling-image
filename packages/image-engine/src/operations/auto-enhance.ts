@@ -226,10 +226,12 @@ export function applyCorrections(
   // maxSlope must be an integer (Sharp requirement); skip for tiny images
   if (toggles.contrast !== false) {
     const maxSlope = clamp(Math.round(1.0 + (intensity / 100) * 4.0 * presets.clahe), 1, 10);
-    const minDim = imageSize ? Math.min(imageSize.width, imageSize.height) : 4;
-    const tileSize = minDim >= 3 ? 3 : 1;
-    if (maxSlope >= 2) {
-      result = result.clahe({ width: tileSize, height: tileSize, maxSlope });
+    const w = imageSize?.width ?? 64;
+    const h = imageSize?.height ?? 64;
+    const tileW = clamp(Math.round(w / 8), 8, 256);
+    const tileH = clamp(Math.round(h / 8), 8, 256);
+    if (maxSlope >= 2 && w >= tileW && h >= tileH) {
+      result = result.clahe({ width: tileW, height: tileH, maxSlope });
     }
   }
 

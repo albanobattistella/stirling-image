@@ -41,8 +41,18 @@ async function processImageEnhancement(
   const outputFormat = await resolveOutputFormat(inputBuffer, filename);
   const analysis = await analyzeImage(inputBuffer);
   const meta = await sharp(inputBuffer).metadata();
+  const hasAlpha = meta.hasAlpha === true;
+
+  let alphaBuffer: Buffer | undefined;
+  if (hasAlpha) {
+    alphaBuffer = await sharp(inputBuffer).extractChannel(3).toBuffer();
+  }
 
   let image = sharp(inputBuffer);
+  if (hasAlpha) {
+    image = image.removeAlpha();
+  }
+
   image = applyCorrections(
     image,
     analysis.corrections,
@@ -55,6 +65,13 @@ async function processImageEnhancement(
   let buffer = await image
     .toFormat(outputFormat.format, { quality: outputFormat.quality })
     .toBuffer();
+
+  if (alphaBuffer) {
+    buffer = await sharp(buffer)
+      .joinChannel(alphaBuffer)
+      .toFormat(outputFormat.format, { quality: outputFormat.quality })
+      .toBuffer();
+  }
 
   if (settings.deepEnhance && isToolInstalled("noise-removal")) {
     try {

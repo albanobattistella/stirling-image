@@ -530,6 +530,83 @@ describe("HEIC input enhancement", () => {
   });
 });
 
+// ── Alpha channel preservation ─────────────────────────────────
+describe("Alpha channel preservation", () => {
+  it("preserves alpha channel without crosshatch corruption", async () => {
+    const rgbaBuffer = await sharp({
+      create: {
+        width: 100,
+        height: 100,
+        channels: 4,
+        background: { r: 80, g: 120, b: 60, alpha: 1 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const res = await postTool(
+      { mode: "auto", intensity: 80 },
+      rgbaBuffer,
+      "rgba.png",
+      "image/png",
+    );
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    const { data, info } = await sharp(dlRes.rawPayload)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    for (let i = 3; i < data.length; i += 4) {
+      expect(data[i]).toBe(255);
+    }
+  });
+
+  it("preserves partial transparency in PNG", async () => {
+    const semiTransparent = await sharp({
+      create: {
+        width: 50,
+        height: 50,
+        channels: 4,
+        background: { r: 100, g: 100, b: 100, alpha: 0.5 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const res = await postTool(
+      { mode: "auto", intensity: 50 },
+      semiTransparent,
+      "semi.png",
+      "image/png",
+    );
+    expect(res.statusCode).toBe(200);
+    const result = JSON.parse(res.body);
+
+    const dlRes = await app.inject({
+      method: "GET",
+      url: result.downloadUrl,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    const meta = await sharp(dlRes.rawPayload).metadata();
+    expect(meta.channels).toBe(4);
+
+    const { data, info } = await sharp(dlRes.rawPayload)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const alphaValues = new Set<number>();
+    for (let i = 3; i < data.length; i += info.channels) {
+      alphaValues.add(data[i]);
+    }
+    expect(alphaValues.size).toBe(1);
+  });
+});
+
 // ── Large file handling ─────────────────────────────────────────
 describe("Large file handling", () => {
   it("enhances a large stress image", async () => {
