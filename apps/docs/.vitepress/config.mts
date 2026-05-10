@@ -1,5 +1,6 @@
 import { defineConfig } from "vitepress";
 import llmstxt from "vitepress-plugin-llms";
+import pkg from "../package.json";
 
 export default defineConfig({
   title: "SnapOtter",
@@ -63,6 +64,10 @@ export default defineConfig({
       { text: "Home", link: "/" },
       { text: "Guide", link: "/guide/getting-started" },
       { text: "API Reference", link: "/api/rest" },
+      {
+        text: `v${pkg.version}`,
+        link: "https://github.com/snapotter-hq/snapotter/releases",
+      },
     ],
 
     sidebar: [
