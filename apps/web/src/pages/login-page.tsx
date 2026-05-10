@@ -1,5 +1,63 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { setToken } from "@/lib/api";
+
+const phrases = [
+  "No signups. No accounts.",
+  "No uploads to the cloud. Ever.",
+  "100% local processing.",
+  "Free. Forever.",
+  "No limits. No hidden caps.",
+  "Works fully offline.",
+  "Unlimited batch processing.",
+  "51 image tools.",
+  "15 AI models. Your hardware.",
+  "Lightning fast. Built on Sharp.",
+  "Air-gapped ready.",
+  "One Docker container.",
+  "Open source. Always.",
+  "Every pixel stays on your hardware.",
+  "Your server. Your rules.",
+  "Deploys in a single docker pull.",
+  "The self-hosted alternative.",
+  "Resize, compress, convert. Locally.",
+  "Free image editor. No watermarks.",
+  "Bulk image processing. Unlimited.",
+  "Remove backgrounds offline.",
+  "Self-hosted Canva alternative.",
+  "No API keys needed.",
+  "GDPR compliant by design.",
+  "Works without internet.",
+];
+
+function RotatingPhrase() {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  const advance = useCallback(() => {
+    setVisible(false);
+    setTimeout(() => {
+      setIndex((i) => (i + 1) % phrases.length);
+      setVisible(true);
+    }, 300);
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(advance, 3000);
+    return () => clearInterval(timer);
+  }, [advance]);
+
+  return (
+    <span
+      className="inline-block transition-all duration-300 text-white/90"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(-8px)",
+      }}
+    >
+      {phrases[index]}
+    </span>
+  );
+}
 
 export function LoginPage() {
   const [username, setUsername] = useState("");
@@ -94,11 +152,11 @@ export function LoginPage() {
         </div>
       </div>
       <div className="hidden lg:flex flex-1 bg-primary/90 items-center justify-center p-12 text-white rounded-l-3xl">
-        <div className="max-w-lg space-y-6 text-center">
-          <h2 className="text-3xl font-bold">Your one-stop-shop for all your image needs.</h2>
-          <p className="text-lg text-white/80">
-            A privacy-first image suite that lets you resize, compress, convert, and process images
-            with 33+ powerful tools.
+        <div className="max-w-lg space-y-4 text-center">
+          <h2 className="text-4xl font-extrabold tracking-tight">Your images. Stay yours.</h2>
+          <p className="text-lg text-white/70">Every image tool you need.</p>
+          <p className="text-xl font-medium h-8">
+            <RotatingPhrase />
           </p>
         </div>
       </div>

@@ -16,7 +16,7 @@ test.describe("Login Page", () => {
     await expect(page.getByRole("button", { name: /login/i })).toBeVisible();
 
     // Right side: marketing text (hidden on mobile, visible on lg+)
-    await expect(page.getByText("Your one-stop-shop")).toBeVisible();
+    await expect(page.getByText("Your images. Stay yours.")).toBeVisible();
   });
 
   test("username and password inputs start empty", async ({ page }) => {

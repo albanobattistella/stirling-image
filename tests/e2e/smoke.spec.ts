@@ -9,7 +9,7 @@ test.describe("Smoke tests", () => {
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: /login/i })).toBeVisible();
     // Right panel marketing text
-    await expect(page.getByText("Your one-stop-shop")).toBeVisible();
+    await expect(page.getByText("Your images. Stay yours.")).toBeVisible();
   });
 
   test("can log in with admin credentials", async ({ page }) => {

@@ -23,9 +23,7 @@ test.describe("Landing Homepage", () => {
 
   test("hero section renders headline and subheadline", async ({ page }) => {
     await expect(page.getByText("Your images. Stay yours.")).toBeVisible();
-    await expect(
-      page.getByText("The open-source, self-hosted image processing platform."),
-    ).toBeVisible();
+    await expect(page.getByText("Every image tool you need.")).toBeVisible();
   });
 
   test("hero CTA links to GitHub", async ({ page }) => {
@@ -59,9 +57,9 @@ test.describe("Landing Homepage", () => {
   });
 
   test("bento grid renders with search and tool count", async ({ page }) => {
-    await expect(page.getByText("50 tools. Zero cloud dependency.")).toBeVisible();
+    await expect(page.getByText("51 tools. Zero cloud dependency.")).toBeVisible();
     await expect(page.getByPlaceholder("Search tools...")).toBeVisible();
-    await expect(page.getByText(/Showing 50 of 50 tools/)).toBeVisible();
+    await expect(page.getByText(/Showing 51 of 51 tools/)).toBeVisible();
   });
 
   test("enterprise section renders feature cards", async ({ page }) => {

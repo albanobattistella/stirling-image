@@ -24,6 +24,7 @@ import {
   Grid3x3,
   ImagePlus,
   Info,
+  Laugh,
   Layers,
   LayoutGrid,
   Maximize2,
@@ -275,6 +276,12 @@ const tools: { name: string; description: string; category: string; icon: Lucide
     category: "watermark",
     icon: Layers,
   },
+  {
+    name: "Meme Generator",
+    description: "Create memes with templates and custom text",
+    category: "watermark",
+    icon: Laugh,
+  },
   // Utilities
   {
     name: "Image Info",
@@ -408,7 +415,7 @@ export function BentoGrid() {
       <div className="mx-auto max-w-6xl">
         <FadeIn>
           <h2 className="font-[family-name:var(--font-nunito)] text-center text-3xl font-bold tracking-tight md:text-4xl">
-            50 tools. Zero cloud dependency.
+            51 tools. Zero cloud dependency.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-center text-lg text-muted">
             Search to find exactly what you need. Every tool runs 100% locally.

@@ -53,7 +53,7 @@ test.describe("Visual Mobile (375x667)", () => {
 
       // Verify stacked layout: marketing panel should be hidden on mobile
       await expect(page.getByRole("heading", { name: /login/i })).toBeVisible();
-      await expect(page.getByText("Your one-stop-shop")).not.toBeVisible();
+      await expect(page.getByText("Your images. Stay yours.")).not.toBeVisible();
 
       await takeThemedScreenshots(page, "login-empty");
     });

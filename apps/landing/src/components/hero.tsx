@@ -119,7 +119,7 @@ export function Hero() {
         </h1>
 
         <p className="mt-4 animate-[fadeUp_0.6s_ease-out_0.1s_both] text-lg text-muted md:text-xl">
-          The open-source, self-hosted image processing platform.
+          Every image tool you need.
         </p>
 
         <p className="mt-4 animate-[fadeUp_0.6s_ease-out_0.2s_both] text-xl font-medium md:text-2xl">

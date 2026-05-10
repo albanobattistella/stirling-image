@@ -70,7 +70,7 @@ test.describe("Responsive - Desktop (1280x720)", () => {
     await page.goto("/login");
 
     await expect(page.getByRole("heading", { name: /login/i })).toBeVisible();
-    await expect(page.getByText("Your one-stop-shop")).toBeVisible();
+    await expect(page.getByText("Your images. Stay yours.")).toBeVisible();
 
     await context.close();
   });
@@ -405,7 +405,7 @@ test.describe("Responsive - Mobile (375x667)", () => {
     await expect(page.getByLabel("Username")).toBeVisible();
 
     // Marketing panel is hidden on mobile (lg:flex means only visible at lg+)
-    await expect(page.getByText("Your one-stop-shop")).not.toBeVisible();
+    await expect(page.getByText("Your images. Stay yours.")).not.toBeVisible();
 
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
