@@ -281,6 +281,13 @@ export function ToolPage() {
     [setFiles, reset],
   );
 
+  const handleUrlImport = useCallback(
+    (file: File) => {
+      addFiles([file]);
+    },
+    [addFiles],
+  );
+
   const handleUndo = useCallback(() => {
     undoProcessing();
     setEraserSliderInitPos(null);
@@ -428,7 +435,15 @@ export function ToolPage() {
     // Custom results panel (find-duplicates, etc.)
     if (displayMode === "custom-results" && registryEntry?.ResultsPanel) {
       if (!hasFile)
-        return <Dropzone onFiles={handleFiles} accept="image/*" multiple currentFiles={files} />;
+        return (
+          <Dropzone
+            onFiles={handleFiles}
+            onUrlImport={handleUrlImport}
+            accept="image/*"
+            multiple
+            currentFiles={files}
+          />
+        );
       const ResultsPanel = registryEntry.ResultsPanel;
       return (
         <Suspense fallback={<div className="text-sm text-muted-foreground">Loading...</div>}>
@@ -626,7 +641,15 @@ export function ToolPage() {
       );
     }
 
-    return <Dropzone onFiles={handleFiles} accept="image/*" multiple currentFiles={files} />;
+    return (
+      <Dropzone
+        onFiles={handleFiles}
+        onUrlImport={handleUrlImport}
+        accept="image/*"
+        multiple
+        currentFiles={files}
+      />
+    );
   }
 
   // Navigation arrows (shared between mobile/desktop)
