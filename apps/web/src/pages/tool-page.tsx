@@ -123,23 +123,26 @@ function FileSelectionInfo({
         })}
       </div>
 
-      {showToggle && (
+      <div className="flex items-center justify-between">
+        {showToggle ? (
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="text-xs text-primary hover:text-primary/80"
+          >
+            {expanded ? "Show less" : `Show ${files.length - COLLAPSED_LIMIT} more`}
+          </button>
+        ) : (
+          <span />
+        )}
         <button
           type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="text-xs text-primary hover:text-primary/80"
+          onClick={onClear}
+          className="text-xs text-muted-foreground hover:text-foreground"
         >
-          {expanded ? "Show less" : `Show ${files.length - COLLAPSED_LIMIT} more`}
+          Clear all
         </button>
-      )}
-
-      <button
-        type="button"
-        onClick={onClear}
-        className="text-xs text-muted-foreground hover:text-foreground"
-      >
-        Clear all
-      </button>
+      </div>
     </div>
   );
 }
@@ -643,7 +646,6 @@ export function ToolPage() {
       <>
         {!isNoDropzone && (
           <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Files</h3>
             <FileSelectionInfo
               files={files}
               selectedIndex={selectedIndex}

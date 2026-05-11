@@ -5,6 +5,7 @@ import { useToolProcessor } from "@/hooks/use-tool-processor";
 import { useFileStore } from "@/stores/file-store";
 
 type CompressMode = "quality" | "targetSize";
+type SizeUnit = "KB" | "MB";
 
 export interface CompressControlsProps {
   settings?: Record<string, unknown>;
@@ -14,7 +15,8 @@ export interface CompressControlsProps {
 export function CompressControls({ settings: initialSettings, onChange }: CompressControlsProps) {
   const [mode, setMode] = useState<CompressMode>("targetSize");
   const [quality, setQuality] = useState(75);
-  const [targetSizeKb, setTargetSizeKb] = useState("");
+  const [targetSizeValue, setTargetSizeValue] = useState("");
+  const [sizeUnit, setSizeUnit] = useState<SizeUnit>("KB");
 
   const initializedRef = useRef(false);
   useEffect(() => {
@@ -22,7 +24,8 @@ export function CompressControls({ settings: initialSettings, onChange }: Compre
     initializedRef.current = true;
     if (initialSettings.mode != null) setMode(initialSettings.mode as CompressMode);
     if (initialSettings.quality != null) setQuality(Number(initialSettings.quality));
-    if (initialSettings.targetSizeKb != null) setTargetSizeKb(String(initialSettings.targetSizeKb));
+    if (initialSettings.targetSizeKb != null)
+      setTargetSizeValue(String(initialSettings.targetSizeKb));
   }, [initialSettings]);
 
   const onChangeRef = useRef(onChange);
@@ -34,9 +37,11 @@ export function CompressControls({ settings: initialSettings, onChange }: Compre
     if (mode === "quality") {
       onChangeRef.current?.({ mode, quality });
     } else {
-      onChangeRef.current?.({ mode, targetSizeKb: Number(targetSizeKb) });
+      const valueNum = Number(targetSizeValue);
+      const targetSizeKb = sizeUnit === "MB" ? valueNum * 1024 : valueNum;
+      onChangeRef.current?.({ mode, targetSizeKb });
     }
-  }, [mode, quality, targetSizeKb]);
+  }, [mode, quality, targetSizeValue, sizeUnit]);
 
   return (
     <div className="space-y-4">
@@ -64,17 +69,27 @@ export function CompressControls({ settings: initialSettings, onChange }: Compre
       {mode === "targetSize" ? (
         <div>
           <label htmlFor="compress-target-size" className="text-xs text-muted-foreground">
-            Target Size (KB)
+            Target Size
           </label>
-          <input
-            id="compress-target-size"
-            type="number"
-            value={targetSizeKb}
-            onChange={(e) => setTargetSizeKb(e.target.value)}
-            min={1}
-            placeholder="e.g. 200"
-            className="w-full mt-0.5 px-2 py-1.5 rounded border border-border bg-background text-sm text-foreground"
-          />
+          <div className="flex gap-1.5 mt-0.5">
+            <input
+              id="compress-target-size"
+              type="number"
+              value={targetSizeValue}
+              onChange={(e) => setTargetSizeValue(e.target.value)}
+              min={1}
+              placeholder={sizeUnit === "KB" ? "e.g. 200" : "e.g. 2"}
+              className="flex-1 min-w-0 px-2 py-1.5 rounded border border-border bg-background text-sm text-foreground tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            />
+            <select
+              value={sizeUnit}
+              onChange={(e) => setSizeUnit(e.target.value as SizeUnit)}
+              className="px-2 py-1.5 rounded border border-border bg-background text-sm text-foreground"
+            >
+              <option value="KB">KB</option>
+              <option value="MB">MB</option>
+            </select>
+          </div>
         </div>
       ) : (
         <div>
