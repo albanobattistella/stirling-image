@@ -438,7 +438,13 @@ async function decodeFits(buffer: Buffer): Promise<Buffer> {
     await writeFile(inputPath, buffer);
     await execFileAsync(
       cmd,
-      magickArgs(cmd, [inputPath, "-normalize", "-colorspace", "sRGB", `png:${outputPath}`]),
+      magickArgs(cmd, [
+        `${inputPath}[0]`,
+        "-normalize",
+        "-colorspace",
+        "sRGB",
+        `png:${outputPath}`,
+      ]),
       { timeout: 120_000 },
     );
     return await readFile(outputPath);
