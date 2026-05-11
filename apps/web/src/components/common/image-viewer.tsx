@@ -1,4 +1,4 @@
-import { Loader2, Maximize, Minimize2, ZoomIn, ZoomOut } from "lucide-react";
+import { FileImage, Maximize, Minimize2, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatFileSize } from "@/lib/download";
 
@@ -184,8 +184,8 @@ export function ImageViewer({
       >
         {loadError ? (
           <div className="flex flex-col items-center justify-center gap-3 text-center">
-            <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
-            <p className="text-sm text-muted-foreground">Loading preview...</p>
+            <FileImage className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Preview not available</p>
             <p className="text-xs text-muted-foreground/60">{filename}</p>
           </div>
         ) : bgPreview?.backgroundSrc || bgPreview?.containerBackground ? (

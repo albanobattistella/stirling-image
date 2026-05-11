@@ -586,11 +586,33 @@ export function ToolPage() {
     }
 
     if (hasFile && originalBlobUrl) {
+      const fname = selectedFileName ?? files[0].name;
+      const fsize = selectedFileSize ?? files[0].size;
+      if (!canBrowserPreview(originalBlobUrl, fname)) {
+        const ext = fname.split(".").pop()?.toUpperCase() ?? "";
+        return (
+          <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+              <FileImage className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-medium truncate max-w-xs">{fname}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {ext} · {formatFileSize(fsize)}
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground max-w-xs">
+              {ext} files cannot be previewed in the browser. The tool will still process this file
+              normally.
+            </p>
+          </div>
+        );
+      }
       return (
         <ImageViewer
           src={originalBlobUrl}
-          filename={selectedFileName ?? files[0].name}
-          fileSize={selectedFileSize ?? files[0].size}
+          filename={fname}
+          fileSize={fsize}
           {...(isLivePreview && previewTransform
             ? {
                 cssRotate: previewTransform.rotate,
@@ -722,11 +744,11 @@ export function ToolPage() {
           {/* Main area: image viewer */}
           <section
             aria-label="Image area"
-            className="flex-1 flex flex-col min-h-0"
+            className="flex-1 flex flex-col min-h-0 min-w-0"
             onKeyDown={hasMultiple ? handleImageKeyDown : undefined}
             tabIndex={hasMultiple ? 0 : undefined}
           >
-            <div className="flex-1 relative flex items-center justify-center p-4 min-h-0">
+            <div className="flex-1 relative flex items-center justify-center p-4 min-h-0 min-w-0">
               {renderNavArrows()}
               {renderImageArea()}
             </div>
@@ -762,11 +784,11 @@ export function ToolPage() {
         {/* Main area: image viewer */}
         <section
           aria-label="Image area"
-          className="flex-1 flex flex-col min-h-0"
+          className="flex-1 flex flex-col min-h-0 min-w-0"
           onKeyDown={hasMultiple ? handleImageKeyDown : undefined}
           tabIndex={hasMultiple ? 0 : undefined}
         >
-          <div className="flex-1 relative flex items-center justify-center p-6 min-h-0">
+          <div className="flex-1 relative flex items-center justify-center p-6 min-h-0 min-w-0">
             {renderNavArrows()}
             {renderImageArea()}
           </div>
