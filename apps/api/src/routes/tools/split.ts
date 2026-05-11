@@ -7,6 +7,7 @@ import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
 import { formatZodErrors } from "../../lib/errors.js";
 import { sanitizeFilename } from "../../lib/filename.js";
+import { encodeJxl } from "../../lib/format-encoders.js";
 import { ensureSharpCompat } from "../../lib/heic-converter.js";
 import { registerToolProcessFn } from "../tool-factory.js";
 
@@ -31,7 +32,7 @@ function resolveOutputFormat(
     jpg: { sharpFormat: "jpeg", ext: ".jpg" },
     webp: { sharpFormat: "webp", ext: ".webp" },
     avif: { sharpFormat: "avif", ext: ".avif" },
-    jxl: { sharpFormat: "jxl", ext: ".jxl" },
+    jxl: { sharpFormat: "png", ext: ".jxl" },
   };
   return map[outputFormat] ?? { sharpFormat: null, ext: originalExt };
 }
@@ -150,7 +151,11 @@ export function registerSplit(app: FastifyInstance) {
           }
 
           const partBuffer = await pipeline.toBuffer();
-          archive.append(partBuffer, {
+          const finalBuffer =
+            settings.outputFormat === "jxl"
+              ? await encodeJxl(partBuffer, settings.quality)
+              : partBuffer;
+          archive.append(finalBuffer, {
             name: `${baseName}_r${row + 1}_c${col + 1}${outputExt}`,
           });
         }
@@ -236,7 +241,11 @@ export function registerSplit(app: FastifyInstance) {
           }
 
           const partBuffer = await pipeline.toBuffer();
-          archive.append(partBuffer, {
+          const finalBuffer =
+            settings.outputFormat === "jxl"
+              ? await encodeJxl(partBuffer, settings.quality)
+              : partBuffer;
+          archive.append(finalBuffer, {
             name: `${baseName}_r${row + 1}_c${col + 1}${outputExt}`,
           });
         }

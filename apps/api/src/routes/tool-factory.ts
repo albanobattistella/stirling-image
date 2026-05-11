@@ -20,6 +20,7 @@ import { decompressSvgz, sanitizeSvg } from "../lib/svg-sanitize.js";
 import { computeTimeout } from "../lib/timeout.js";
 import { getWorkerPool } from "../lib/worker-pool.js";
 import { createWorkspace } from "../lib/workspace.js";
+import { updateSingleFileProgress } from "./progress.js";
 
 export interface ToolRouteConfig<T> {
   /** Unique tool identifier, used as the URL path segment. */
@@ -112,6 +113,7 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
       let filename = "image";
       let settingsRaw: string | null = null;
       let fileId: string | null = null;
+      let clientJobId: string | null = null;
       let fileCount = 0;
 
       // Parse multipart parts
@@ -143,6 +145,9 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
             if (part.fieldname === "fileId") {
               fileId = part.value as string;
             }
+            if (part.fieldname === "clientJobId") {
+              clientJobId = part.value as string;
+            }
           }
         }
       } catch (err) {
@@ -167,6 +172,18 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
       // mutates fileBuffer into a larger intermediate PNG.
       const uploadedSize = fileBuffer.length;
 
+      const reportProgress = (percent: number, stage?: string) => {
+        if (!clientJobId) return;
+        updateSingleFileProgress({
+          jobId: clientJobId,
+          phase: "processing",
+          percent,
+          stage,
+        });
+      };
+
+      reportProgress(5, "Validating...");
+
       // Validate the uploaded image
       const validation = await validateImageBuffer(fileBuffer, filename);
       if (!validation.valid) {
@@ -178,6 +195,7 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
       // The decoded buffer is PNG, so update the filename extension to match.
       const isHeif = validation.format === "heif";
       if (isHeif) {
+        reportProgress(10, "Decoding HEIC...");
         try {
           fileBuffer = await decodeHeic(fileBuffer);
           const ext = filename.match(/\.[^.]+$/)?.[0];
@@ -195,6 +213,7 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
       // Pass the original file extension so RAW decoder can use the correct
       // temp file suffix (e.g. .cr3, .nef) for format identification.
       if (needsCliDecode(validation.format)) {
+        reportProgress(10, "Decoding...");
         try {
           const fileExt = filename.split(".").pop()?.toLowerCase();
           fileBuffer = await decodeToSharpCompat(fileBuffer, validation.format, fileExt);
@@ -224,6 +243,8 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
           });
         }
       }
+
+      reportProgress(15, "Preparing...");
 
       // Parse and validate settings
       let settings: T;
@@ -258,6 +279,8 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
       const startTime = Date.now();
       try {
         let result: { buffer: Buffer; filename: string; contentType: string };
+
+        reportProgress(20, "Processing...");
 
         // Offload to worker thread for non-AI tools.
         // Falls back to main-thread processing on any worker error.
@@ -298,6 +321,8 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
           const processBuffer = isSvg ? fileBuffer : await autoOrient(fileBuffer);
           result = await config.process(processBuffer, settings, filename);
         }
+
+        reportProgress(75, "Saving...");
 
         // Add a tool-specific suffix to the filename so the download
         // doesn't silently overwrite the user's original file.
@@ -362,6 +387,7 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
         ]);
         let previewUrl: string | undefined;
         if (!BROWSER_PREVIEWABLE.has(result.contentType)) {
+          reportProgress(85, "Generating preview...");
           try {
             let previewInput = result.buffer;
             // Sharp can't decode HEIC - use system decoder first
@@ -372,14 +398,29 @@ export function createToolRoute<T>(app: FastifyInstance, config: ToolRouteConfig
             const previewPath = join(workspacePath, "output", "preview.webp");
             await writeFile(previewPath, previewBuffer);
             previewUrl = `/api/v1/download/${jobId}/preview.webp`;
-          } catch {
-            // Non-fatal - frontend will show the success card fallback
+          } catch (previewErr) {
+            request.log.warn(
+              { previewErr, contentType: result.contentType, toolId: config.toolId },
+              "Failed to generate preview thumbnail, falling back to input buffer",
+            );
+            // Retry with the original input buffer (pre-processing) which
+            // was already validated and decoded during the intake phase.
+            try {
+              const fallbackBuffer = await sharp(fileBuffer).webp({ quality: 80 }).toBuffer();
+              const previewPath = join(workspacePath, "output", "preview.webp");
+              await writeFile(previewPath, fallbackBuffer);
+              previewUrl = `/api/v1/download/${jobId}/preview.webp`;
+            } catch {
+              // Both attempts failed - frontend will use the upload preview as fallback
+            }
           }
         }
 
         // Also save the original input for reference/download
         const inputPath = join(workspacePath, "input", filename);
         await writeFile(inputPath, fileBuffer);
+
+        reportProgress(95, "Finishing...");
 
         // Auto-save to persistent file store when a fileId is provided
         let savedFileId: string | undefined;

@@ -1,5 +1,5 @@
-import { FileImage, Upload } from "lucide-react";
-import { type DragEvent, useCallback, useState } from "react";
+import { FileImage, ImageUp, Upload } from "lucide-react";
+import { type DragEvent, useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const IMAGE_EXTENSIONS = new Set([
@@ -134,6 +134,35 @@ export function Dropzone({
     input.click();
   };
 
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const clip = e.clipboardData;
+      if (!clip) return;
+
+      const files: File[] = [];
+
+      if (clip.files.length > 0) {
+        for (const file of clip.files) {
+          if (isImageFile(file)) files.push(file);
+        }
+      } else if (clip.items) {
+        for (const item of clip.items) {
+          if (item.kind === "file") {
+            const file = item.getAsFile();
+            if (file && isImageFile(file)) files.push(file);
+          }
+        }
+      }
+
+      if (files.length > 0) {
+        e.preventDefault();
+        onFiles?.(files);
+      }
+    };
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [onFiles]);
+
   const hasMultipleFiles = currentFiles.length > 1;
 
   return (
@@ -143,31 +172,60 @@ export function Dropzone({
       onDragOver={handleDrag}
       onDragLeave={handleDrag}
       onDrop={handleDrop}
+      onClick={handleClick}
       className={cn(
-        "flex flex-col items-center justify-center rounded-2xl border-2 border-dashed transition-colors mx-auto max-w-2xl w-full",
+        "group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed transition-all duration-200 mx-auto max-w-2xl w-full cursor-pointer",
         compact ? "min-h-0 h-full" : "min-h-[400px]",
         isDragging
-          ? "border-primary bg-primary/5"
-          : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50",
+          ? "border-primary bg-primary/10 scale-[1.01]"
+          : "border-border/60 bg-muted/20 hover:border-primary/40 hover:bg-muted/40",
       )}
     >
-      <div className={cn("flex flex-col items-center", compact ? "gap-2 p-4" : "gap-4 p-8")}>
-        <div className="text-3xl font-bold text-muted-foreground/30">
-          <span className="text-primary/30">SnapOtter</span>
+      <div className={cn("flex flex-col items-center", compact ? "gap-2 p-4" : "gap-5 p-8")}>
+        <div
+          className={cn(
+            "rounded-2xl bg-primary/8 p-4 transition-colors duration-200",
+            isDragging ? "bg-primary/15" : "group-hover:bg-primary/12",
+          )}
+        >
+          <ImageUp
+            className={cn(
+              "transition-all duration-200",
+              compact ? "h-8 w-8" : "h-10 w-10",
+              isDragging ? "text-primary" : "text-primary/50 group-hover:text-primary/70",
+            )}
+            strokeWidth={1.5}
+          />
+        </div>
+        <div className="flex flex-col items-center gap-1.5">
+          <p className={cn("font-medium", compact ? "text-sm" : "text-base", "text-foreground/80")}>
+            Drop your images here
+          </p>
+          <p className="text-sm text-muted-foreground/70">
+            click anywhere to browse, or paste from clipboard
+          </p>
         </div>
         <button
           type="button"
-          onClick={handleClick}
-          className="flex items-center gap-2 px-6 py-2.5 rounded-lg border border-primary text-primary hover:bg-primary/5 transition-colors text-sm font-medium"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleClick();
+          }}
+          className={cn(
+            "flex items-center gap-2 rounded-lg bg-primary text-primary-foreground transition-all duration-200 text-sm font-medium shadow-sm",
+            compact ? "px-5 py-2" : "px-8 py-3",
+            "hover:bg-primary/90 hover:shadow-md active:scale-[0.98]",
+          )}
         >
           <Upload className="h-4 w-4" />
-          Upload from computer
+          Upload
         </button>
-        <p className="text-sm text-muted-foreground">Drop files here or click the upload button</p>
+        <p className="text-xs text-muted-foreground/50">
+          PNG, JPG, WebP, HEIC, RAW, PSD, and 65+ formats
+        </p>
 
-        {/* Show file count badge and list when multiple files are dropped */}
         {hasMultipleFiles && (
-          <div className="flex flex-col items-center gap-2 mt-2">
+          <div className="flex flex-col items-center gap-2 mt-1">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
               <FileImage className="h-3.5 w-3.5" />
               {currentFiles.length} files selected

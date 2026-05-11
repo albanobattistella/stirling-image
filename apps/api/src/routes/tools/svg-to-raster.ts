@@ -10,6 +10,7 @@ import { env } from "../../config.js";
 import { resolveConcurrency } from "../../lib/env.js";
 import { formatZodErrors } from "../../lib/errors.js";
 import { sanitizeFilename } from "../../lib/filename.js";
+import { encodeJxl } from "../../lib/format-encoders.js";
 import { decodeHeic, encodeHeic } from "../../lib/heic-converter.js";
 import { isSvgBuffer, sanitizeSvg } from "../../lib/svg-sanitize.js";
 import { createWorkspace } from "../../lib/workspace.js";
@@ -77,10 +78,12 @@ async function convertSvg(
       buffer = await image.gif().toBuffer();
       ext = "gif";
       break;
-    case "jxl":
-      buffer = await image.jxl({ quality: settings.quality }).toBuffer();
+    case "jxl": {
+      const pngBuf = await image.png().toBuffer();
+      buffer = await encodeJxl(pngBuf, settings.quality);
       ext = "jxl";
       break;
+    }
     case "heif": {
       const pngBuffer = await image.png().toBuffer();
       buffer = await encodeHeic(pngBuffer, settings.quality);

@@ -8,7 +8,13 @@ import { convert } from "@snapotter/image-engine";
 import type { FastifyInstance } from "fastify";
 import sharp from "sharp";
 import { z } from "zod";
-import { encodeBmp, encodeIco, encodeJp2, encodeQoi } from "../../lib/format-encoders.js";
+import {
+  encodeBmp,
+  encodeIco,
+  encodeJp2,
+  encodeJxl,
+  encodeQoi,
+} from "../../lib/format-encoders.js";
 import { encodeHeic } from "../../lib/heic-converter.js";
 import { isSvgBuffer } from "../../lib/svg-sanitize.js";
 import { createToolRoute } from "../tool-factory.js";
@@ -56,6 +62,7 @@ const CLI_ENCODERS: Record<string, (buf: Buffer, quality?: number) => Promise<Bu
   bmp: encodeBmp,
   ico: encodeIco,
   jp2: encodeJp2,
+  jxl: encodeJxl,
   qoi: encodeQoi,
 };
 

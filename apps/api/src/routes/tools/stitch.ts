@@ -9,6 +9,7 @@ import { autoOrient } from "../../lib/auto-orient.js";
 import { formatZodErrors } from "../../lib/errors.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
 import { sanitizeFilename } from "../../lib/filename.js";
+import { encodeJxl } from "../../lib/format-encoders.js";
 import { ensureSharpCompat } from "../../lib/heic-converter.js";
 import { createWorkspace } from "../../lib/workspace.js";
 
@@ -204,12 +205,16 @@ export function registerStitch(app: FastifyInstance) {
       } else if (settings.format === "avif") {
         pipeline = pipeline.avif({ quality: settings.quality, effort: 4 });
       } else if (settings.format === "jxl") {
-        pipeline = pipeline.jxl({ quality: settings.quality });
+        pipeline = pipeline.png();
       } else {
         pipeline = pipeline.png();
       }
 
       let result = await pipeline.toBuffer();
+
+      if (settings.format === "jxl") {
+        result = await encodeJxl(result, settings.quality);
+      }
 
       if (settings.cornerRadius > 0) {
         const meta = await sharp(result).metadata();
@@ -238,7 +243,7 @@ export function registerStitch(app: FastifyInstance) {
         } else if (settings.format === "avif") {
           result = await sharp(result).avif({ quality: settings.quality, effort: 4 }).toBuffer();
         } else if (settings.format === "jxl") {
-          result = await sharp(result).jxl({ quality: settings.quality }).toBuffer();
+          result = await encodeJxl(result, settings.quality);
         }
       }
 

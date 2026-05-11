@@ -27,13 +27,10 @@ const IDLE_PROGRESS: ToolProgress = {
   elapsed: 0,
 };
 
-// AI tools that go through Python/bridge.ts and can emit SSE progress.
-// smart-crop is category "ai" but uses Sharp (no Python), so it's excluded.
+// AI tools return 202 and deliver results via SSE (not XHR response).
 const AI_PYTHON_TOOLS = new Set<string>(PYTHON_SIDECAR_TOOLS);
 
-// Tools that take a few seconds (not instant like Sharp, not minutes like AI).
-// Uses a smoother progress: upload 0-40%, then a gradual fill during processing.
-const MEDIUM_TOOLS = new Set(["content-aware-resize", "convert"]);
+const UPLOAD_WEIGHT = 15;
 
 export function useToolProcessor(toolId: string) {
   const { processing, error, processedUrl, originalSize, processedSize, setProcessing, setError } =
@@ -47,15 +44,12 @@ export function useToolProcessor(toolId: string) {
   const abortRef = useRef<AbortController | null>(null);
 
   const isAiTool = AI_PYTHON_TOOLS.has(toolId);
-  const isMediumTool = MEDIUM_TOOLS.has(toolId);
   const toolName = TOOLS.find((t) => t.id === toolId)?.name ?? toolId;
-  const processingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clean up on unmount
   useEffect(() => {
     return () => {
       if (elapsedRef.current) clearInterval(elapsedRef.current);
-      if (processingTimerRef.current) clearInterval(processingTimerRef.current);
       if (eventSourceRef.current) eventSourceRef.current.close();
       if (xhrRef.current) xhrRef.current.abort();
       if (abortRef.current) abortRef.current.abort();
@@ -69,13 +63,10 @@ export function useToolProcessor(toolId: string) {
         return;
       }
 
-      // Capture the file index at request time so results are written
-      // to the correct entry even if the user navigates away.
       const capturedIndex = useFileStore.getState().selectedIndex;
 
       setError(null);
       setWarning(null);
-      // Mark the target entry as processing and clear any old result
       useFileStore.getState().updateEntry(capturedIndex, {
         processedUrl: null,
         processedPreviewUrl: null,
@@ -86,7 +77,6 @@ export function useToolProcessor(toolId: string) {
       setProcessing(true);
       setProgress({ phase: "uploading", percent: 0, elapsed: 0 });
 
-      // Start elapsed timer
       const startTime = Date.now();
       elapsedRef.current = setInterval(() => {
         setProgress((prev) => ({
@@ -95,80 +85,76 @@ export function useToolProcessor(toolId: string) {
         }));
       }, 1000);
 
-      // Generate client job ID for SSE correlation
       const clientJobId = generateId();
       let asyncMode = false;
 
-      // For AI tools, open SSE before uploading
-      if (isAiTool) {
-        try {
-          const es = new EventSource(`/api/v1/jobs/${clientJobId}/progress`);
-          eventSourceRef.current = es;
+      // Open SSE for real-time progress from the server (all tools)
+      try {
+        const es = new EventSource(`/api/v1/jobs/${clientJobId}/progress`);
+        eventSourceRef.current = es;
 
-          es.onmessage = (event) => {
-            try {
-              const data = JSON.parse(event.data);
-              if (data.type !== "single") return;
+        es.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type !== "single") return;
 
-              if (data.phase === "complete" && data.result) {
-                if (elapsedRef.current) clearInterval(elapsedRef.current);
-                if (processingTimerRef.current) clearInterval(processingTimerRef.current);
-                es.close();
-                eventSourceRef.current = null;
-
-                const result = data.result as ProcessResult;
-                setWarning(result.warning ?? null);
-                useFileStore.getState().updateEntry(capturedIndex, {
-                  processedUrl: result.downloadUrl,
-                  processedPreviewUrl: result.previewUrl ?? null,
-                  processedFilename: null,
-                  status: "completed",
-                  originalSize: result.originalSize,
-                  processedSize: result.processedSize,
-                  ...(result.savedFileId ? { serverFileId: result.savedFileId } : {}),
-                });
-                setProcessing(false);
-                setProgress(IDLE_PROGRESS);
-                return;
-              }
-
-              if (data.phase === "failed" && asyncMode) {
-                if (elapsedRef.current) clearInterval(elapsedRef.current);
-                if (processingTimerRef.current) clearInterval(processingTimerRef.current);
-                es.close();
-                eventSourceRef.current = null;
-                setError(data.error || "Processing failed");
-                setProcessing(false);
-                setProgress(IDLE_PROGRESS);
-                return;
-              }
-
-              if (typeof data.percent === "number") {
-                const scaled = 15 + (data.percent / 100) * 85;
-                setProgress((prev) => ({
-                  ...prev,
-                  phase: "processing",
-                  percent: Math.max(prev.percent, scaled),
-                  stage: data.stage,
-                }));
-              }
-            } catch {
-              // Ignore malformed SSE
-            }
-          };
-
-          es.onerror = () => {
-            if (!asyncMode) {
+            // AI tools deliver results via SSE (they return 202 from the XHR)
+            if (data.phase === "complete" && data.result) {
+              if (elapsedRef.current) clearInterval(elapsedRef.current);
               es.close();
               eventSourceRef.current = null;
+
+              const result = data.result as ProcessResult;
+              setWarning(result.warning ?? null);
+              useFileStore.getState().updateEntry(capturedIndex, {
+                processedUrl: result.downloadUrl,
+                processedPreviewUrl: result.previewUrl ?? null,
+                processedFilename: null,
+                status: "completed",
+                originalSize: result.originalSize,
+                processedSize: result.processedSize,
+                ...(result.savedFileId ? { serverFileId: result.savedFileId } : {}),
+              });
+              setProcessing(false);
+              setProgress(IDLE_PROGRESS);
+              return;
             }
-          };
-        } catch {
-          // EventSource creation failed -- proceed without SSE
-        }
+
+            if (data.phase === "failed" && asyncMode) {
+              if (elapsedRef.current) clearInterval(elapsedRef.current);
+              es.close();
+              eventSourceRef.current = null;
+              setError(data.error || "Processing failed");
+              setProcessing(false);
+              setProgress(IDLE_PROGRESS);
+              return;
+            }
+
+            if (typeof data.percent === "number") {
+              const scaled = UPLOAD_WEIGHT + (data.percent / 100) * (100 - UPLOAD_WEIGHT);
+              setProgress((prev) => ({
+                ...prev,
+                phase: "processing",
+                percent: Math.max(prev.percent, scaled),
+                stage: data.stage,
+              }));
+            }
+          } catch {
+            // Ignore malformed SSE
+          }
+        };
+
+        es.onerror = () => {
+          if (!asyncMode) {
+            es.close();
+            eventSourceRef.current = null;
+          }
+        };
+      } catch {
+        // EventSource creation failed -- proceed without SSE
       }
 
-      // Build form data - extract any File objects from settings before JSON serialization
+      // Build form data
       const cleanSettings = { ...settings };
       const bgImageFile = cleanSettings._bgImageFile as File | undefined;
       delete cleanSettings._bgImageFile;
@@ -179,27 +165,17 @@ export function useToolProcessor(toolId: string) {
       if (bgImageFile) {
         formData.append("backgroundImage", bgImageFile);
       }
-      if (isAiTool) {
-        formData.append("clientJobId", clientJobId);
-      }
+      formData.append("clientJobId", clientJobId);
 
-      // If this file came from the Files page, include its ID for version tracking
       const capturedEntry = useFileStore.getState().entries[capturedIndex];
       if (capturedEntry?.serverFileId) {
         formData.append("fileId", capturedEntry.serverFileId);
       }
 
-      // Use XHR for upload progress tracking
       const xhr = new XMLHttpRequest();
       xhrRef.current = xhr;
 
-      // Timeout: 2 min for fast tools, 5 min for medium (seam carving), 10 min for AI
-      xhr.timeout = isAiTool ? 600_000 : isMediumTool ? 300_000 : 120_000;
-
-      // For AI tools: upload = 0-15%, processing = 15-100% (SSE-driven)
-      // For medium tools: upload = 0-40%, processing = 40-95% (gradual fill)
-      // For fast tools: upload = 0-100%, processing = brief 100% hold
-      const UPLOAD_WEIGHT = isAiTool ? 15 : isMediumTool ? 40 : 100;
+      xhr.timeout = isAiTool ? 600_000 : 120_000;
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -216,36 +192,8 @@ export function useToolProcessor(toolId: string) {
           ...prev,
           phase: "processing",
           percent: UPLOAD_WEIGHT,
-          stage: isAiTool ? "Starting..." : "Processing...",
+          stage: "Processing...",
         }));
-
-        // Medium tools: gradually fill from upload weight to 95% over ~45s
-        if (isMediumTool) {
-          const start = UPLOAD_WEIGHT;
-          const target = 95;
-          const step = (target - start) / 90; // 90 ticks over ~45s
-          processingTimerRef.current = setInterval(() => {
-            setProgress((prev) => {
-              if (prev.phase !== "processing") return prev;
-              const next = Math.min(target, prev.percent + step);
-              return { ...prev, percent: next };
-            });
-          }, 500);
-        }
-
-        // AI tools: asymptotic fill during long processing gaps.
-        // Slowly creeps toward 88% so the bar never stalls visually.
-        // Real SSE events always win via Math.max in the handler.
-        if (isAiTool) {
-          processingTimerRef.current = setInterval(() => {
-            setProgress((prev) => {
-              if (prev.phase !== "processing") return prev;
-              const remaining = 88 - prev.percent;
-              if (remaining <= 0.5) return prev;
-              return { ...prev, percent: prev.percent + remaining * 0.015 };
-            });
-          }, 1000);
-        }
       };
 
       xhr.onload = () => {
@@ -255,7 +203,6 @@ export function useToolProcessor(toolId: string) {
         }
 
         if (elapsedRef.current) clearInterval(elapsedRef.current);
-        if (processingTimerRef.current) clearInterval(processingTimerRef.current);
         if (eventSourceRef.current) {
           eventSourceRef.current.close();
           eventSourceRef.current = null;
@@ -299,7 +246,6 @@ export function useToolProcessor(toolId: string) {
 
       xhr.onerror = () => {
         if (elapsedRef.current) clearInterval(elapsedRef.current);
-        if (processingTimerRef.current) clearInterval(processingTimerRef.current);
         if (eventSourceRef.current) {
           eventSourceRef.current.close();
           eventSourceRef.current = null;
@@ -311,7 +257,6 @@ export function useToolProcessor(toolId: string) {
 
       xhr.ontimeout = () => {
         if (elapsedRef.current) clearInterval(elapsedRef.current);
-        if (processingTimerRef.current) clearInterval(processingTimerRef.current);
         if (eventSourceRef.current) {
           eventSourceRef.current.close();
           eventSourceRef.current = null;
@@ -327,7 +272,7 @@ export function useToolProcessor(toolId: string) {
       });
       xhr.send(formData);
     },
-    [toolId, isAiTool, isMediumTool, setProcessing, setError, toolName],
+    [toolId, isAiTool, setProcessing, setError, toolName],
   );
 
   const processAllFiles = useCallback(

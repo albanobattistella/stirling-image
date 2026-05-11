@@ -14,8 +14,27 @@ import { buildTestApp, createMultipartPayload, loginAsAdmin, type TestApp } from
 
 const FIXTURES = join(__dirname, "..", "fixtures");
 
-// Output formats accepted by the convert tool
-const OUTPUT_FORMATS = ["jpg", "png", "webp", "avif", "tiff", "gif", "heic"] as const;
+// All output formats accepted by the convert tool
+const OUTPUT_FORMATS = [
+  "jpg",
+  "png",
+  "webp",
+  "avif",
+  "tiff",
+  "gif",
+  "heic",
+  "heif",
+  "jxl",
+  "bmp",
+  "ico",
+  "jp2",
+  "qoi",
+  "psd",
+] as const;
+
+// Formats whose CLI encoder (cjxl, heif-enc, opj_compress, magick) may not
+// be installed in every dev/CI environment. Allow graceful 422 for these.
+const CLI_ENCODED_FORMATS = new Set(["heic", "heif", "jxl", "bmp", "ico", "jp2", "qoi", "psd"]);
 
 // ---------------------------------------------------------------------------
 // Shared state
@@ -108,8 +127,10 @@ describe("Format conversion matrix", () => {
           body: payload,
         });
 
-        // HEIC encode/decode requires libheif which may not be installed (Windows, some Linux)
-        if (res.statusCode === 422 && (inputFmt === "heic" || outputFmt === "heic")) return;
+        // CLI-encoded formats may not have their encoder installed in every environment
+        if (res.statusCode === 422 && (inputFmt === "heic" || CLI_ENCODED_FORMATS.has(outputFmt))) {
+          return;
+        }
         expect(res.statusCode).toBe(200);
         const body = JSON.parse(res.body);
         expect(body.downloadUrl).toContain(`.${outputFmt}`);
@@ -146,8 +167,8 @@ describe("SVG via convert tool", () => {
         body: payload,
       });
 
-      // HEIC encode/decode requires libheif which may not be installed (Windows, some Linux)
-      if (res.statusCode === 422 && outputFmt === "heic") return;
+      // CLI-encoded formats may not have their encoder installed in every environment
+      if (res.statusCode === 422 && CLI_ENCODED_FORMATS.has(outputFmt)) return;
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.downloadUrl).toContain(`.${outputFmt}`);

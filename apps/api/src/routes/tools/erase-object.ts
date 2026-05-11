@@ -11,6 +11,7 @@ import { isToolInstalled } from "../../lib/feature-status.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
 import { sanitizeFilename } from "../../lib/filename.js";
 import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
+import { encodeJxl } from "../../lib/format-encoders.js";
 import { decodeHeic, encodeHeic } from "../../lib/heic-converter.js";
 import { resolveOutputFormat } from "../../lib/output-format.js";
 import { createWorkspace } from "../../lib/workspace.js";
@@ -213,7 +214,7 @@ export function registerEraseObject(app: FastifyInstance) {
           outputBuffer = await encodeHeic(resultBuffer, quality);
           finalFormat = format;
         } else if (format === "jxl") {
-          outputBuffer = await sharp(resultBuffer).jxl({ quality }).toBuffer();
+          outputBuffer = await encodeJxl(resultBuffer, quality);
           finalFormat = "jxl";
         } else {
           outputBuffer = await sharp(resultBuffer).avif({ quality }).toBuffer();

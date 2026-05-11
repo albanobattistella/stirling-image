@@ -5,7 +5,7 @@ import { ProgressCard } from "@/components/common/progress-card";
 import { useToolProcessor } from "@/hooks/use-tool-processor";
 import { useFileStore } from "@/stores/file-store";
 
-type ResizeTab = "presets" | "custom" | "scale";
+type ResizeTab = "presets" | "custom" | "scale" | "content-aware";
 type FitMode = "cover" | "contain" | "fill";
 
 const FIT_LABELS: Record<FitMode, string> = {
@@ -42,7 +42,7 @@ export function ResizeControls({ settings: initialSettings, onChange }: ResizeCo
   const [fit, setFit] = useState<FitMode>("cover");
   const [lockAspect, setLockAspect] = useState(true);
   const [withoutEnlargement, setWithoutEnlargement] = useState(false);
-  const [contentAware, setContentAware] = useState(false);
+  const contentAware = tab === "content-aware";
   const [protectFaces, setProtectFaces] = useState(false);
   const [blurRadius, setBlurRadius] = useState(4);
   const [sobelThreshold, setSobelThreshold] = useState(2);
@@ -58,17 +58,14 @@ export function ResizeControls({ settings: initialSettings, onChange }: ResizeCo
     if (initialSettings.fit != null) setFit(initialSettings.fit as FitMode);
     if (initialSettings.withoutEnlargement != null)
       setWithoutEnlargement(Boolean(initialSettings.withoutEnlargement));
-    if (initialSettings.contentAware != null)
-      setContentAware(Boolean(initialSettings.contentAware));
     if (initialSettings.protectFaces != null)
       setProtectFaces(Boolean(initialSettings.protectFaces));
     if (initialSettings.blurRadius != null) setBlurRadius(Number(initialSettings.blurRadius));
     if (initialSettings.sobelThreshold != null)
       setSobelThreshold(Number(initialSettings.sobelThreshold));
     if (initialSettings.square != null) setSquareMode(Boolean(initialSettings.square));
-    // Infer tab from settings
-    if (initialSettings.percentage != null) setTab("scale");
-    else if (initialSettings.contentAware) setTab("custom");
+    if (initialSettings.contentAware) setTab("content-aware");
+    else if (initialSettings.percentage != null) setTab("scale");
   }, [initialSettings]);
 
   const onChangeRef = useRef(onChange);
@@ -104,7 +101,6 @@ export function ResizeControls({ settings: initialSettings, onChange }: ResizeCo
     percentage,
     fit,
     withoutEnlargement,
-    contentAware,
     protectFaces,
     blurRadius,
     sobelThreshold,
@@ -183,218 +179,191 @@ export function ResizeControls({ settings: initialSettings, onChange }: ResizeCo
 
   return (
     <div className="space-y-4">
-      {/* Standard resize tabs */}
-      {!contentAware && (
-        <>
-          {/* Tab selector */}
-          <div>
-            <div className="flex gap-1">
-              <button type="button" onClick={() => setTab("custom")} className={tabClass("custom")}>
-                Custom Size
-              </button>
-              <button type="button" onClick={() => setTab("scale")} className={tabClass("scale")}>
-                Scale
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab("presets")}
-                className={tabClass("presets")}
-              >
-                Presets
-              </button>
-            </div>
-          </div>
-
-          {/* Presets tab */}
-          {tab === "presets" && (
-            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
-              {platforms.map((platform) => (
-                <div key={platform}>
-                  <p className="text-xs font-medium text-muted-foreground mb-1.5">{platform}</p>
-                  <div className="space-y-1">
-                    {SOCIAL_MEDIA_PRESETS.filter((p) => p.platform === platform).map((preset) => {
-                      const key = `${preset.platform}-${preset.name}`;
-                      const isSelected = selectedPreset === key;
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => handlePreset(preset)}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded border text-sm transition-colors ${
-                            isSelected
-                              ? "border-primary bg-primary/10 text-foreground"
-                              : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                          }`}
-                        >
-                          <span>{preset.name}</span>
-                          <span className="text-xs tabular-nums">
-                            {preset.width} x {preset.height}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-
-              {enlargementCheckbox}
-            </div>
-          )}
-
-          {/* Custom Size tab */}
-          {tab === "custom" && (
-            <div className="space-y-3">
-              {dimensionInputs}
-
-              {/* Fit mode */}
-              <div>
-                <p className="text-xs text-muted-foreground">Fit Mode</p>
-                <div className="flex gap-1 mt-1">
-                  {(Object.keys(FIT_LABELS) as FitMode[]).map((f) => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setFit(f)}
-                      className={`flex-1 text-xs py-1.5 rounded ${fit === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-                    >
-                      {FIT_LABELS[f]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {enlargementCheckbox}
-            </div>
-          )}
-
-          {/* Scale tab */}
-          {tab === "scale" && (
-            <div className="space-y-3">
-              <div>
-                <label htmlFor="resize-scale" className="text-xs text-muted-foreground">
-                  Scale (%)
-                </label>
-                <input
-                  id="resize-scale"
-                  type="number"
-                  value={percentage}
-                  onChange={(e) => setPercentage(e.target.value)}
-                  min={1}
-                  className="w-full mt-0.5 px-2 py-1.5 rounded border border-border bg-background text-sm text-foreground"
-                />
-              </div>
-              <div className="flex gap-1">
-                {[25, 50, 75].map((pct) => (
-                  <button
-                    key={pct}
-                    type="button"
-                    onClick={() => setPercentage(String(pct))}
-                    className={`flex-1 text-xs py-1.5 rounded ${
-                      percentage === String(pct)
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {pct}%
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Content-aware section - positioned below standard resize */}
-      <div className="border-t border-border pt-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-xs font-medium text-muted-foreground">Content-aware</span>
-          </div>
+      {/* Tab selector */}
+      <div>
+        <div className="flex gap-1">
+          <button type="button" onClick={() => setTab("custom")} className={tabClass("custom")}>
+            Custom Size
+          </button>
+          <button type="button" onClick={() => setTab("scale")} className={tabClass("scale")}>
+            Scale
+          </button>
+          <button type="button" onClick={() => setTab("presets")} className={tabClass("presets")}>
+            Presets
+          </button>
           <button
             type="button"
-            role="switch"
-            aria-checked={contentAware}
-            onClick={() => setContentAware(!contentAware)}
-            className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
-              contentAware ? "bg-primary" : "bg-muted"
-            }`}
+            onClick={() => setTab("content-aware")}
+            className={tabClass("content-aware")}
           >
-            <span
-              className={`inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${
-                contentAware ? "translate-x-3.5" : "translate-x-0.5"
-              }`}
-            />
+            Content-Aware
           </button>
         </div>
+      </div>
 
-        {/* Content-aware options (expanded when toggled) */}
-        {contentAware && (
-          <div className="mt-3 space-y-3">
-            {/* Dimensions */}
-            {dimensionInputs}
-
-            {/* Square mode */}
-            <label className="flex items-center gap-2 text-xs text-foreground">
-              <input
-                type="checkbox"
-                checked={squareMode}
-                onChange={(e) => setSquareMode(e.target.checked)}
-                className="rounded"
-              />
-              Resize to square
-            </label>
-
-            {/* Face protection */}
-            <label className="flex items-center gap-2 text-xs text-foreground">
-              <input
-                type="checkbox"
-                checked={protectFaces}
-                onChange={(e) => setProtectFaces(e.target.checked)}
-                className="rounded"
-              />
-              Protect faces
-            </label>
-
-            {/* Blur radius */}
-            <div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="blur-radius" className="text-xs text-muted-foreground">
-                  Smoothing
-                </label>
-                <span className="text-xs tabular-nums text-muted-foreground">{blurRadius}</span>
+      {/* Presets tab */}
+      {tab === "presets" && (
+        <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+          {platforms.map((platform) => (
+            <div key={platform}>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">{platform}</p>
+              <div className="space-y-1">
+                {SOCIAL_MEDIA_PRESETS.filter((p) => p.platform === platform).map((preset) => {
+                  const key = `${preset.platform}-${preset.name}`;
+                  const isSelected = selectedPreset === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handlePreset(preset)}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded border text-sm transition-colors ${
+                        isSelected
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                      }`}
+                    >
+                      <span>{preset.name}</span>
+                      <span className="text-xs tabular-nums">
+                        {preset.width} x {preset.height}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-              <input
-                id="blur-radius"
-                type="range"
-                min={0}
-                max={20}
-                value={blurRadius}
-                onChange={(e) => setBlurRadius(Number(e.target.value))}
-                className="w-full mt-1 h-1.5 rounded-full appearance-none bg-muted accent-primary"
-              />
             </div>
+          ))}
 
-            {/* Sobel threshold */}
-            <div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="sobel-threshold" className="text-xs text-muted-foreground">
-                  Edge sensitivity
-                </label>
-                <span className="text-xs tabular-nums text-muted-foreground">{sobelThreshold}</span>
-              </div>
-              <input
-                id="sobel-threshold"
-                type="range"
-                min={1}
-                max={20}
-                value={sobelThreshold}
-                onChange={(e) => setSobelThreshold(Number(e.target.value))}
-                className="w-full mt-1 h-1.5 rounded-full appearance-none bg-muted accent-primary"
-              />
+          {enlargementCheckbox}
+        </div>
+      )}
+
+      {/* Custom Size tab */}
+      {tab === "custom" && (
+        <div className="space-y-3">
+          {dimensionInputs}
+
+          {/* Fit mode */}
+          <div>
+            <p className="text-xs text-muted-foreground">Fit Mode</p>
+            <div className="flex gap-1 mt-1">
+              {(Object.keys(FIT_LABELS) as FitMode[]).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFit(f)}
+                  className={`flex-1 text-xs py-1.5 rounded ${fit === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+                >
+                  {FIT_LABELS[f]}
+                </button>
+              ))}
             </div>
           </div>
-        )}
-      </div>
+
+          {enlargementCheckbox}
+        </div>
+      )}
+
+      {/* Scale tab */}
+      {tab === "scale" && (
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="resize-scale" className="text-xs text-muted-foreground">
+              Scale (%)
+            </label>
+            <input
+              id="resize-scale"
+              type="number"
+              value={percentage}
+              onChange={(e) => setPercentage(e.target.value)}
+              min={1}
+              className="w-full mt-0.5 px-2 py-1.5 rounded border border-border bg-background text-sm text-foreground"
+            />
+          </div>
+          <div className="flex gap-1">
+            {[25, 50, 75].map((pct) => (
+              <button
+                key={pct}
+                type="button"
+                onClick={() => setPercentage(String(pct))}
+                className={`flex-1 text-xs py-1.5 rounded ${
+                  percentage === String(pct)
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {pct}%
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Content-aware tab */}
+      {contentAware && (
+        <div className="space-y-3">
+          {dimensionInputs}
+
+          {/* Square mode */}
+          <label className="flex items-center gap-2 text-xs text-foreground">
+            <input
+              type="checkbox"
+              checked={squareMode}
+              onChange={(e) => setSquareMode(e.target.checked)}
+              className="rounded"
+            />
+            Resize to square
+          </label>
+
+          {/* Face protection */}
+          <label className="flex items-center gap-2 text-xs text-foreground">
+            <input
+              type="checkbox"
+              checked={protectFaces}
+              onChange={(e) => setProtectFaces(e.target.checked)}
+              className="rounded"
+            />
+            Protect faces
+          </label>
+
+          {/* Blur radius */}
+          <div>
+            <div className="flex items-center justify-between">
+              <label htmlFor="blur-radius" className="text-xs text-muted-foreground">
+                Smoothing
+              </label>
+              <span className="text-xs tabular-nums text-muted-foreground">{blurRadius}</span>
+            </div>
+            <input
+              id="blur-radius"
+              type="range"
+              min={0}
+              max={20}
+              value={blurRadius}
+              onChange={(e) => setBlurRadius(Number(e.target.value))}
+              className="w-full mt-1 h-1.5 rounded-full appearance-none bg-muted accent-primary"
+            />
+          </div>
+
+          {/* Sobel threshold */}
+          <div>
+            <div className="flex items-center justify-between">
+              <label htmlFor="sobel-threshold" className="text-xs text-muted-foreground">
+                Edge sensitivity
+              </label>
+              <span className="text-xs tabular-nums text-muted-foreground">{sobelThreshold}</span>
+            </div>
+            <input
+              id="sobel-threshold"
+              type="range"
+              min={1}
+              max={20}
+              value={sobelThreshold}
+              onChange={(e) => setSobelThreshold(Number(e.target.value))}
+              className="w-full mt-1 h-1.5 rounded-full appearance-none bg-muted accent-primary"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

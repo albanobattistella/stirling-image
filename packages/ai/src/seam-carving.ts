@@ -76,25 +76,45 @@ export async function seamCarve(
       );
     }
 
-    const targetW = options.width ?? width;
-    const targetH = options.height ?? height;
-    const wRatio = targetW / width;
-    const hRatio = targetH / height;
-    if (wRatio < 0.25 || hRatio < 0.25) {
-      throw new Error(
-        `Content-aware resize cannot reduce dimensions by more than 75% (requested ${width}→${targetW} width, ${height}→${targetH} height). Use regular resize first to get closer to the target size.`,
-      );
+    let targetW = options.width ?? width;
+    let targetH = options.height ?? height;
+
+    if (options.square) {
+      const shortest = Math.min(options.width ?? width, options.height ?? height, width, height);
+      targetW = shortest;
+      targetH = shortest;
     }
 
-    const processBuffer = await sharp(inputBuffer).jpeg({ quality: 95 }).toBuffer();
+    const wRatio = targetW / width;
+    const hRatio = targetH / height;
+
+    let currentW = width;
+    let currentH = height;
+    let preResizedBuffer = inputBuffer;
+
+    // Seam carving can only reduce each axis by ~75% per pass. If the target
+    // is further away, do a standard resize first to bring it within range.
+    const MIN_RATIO = 0.25;
+    if (wRatio < MIN_RATIO || hRatio < MIN_RATIO) {
+      const safeW = Math.max(targetW, Math.ceil(width * MIN_RATIO));
+      const safeH = Math.max(targetH, Math.ceil(height * MIN_RATIO));
+      const preResized = sharp(inputBuffer).resize(safeW, safeH, { fit: "inside" });
+      preResizedBuffer = await preResized.toBuffer();
+      const preMeta = await sharp(preResizedBuffer).metadata();
+      currentW = preMeta.width ?? safeW;
+      currentH = preMeta.height ?? safeH;
+    }
+
+    const processBuffer = await sharp(preResizedBuffer).jpeg({ quality: 95 }).toBuffer();
 
     await writeFile(inputPath, processBuffer);
 
     const args = ["-in", inputPath, "-out", outputPath, "-preview=false"];
 
     if (options.square) {
-      const shortest = Math.min(width, height);
-      args.push("-square", "-width", String(shortest), "-height", String(shortest));
+      const shortest = Math.min(currentW, currentH);
+      const caireTarget = Math.min(shortest, targetW);
+      args.push("-square", "-width", String(caireTarget), "-height", String(caireTarget));
     } else {
       if (options.width) {
         args.push("-width", String(options.width));
@@ -108,7 +128,8 @@ export async function seamCarve(
     if (options.blurRadius !== undefined) args.push("-blur", String(options.blurRadius));
     if (options.sobelThreshold !== undefined) args.push("-sobel", String(options.sobelThreshold));
 
-    const timeoutMs = Math.max(120_000, megapixels * 10 * 1000);
+    const currentMp = (currentW * currentH) / 1_000_000;
+    const timeoutMs = Math.ceil(Math.max(120_000, currentMp * 10_000));
     await execFileAsync(cairePath, args, { timeout: timeoutMs });
 
     const buffer = await readFile(outputPath);

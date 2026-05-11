@@ -12,6 +12,7 @@ import { isToolInstalled } from "../../lib/feature-status.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
 import { sanitizeFilename } from "../../lib/filename.js";
 import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
+import { encodeJxl } from "../../lib/format-encoders.js";
 import { decodeHeic, encodeHeic } from "../../lib/heic-converter.js";
 import { resolveOutputFormat } from "../../lib/output-format.js";
 import { createWorkspace } from "../../lib/workspace.js";
@@ -186,7 +187,7 @@ export function registerUpscale(app: FastifyInstance) {
           outputBuffer = await encodeHeic(result.buffer, outputQuality);
           finalFormat = format;
         } else if (format === "jxl") {
-          outputBuffer = await sharp(result.buffer).jxl({ quality: outputQuality }).toBuffer();
+          outputBuffer = await encodeJxl(result.buffer, outputQuality);
           finalFormat = "jxl";
         } else if (format === "avif") {
           outputBuffer = await sharp(result.buffer).avif({ quality: outputQuality }).toBuffer();

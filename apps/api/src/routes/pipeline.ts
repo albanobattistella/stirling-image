@@ -30,7 +30,7 @@ import { isSvgBuffer, sanitizeSvg } from "../lib/svg-sanitize.js";
 import { createWorkspace } from "../lib/workspace.js";
 import { hasEffectivePermission } from "../permissions.js";
 import { requireAuth } from "../plugins/auth.js";
-import { type JobProgress, updateJobProgress } from "./progress.js";
+import { type JobProgress, updateJobProgress, updateSingleFileProgress } from "./progress.js";
 import { getRegisteredToolIds, getToolConfig } from "./tool-factory.js";
 
 /** Schema for a single pipeline step. */
@@ -75,6 +75,7 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
     let fileBuffer: Buffer | null = null;
     let filename = "image";
     let pipelineRaw: string | null = null;
+    let clientJobId: string | null = null;
 
     // Parse multipart
     try {
@@ -89,6 +90,8 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
           filename = sanitizeFilename(part.filename ?? "image");
         } else if (part.fieldname === "pipeline") {
           pipelineRaw = part.value as string;
+        } else if (part.fieldname === "clientJobId") {
+          clientJobId = part.value as string;
         }
       }
     } catch (err) {
@@ -215,10 +218,23 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
     let currentBuffer = fileBuffer;
     let currentFilename = filename;
     const stepResults: Array<{ step: number; toolId: string; size: number }> = [];
+    const totalSteps = pipeline.steps.length;
+
+    const reportProgress = (percent: number, stage?: string) => {
+      if (!clientJobId) return;
+      updateSingleFileProgress({
+        jobId: clientJobId,
+        phase: "processing",
+        percent,
+        stage,
+      });
+    };
 
     try {
-      for (let i = 0; i < pipeline.steps.length; i++) {
+      for (let i = 0; i < totalSteps; i++) {
         const step = pipeline.steps[i];
+        const stepPercent = Math.round((i / totalSteps) * 90);
+        reportProgress(stepPercent, `Step ${i + 1}/${totalSteps}: ${step.toolId}`);
 
         // Route content-aware resize to its dedicated tool
         const resolvedToolId =
@@ -250,6 +266,8 @@ export async function registerPipelineRoutes(app: FastifyInstance): Promise<void
           throw new Error(`Step ${i + 1} (${step.toolId}): ${msg}`);
         }
       }
+
+      reportProgress(95, "Saving...");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Pipeline processing failed";
       trackEvent(request, ANALYTICS_EVENTS.PIPELINE_EXECUTED, {

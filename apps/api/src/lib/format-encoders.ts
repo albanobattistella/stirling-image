@@ -103,3 +103,31 @@ export async function encodeQoi(inputBuffer: Buffer): Promise<Buffer> {
   const encoded = qoiEncode(new Uint8Array(data), info.width, info.height, 4);
   return Buffer.from(encoded);
 }
+
+export async function encodeJxl(inputBuffer: Buffer, quality?: number): Promise<Buffer> {
+  const id = randomUUID();
+  const inputPath = join(tmpdir(), `jxl-enc-in-${id}.png`);
+  const outputPath = join(tmpdir(), `jxl-enc-out-${id}.jxl`);
+  try {
+    const pngBuffer = await sharp(inputBuffer).png().toBuffer();
+    await writeFile(inputPath, pngBuffer);
+    try {
+      const q = String(quality ?? 75);
+      await execFileAsync("cjxl", [inputPath, outputPath, "-q", q], {
+        timeout: 120_000,
+      });
+      return await readFile(outputPath);
+    } catch {
+      /* cjxl not available, fall back to ImageMagick */
+    }
+    const cmd = await findMagickCmd();
+    const q = quality ? ["-quality", String(quality)] : [];
+    await execFileAsync(cmd, magickArgs(cmd, [inputPath, ...q, `jxl:${outputPath}`]), {
+      timeout: 120_000,
+    });
+    return await readFile(outputPath);
+  } finally {
+    await rm(inputPath, { force: true }).catch(() => {});
+    await rm(outputPath, { force: true }).catch(() => {});
+  }
+}

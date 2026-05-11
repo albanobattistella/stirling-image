@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
 import { z } from "zod";
 import { formatZodErrors } from "../../lib/errors.js";
+import { encodeJxl } from "../../lib/format-encoders.js";
 import { ensureSharpCompat } from "../../lib/heic-converter.js";
 
 const settingsSchema = z.object({
@@ -145,10 +146,12 @@ export function registerImageToBase64(app: FastifyInstance) {
                 outputBuffer = await pipeline.avif({ quality: opts.quality, effort: 4 }).toBuffer();
                 mimeType = "image/avif";
                 break;
-              case "jxl":
-                outputBuffer = await pipeline.jxl({ quality: opts.quality }).toBuffer();
+              case "jxl": {
+                const pngBuf = await pipeline.png().toBuffer();
+                outputBuffer = await encodeJxl(pngBuf, opts.quality);
                 mimeType = "image/jxl";
                 break;
+              }
               default:
                 outputBuffer = await pipeline.toBuffer();
                 mimeType = detectMimeType(ext);

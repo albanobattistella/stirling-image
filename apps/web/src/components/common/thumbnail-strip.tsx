@@ -2,6 +2,18 @@ import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { FileEntry } from "@/stores/file-store";
 
+const BROWSER_IMG_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "avif"]);
+
+function thumbnailSrc(entry: FileEntry): string {
+  if (entry.processedPreviewUrl) return entry.processedPreviewUrl;
+  if (entry.processedUrl) {
+    if (entry.processedUrl.startsWith("blob:")) return entry.processedUrl;
+    const ext = decodeURIComponent(entry.processedUrl).split(".").pop()?.toLowerCase() ?? "";
+    if (BROWSER_IMG_EXTS.has(ext)) return entry.processedUrl;
+  }
+  return entry.blobUrl;
+}
+
 interface ThumbnailStripProps {
   entries: FileEntry[];
   selectedIndex: number;
@@ -50,7 +62,7 @@ export function ThumbnailStrip({ entries, selectedIndex, onSelect }: ThumbnailSt
               </div>
             ) : (
               <img
-                src={entry.processedPreviewUrl ?? entry.processedUrl ?? entry.blobUrl}
+                src={thumbnailSrc(entry)}
                 alt={entry.file.name}
                 className="w-full h-full object-cover"
                 draggable={false}

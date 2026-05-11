@@ -5,6 +5,7 @@ vi.mock("sharp", () => {
   const mockSharp = vi.fn(() => ({
     png: vi.fn().mockReturnThis(),
     jpeg: vi.fn().mockReturnThis(),
+    resize: vi.fn().mockReturnThis(),
     toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
     metadata: vi.fn().mockResolvedValue({ width: 800, height: 600 }),
   }));
@@ -44,6 +45,7 @@ beforeEach(() => {
       ({
         png: vi.fn().mockReturnThis(),
         jpeg: vi.fn().mockReturnThis(),
+        resize: vi.fn().mockReturnThis(),
         toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
         metadata: vi.fn().mockResolvedValue({ width: 800, height: 600 }),
       }) as unknown as ReturnType<typeof sharp>,
@@ -71,6 +73,7 @@ describe("seamCarve", () => {
         ({
           png: vi.fn().mockReturnThis(),
           jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
           toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
           metadata: vi.fn().mockResolvedValue({ width: 800, height: 600 }),
         }) as unknown as ReturnType<typeof sharp>,
@@ -222,6 +225,7 @@ describe("seamCarve", () => {
         ({
           png: vi.fn().mockReturnThis(),
           jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
           toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
           // 4000x3000 = 12MP, should give timeout > 120s
           metadata: vi.fn().mockResolvedValue({ width: 4000, height: 3000 }),
@@ -257,6 +261,7 @@ describe("seamCarve", () => {
         ({
           png: vi.fn().mockReturnThis(),
           jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
           toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
           metadata: vi.fn().mockResolvedValue({ width: undefined, height: undefined }),
         }) as unknown as ReturnType<typeof sharp>,
@@ -275,6 +280,7 @@ describe("seamCarve", () => {
         ({
           png: vi.fn().mockReturnThis(),
           jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
           toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
           // 6000x5000 = 30 MP, exceeds 25 MP limit
           metadata: vi.fn().mockResolvedValue({ width: 6000, height: 5000 }),
@@ -286,40 +292,73 @@ describe("seamCarve", () => {
     );
   });
 
-  it("throws when dimension reduction exceeds 75%", async () => {
+  it("pre-resizes when width reduction exceeds 75%", async () => {
+    let callCount = 0;
     vi.mocked(sharp).mockImplementation(
       () =>
         ({
           png: vi.fn().mockReturnThis(),
           jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
           toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
-          metadata: vi.fn().mockResolvedValue({ width: 800, height: 600 }),
+          metadata: vi.fn().mockImplementation(() => {
+            callCount++;
+            if (callCount <= 1) return Promise.resolve({ width: 800, height: 600 });
+            return Promise.resolve({ width: 200, height: 150 });
+          }),
         }) as unknown as ReturnType<typeof sharp>,
     );
 
     const { seamCarve } = await importFresh();
-    // Requesting width 100 from 800 is a 87.5% reduction (ratio 0.125 < 0.25)
-    await expect(seamCarve(FAKE_INPUT, FAKE_OUTPUT_DIR, { width: 100 })).rejects.toThrow(
-      "cannot reduce dimensions by more than 75%",
-    );
+    await expect(seamCarve(FAKE_INPUT, FAKE_OUTPUT_DIR, { width: 100 })).resolves.toBeDefined();
   });
 
-  it("throws when height reduction exceeds 75%", async () => {
+  it("pre-resizes when height reduction exceeds 75%", async () => {
+    let callCount = 0;
     vi.mocked(sharp).mockImplementation(
       () =>
         ({
           png: vi.fn().mockReturnThis(),
           jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
           toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
-          metadata: vi.fn().mockResolvedValue({ width: 800, height: 600 }),
+          metadata: vi.fn().mockImplementation(() => {
+            callCount++;
+            if (callCount <= 1) return Promise.resolve({ width: 800, height: 600 });
+            return Promise.resolve({ width: 200, height: 150 });
+          }),
         }) as unknown as ReturnType<typeof sharp>,
     );
 
     const { seamCarve } = await importFresh();
-    // Requesting height 100 from 600 is an 83% reduction (ratio 0.167 < 0.25)
-    await expect(seamCarve(FAKE_INPUT, FAKE_OUTPUT_DIR, { height: 100 })).rejects.toThrow(
-      "cannot reduce dimensions by more than 75%",
+    await expect(seamCarve(FAKE_INPUT, FAKE_OUTPUT_DIR, { height: 100 })).resolves.toBeDefined();
+  });
+
+  it("pre-resizes large image for square mode with small target", async () => {
+    let callCount = 0;
+    vi.mocked(sharp).mockImplementation(
+      () =>
+        ({
+          png: vi.fn().mockReturnThis(),
+          jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
+          toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
+          metadata: vi.fn().mockImplementation(() => {
+            callCount++;
+            if (callCount <= 1) return Promise.resolve({ width: 3775, height: 5662 });
+            return Promise.resolve({ width: 944, height: 1416 });
+          }),
+        }) as unknown as ReturnType<typeof sharp>,
     );
+
+    const { seamCarve } = await importFresh();
+    await expect(
+      seamCarve(FAKE_INPUT, FAKE_OUTPUT_DIR, { width: 500, height: 500, square: true }),
+    ).resolves.toBeDefined();
+
+    const calls = mockExecFileAsync.mock.calls;
+    const caireCall = calls.find((c: unknown[]) => Array.isArray(c[1]) && c[1].includes("-square"));
+    expect(caireCall).toBeDefined();
   });
 
   it("passes only width when height is not specified", async () => {
@@ -382,6 +421,7 @@ describe("seamCarve", () => {
         ({
           png: vi.fn().mockReturnThis(),
           jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
           toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
           metadata: vi.fn().mockResolvedValue({ width: 6000, height: 5000 }),
         }) as unknown as ReturnType<typeof sharp>,
@@ -397,6 +437,7 @@ describe("seamCarve", () => {
         ({
           png: vi.fn().mockReturnThis(),
           jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
           toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
           metadata: vi.fn().mockResolvedValue({ width: 6000, height: 5000 }),
         }) as unknown as ReturnType<typeof sharp>,
@@ -440,6 +481,7 @@ describe("seamCarve", () => {
         ({
           png: vi.fn().mockReturnThis(),
           jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
           toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
           metadata: vi.fn().mockResolvedValue({ width: 1200, height: 400 }),
         }) as unknown as ReturnType<typeof sharp>,
@@ -461,6 +503,7 @@ describe("seamCarve", () => {
         ({
           png: vi.fn().mockReturnThis(),
           jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
           toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
           metadata: vi.fn().mockRejectedValue(new Error("Corrupt file header")),
         }) as unknown as ReturnType<typeof sharp>,
@@ -476,6 +519,7 @@ describe("seamCarve", () => {
         ({
           png: vi.fn().mockReturnThis(),
           jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
           toBuffer: vi.fn().mockRejectedValue(new Error("JPEG encode failed")),
           metadata: vi.fn().mockResolvedValue({ width: 800, height: 600 }),
         }) as unknown as ReturnType<typeof sharp>,
@@ -520,6 +564,7 @@ describe("seamCarve", () => {
         ({
           png: vi.fn().mockReturnThis(),
           jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
           toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
           metadata: vi.fn().mockResolvedValue({ width: 800, height: 600 }),
         }) as unknown as ReturnType<typeof sharp>,
@@ -528,6 +573,31 @@ describe("seamCarve", () => {
     const { seamCarve } = await importFresh();
     // 200/800 = 0.25, exactly at boundary -- should NOT throw
     await expect(seamCarve(FAKE_INPUT, FAKE_OUTPUT_DIR, { width: 200 })).resolves.toBeDefined();
+  });
+
+  it("timeout is always an integer", async () => {
+    vi.mocked(sharp).mockImplementation(
+      () =>
+        ({
+          png: vi.fn().mockReturnThis(),
+          jpeg: vi.fn().mockReturnThis(),
+          resize: vi.fn().mockReturnThis(),
+          toBuffer: vi.fn().mockResolvedValue(Buffer.from("mock-jpeg-data")),
+          // 3775x5662 = 21.37 MP -- produces a float if not rounded
+          metadata: vi.fn().mockResolvedValue({ width: 3775, height: 5662 }),
+        }) as unknown as ReturnType<typeof sharp>,
+    );
+
+    const { seamCarve } = await importFresh();
+    await seamCarve(FAKE_INPUT, FAKE_OUTPUT_DIR);
+
+    const calls = mockExecFileAsync.mock.calls;
+    const caireCall = calls.find(
+      (c: unknown[]) => Array.isArray(c[1]) && c[1].includes("-preview=false"),
+    );
+    expect(caireCall).toBeDefined();
+    const timeout = caireCall?.[2]?.timeout;
+    expect(Number.isInteger(timeout)).toBe(true);
   });
 
   it("uses unique UUID in temp file names to prevent collisions", async () => {

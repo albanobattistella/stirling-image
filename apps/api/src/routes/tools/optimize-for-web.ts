@@ -8,6 +8,7 @@ import { formatZodErrors } from "../../lib/errors.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
 import { sanitizeFilename } from "../../lib/filename.js";
 import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
+import { encodeJxl } from "../../lib/format-encoders.js";
 import { decodeHeic } from "../../lib/heic-converter.js";
 import { sanitizeSvg } from "../../lib/svg-sanitize.js";
 import { createToolRoute } from "../tool-factory.js";
@@ -40,9 +41,16 @@ const settingsSchema = z.object({
 type Settings = z.infer<typeof settingsSchema>;
 
 async function processImage(inputBuffer: Buffer, settings: Settings, filename: string) {
+  const isJxl = settings.format === "jxl";
+  const engineSettings = isJxl ? { ...settings, format: "png" as const } : settings;
+
   const image = sharp(inputBuffer);
-  const result = await optimizeForWeb(image, settings);
-  const buffer = await result.toBuffer();
+  const result = await optimizeForWeb(image, engineSettings);
+  let buffer = await result.toBuffer();
+
+  if (isJxl) {
+    buffer = await encodeJxl(buffer, settings.quality);
+  }
 
   const ext = extname(filename);
   const baseName = ext ? filename.slice(0, -ext.length) : filename;

@@ -26,6 +26,8 @@ const IDLE_PROGRESS: PipelineProgress = {
   elapsed: 0,
 };
 
+const UPLOAD_WEIGHT = 15;
+
 export function usePipelineProcessor() {
   const { processing, error, processedUrl, originalSize, processedSize, setProcessing, setError } =
     useFileStore();
@@ -35,13 +37,11 @@ export function usePipelineProcessor() {
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const processingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clean up on unmount
   useEffect(() => {
     return () => {
       if (elapsedRef.current) clearInterval(elapsedRef.current);
-      if (processingTimerRef.current) clearInterval(processingTimerRef.current);
       if (eventSourceRef.current) eventSourceRef.current.close();
       if (xhrRef.current) xhrRef.current.abort();
       if (abortRef.current) abortRef.current.abort();
@@ -50,12 +50,9 @@ export function usePipelineProcessor() {
 
   const processSingle = useCallback(
     (file: File, steps: PipelineStep[]) => {
-      // Capture the file index at request time so results are written
-      // to the correct entry even if the user navigates away.
       const capturedIndex = useFileStore.getState().selectedIndex;
 
       setError(null);
-      // Mark the target entry as processing and clear any old result
       useFileStore.getState().updateEntry(capturedIndex, {
         processedUrl: null,
         processedPreviewUrl: null,
@@ -66,7 +63,6 @@ export function usePipelineProcessor() {
       setProcessing(true);
       setProgress({ phase: "uploading", percent: 0, elapsed: 0 });
 
-      // Start elapsed timer
       const startTime = Date.now();
       elapsedRef.current = setInterval(() => {
         setProgress((prev) => ({
@@ -75,7 +71,40 @@ export function usePipelineProcessor() {
         }));
       }, 1000);
 
-      // Build pipeline payload
+      const clientJobId = generateId();
+
+      // Open SSE for real-time progress from the server
+      try {
+        const es = new EventSource(`/api/v1/jobs/${clientJobId}/progress`);
+        eventSourceRef.current = es;
+
+        es.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type !== "single") return;
+
+            if (typeof data.percent === "number") {
+              const scaled = UPLOAD_WEIGHT + (data.percent / 100) * (100 - UPLOAD_WEIGHT);
+              setProgress((prev) => ({
+                ...prev,
+                phase: "processing",
+                percent: Math.max(prev.percent, scaled),
+                stage: data.stage,
+              }));
+            }
+          } catch {
+            // Ignore malformed SSE
+          }
+        };
+
+        es.onerror = () => {
+          es.close();
+          eventSourceRef.current = null;
+        };
+      } catch {
+        // EventSource creation failed -- proceed without SSE
+      }
+
       const pipeline = {
         steps: steps.map((s) => ({ toolId: s.toolId, settings: s.settings })),
       };
@@ -83,16 +112,12 @@ export function usePipelineProcessor() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("pipeline", JSON.stringify(pipeline));
+      formData.append("clientJobId", clientJobId);
 
-      // Use XHR for upload progress tracking
       const xhr = new XMLHttpRequest();
       xhrRef.current = xhr;
 
-      // Pipeline runs multiple steps sequentially, allow up to 10 minutes
       xhr.timeout = 600_000;
-
-      // Pipeline is always "medium" speed: upload = 0-40%, processing = 40-95%
-      const UPLOAD_WEIGHT = 40;
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -111,23 +136,14 @@ export function usePipelineProcessor() {
           percent: UPLOAD_WEIGHT,
           stage: "Processing...",
         }));
-
-        // Gradually fill from upload weight to 95% over ~45s
-        const start = UPLOAD_WEIGHT;
-        const target = 95;
-        const step = (target - start) / 90; // 90 ticks over ~45s
-        processingTimerRef.current = setInterval(() => {
-          setProgress((prev) => {
-            if (prev.phase !== "processing") return prev;
-            const next = Math.min(target, prev.percent + step);
-            return { ...prev, percent: next };
-          });
-        }, 500);
       };
 
       xhr.onload = () => {
         if (elapsedRef.current) clearInterval(elapsedRef.current);
-        if (processingTimerRef.current) clearInterval(processingTimerRef.current);
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
 
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
@@ -166,7 +182,10 @@ export function usePipelineProcessor() {
 
       xhr.onerror = () => {
         if (elapsedRef.current) clearInterval(elapsedRef.current);
-        if (processingTimerRef.current) clearInterval(processingTimerRef.current);
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
         setError("Network error - check your connection");
         setProcessing(false);
         setProgress(IDLE_PROGRESS);
@@ -174,7 +193,10 @@ export function usePipelineProcessor() {
 
       xhr.ontimeout = () => {
         if (elapsedRef.current) clearInterval(elapsedRef.current);
-        if (processingTimerRef.current) clearInterval(processingTimerRef.current);
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
         setError("Request timed out - the server may be overloaded. Try again.");
         setProcessing(false);
         setProgress(IDLE_PROGRESS);

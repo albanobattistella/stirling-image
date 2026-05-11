@@ -1307,11 +1307,10 @@ describe("seamCarve", () => {
     );
   });
 
-  it("rejects reductions larger than 75%", async () => {
+  it("pre-resizes when reduction exceeds 75% instead of rejecting", async () => {
     // 800x600, requesting width: 100 => ratio 0.125 < 0.25
-    await expect(seamCarve(INPUT_BUFFER, OUTPUT_DIR, { width: 100 })).rejects.toThrow(
-      "cannot reduce dimensions by more than 75%",
-    );
+    // Should succeed by pre-resizing to bring within 75% limit
+    await expect(seamCarve(INPUT_BUFFER, OUTPUT_DIR, { width: 100 })).resolves.toBeDefined();
   });
 
   it("uses original dimensions when width/height not specified", async () => {

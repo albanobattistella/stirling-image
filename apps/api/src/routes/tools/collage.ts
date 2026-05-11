@@ -8,6 +8,7 @@ import { autoOrient } from "../../lib/auto-orient.js";
 import { formatZodErrors } from "../../lib/errors.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
 import { sanitizeFilename } from "../../lib/filename.js";
+import { encodeJxl } from "../../lib/format-encoders.js";
 import { ensureSharpCompat } from "../../lib/heic-converter.js";
 import { createWorkspace } from "../../lib/workspace.js";
 
@@ -643,7 +644,7 @@ export function registerCollage(app: FastifyInstance) {
           outputExt = "avif";
           break;
         case "jxl":
-          pipeline = pipeline.jxl({ quality: settings.quality });
+          pipeline = pipeline.png();
           outputExt = "jxl";
           break;
         default:
@@ -653,18 +654,19 @@ export function registerCollage(app: FastifyInstance) {
       }
 
       const result = await pipeline.toBuffer();
+      const finalBuffer = outputExt === "jxl" ? await encodeJxl(result, settings.quality) : result;
 
       const jobId = randomUUID();
       const workspacePath = await createWorkspace(jobId);
       const filename = `collage.${outputExt}`;
       const outputPath = join(workspacePath, "output", filename);
-      await writeFile(outputPath, result);
+      await writeFile(outputPath, finalBuffer);
 
       return reply.send({
         jobId,
         downloadUrl: `/api/v1/download/${jobId}/${filename}`,
         originalSize: files.reduce((s, f) => s + f.buffer.length, 0),
-        processedSize: result.length,
+        processedSize: finalBuffer.length,
       });
     } catch (err) {
       return reply.status(422).send({

@@ -9,6 +9,7 @@ import sharp from "sharp";
 import { z } from "zod";
 import { env } from "../../config.js";
 import { formatZodErrors } from "../../lib/errors.js";
+import { encodeJxl } from "../../lib/format-encoders.js";
 import { encodeHeic } from "../../lib/heic-converter.js";
 import { createWorkspace } from "../../lib/workspace.js";
 
@@ -117,8 +118,10 @@ async function convertWithSharp(
       return s.tiff().toBuffer();
     case "gif":
       return s.gif().toBuffer();
-    case "jxl":
-      return s.jxl({ quality }).toBuffer();
+    case "jxl": {
+      const pngBuf = await s.png().toBuffer();
+      return encodeJxl(pngBuf, quality);
+    }
     case "heic":
     case "heif": {
       const pngBuf = await s.png().toBuffer();
