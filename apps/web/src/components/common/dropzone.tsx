@@ -2,6 +2,81 @@ import { FileImage, Upload } from "lucide-react";
 import { type DragEvent, useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 
+const IMAGE_EXTENSIONS = new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "svg",
+  "bmp",
+  "avif",
+  "tiff",
+  "tif",
+  "ico",
+  "heic",
+  "heif",
+  "hif",
+  "jxl",
+  "apng",
+  "dng",
+  "cr2",
+  "cr3",
+  "nef",
+  "nrw",
+  "arw",
+  "orf",
+  "rw2",
+  "raf",
+  "pef",
+  "3fr",
+  "iiq",
+  "srw",
+  "x3f",
+  "rwl",
+  "gpr",
+  "fff",
+  "mrw",
+  "mef",
+  "kdc",
+  "dcr",
+  "erf",
+  "ptx",
+  "tga",
+  "psd",
+  "exr",
+  "hdr",
+  "svgz",
+  "jp2",
+  "j2k",
+  "j2c",
+  "jpc",
+  "jpf",
+  "jpx",
+  "qoi",
+  "eps",
+  "epsf",
+  "dds",
+  "cur",
+  "dpx",
+  "cin",
+  "fits",
+  "fit",
+  "fts",
+  "pbm",
+  "pgm",
+  "ppm",
+  "pnm",
+  "pam",
+  "pfm",
+]);
+
+export function isImageFile(file: File): boolean {
+  if (file.type.startsWith("image/")) return true;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return IMAGE_EXTENSIONS.has(ext);
+}
+
 interface DropzoneProps {
   onFiles?: (files: File[]) => void;
   accept?: string;
@@ -41,7 +116,7 @@ export function Dropzone({
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
-      const files = Array.from(e.dataTransfer.files);
+      const files = Array.from(e.dataTransfer.files).filter(isImageFile);
       if (files.length > 0) onFiles?.(files);
     },
     [onFiles],

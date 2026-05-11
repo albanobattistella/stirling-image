@@ -172,6 +172,9 @@ const CLI_DECODED_FORMATS = new Set([
   "cur",
   "dpx",
   "fits",
+  "ppm",
+  "pgm",
+  "pbm",
 ]);
 
 /**

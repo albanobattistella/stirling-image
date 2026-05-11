@@ -1,5 +1,6 @@
 import { Upload } from "lucide-react";
 import { useState } from "react";
+import { isImageFile } from "@/components/common/dropzone";
 import { cn } from "@/lib/utils";
 import { useFilesPageStore } from "@/stores/files-page-store";
 
@@ -19,7 +20,7 @@ export function FileUploadArea() {
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragging(false);
-    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+    const files = Array.from(e.dataTransfer.files).filter(isImageFile);
     if (files.length > 0) uploadFiles(files);
   }
 

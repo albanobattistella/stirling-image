@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildTestApp, createMultipartPayload, loginAsAdmin, type TestApp } from "./test-server.js";
 
 const FIXTURES = join(__dirname, "..", "fixtures");
+const FORMATS = join(FIXTURES, "formats");
 const PNG = readFileSync(join(FIXTURES, "test-200x150.png"));
 const _JPG = readFileSync(join(FIXTURES, "test-100x100.jpg"));
 const WEBP = readFileSync(join(FIXTURES, "test-50x50.webp"));
@@ -204,6 +205,41 @@ describe("Multiple input formats", () => {
     expect(res.statusCode).toBe(200);
     const result = JSON.parse(res.body);
     expect(result.downloadUrl).toBeDefined();
+  });
+});
+
+// ── Exotic input formats ─────────────────────────────────────────
+describe("Exotic format processing", () => {
+  const exoticFormats = [
+    { ext: "pbm", mime: "image/x-portable-bitmap" },
+    { ext: "pgm", mime: "image/x-portable-graymap" },
+    { ext: "ppm", mime: "image/x-portable-pixmap" },
+    { ext: "tiff", mime: "image/tiff" },
+    { ext: "qoi", mime: "image/x-qoi" },
+    { ext: "jp2", mime: "image/jp2" },
+    { ext: "svgz", mime: "image/svg+xml" },
+  ];
+
+  for (const { ext, mime } of exoticFormats) {
+    it(`processes ${ext.toUpperCase()} input without error`, async () => {
+      const buf = readFileSync(join(FORMATS, `sample.${ext}`));
+      const res = await postTool({ mode: "quality", quality: 50 }, buf, `sample.${ext}`, mime);
+      expect(res.statusCode).toBe(200);
+      const result = JSON.parse(res.body);
+      expect(result.downloadUrl).toBeDefined();
+      expect(result.processedSize).toBeGreaterThan(0);
+    });
+  }
+
+  it("rejects PDF files", async () => {
+    const pdfHeader = Buffer.from("%PDF-1.4 fake pdf content for test");
+    const res = await postTool(
+      { mode: "quality", quality: 50 },
+      pdfHeader,
+      "document.pdf",
+      "application/pdf",
+    );
+    expect(res.statusCode).toBe(400);
   });
 });
 

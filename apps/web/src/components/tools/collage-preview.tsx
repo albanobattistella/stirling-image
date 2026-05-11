@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { type DragEvent, useCallback, useEffect, useRef, useState } from "react";
+import { isImageFile } from "@/components/common/dropzone";
 import { type CollageTemplate, getTemplateById } from "@/lib/collage-templates";
 import { cn } from "@/lib/utils";
 import type { CellTransform, CollageImage } from "@/stores/collage-store";
@@ -95,7 +96,7 @@ function UploadArea() {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
-      const files = Array.from(e.dataTransfer.files);
+      const files = Array.from(e.dataTransfer.files).filter(isImageFile);
       if (files.length > 0) addImages(files);
     },
     [addImages],
