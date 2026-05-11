@@ -11,6 +11,7 @@ import { validateImageBuffer } from "../../lib/file-validation.js";
 import { sanitizeFilename } from "../../lib/filename.js";
 import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
 import { decodeHeic } from "../../lib/heic-converter.js";
+import { decompressSvgz, sanitizeSvg } from "../../lib/svg-sanitize.js";
 import { createWorkspace } from "../../lib/workspace.js";
 
 const targetSizeSchema = z.object({
@@ -185,14 +186,43 @@ export function registerImageToPdf(app: FastifyInstance) {
 
         const validation = await validateImageBuffer(buf, file.filename);
         if (!validation.valid) {
-          return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
+          return reply.status(400).send({
+            error: `Invalid image "${file.filename}": ${validation.reason}`,
+          });
         }
 
         if (validation.format === "heif") {
-          buf = await decodeHeic(buf);
+          try {
+            buf = await decodeHeic(buf);
+          } catch (err) {
+            return reply.status(422).send({
+              error: `Failed to decode HEIC file "${file.filename}"`,
+              details: err instanceof Error ? err.message : String(err),
+            });
+          }
         } else if (needsCliDecode(validation.format)) {
-          const fileExt = file.filename.split(".").pop()?.toLowerCase();
-          buf = await decodeToSharpCompat(buf, validation.format, fileExt);
+          try {
+            const fileExt = file.filename.split(".").pop()?.toLowerCase();
+            buf = await decodeToSharpCompat(buf, validation.format, fileExt);
+          } catch {
+            try {
+              await sharp(buf).metadata();
+            } catch (err) {
+              return reply.status(422).send({
+                error: `Failed to decode ${validation.format.toUpperCase()} file "${file.filename}"`,
+                details: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }
+        } else if (validation.format === "svg") {
+          try {
+            buf = decompressSvgz(buf);
+            buf = sanitizeSvg(buf);
+          } catch (err) {
+            return reply.status(400).send({
+              error: `Invalid SVG "${file.filename}": ${err instanceof Error ? err.message : "unknown error"}`,
+            });
+          }
         }
 
         preparedBuffers.push(await autoOrient(buf));
