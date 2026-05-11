@@ -7,8 +7,10 @@ import sharp from "sharp";
 import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
 import { formatZodErrors } from "../../lib/errors.js";
+import { validateImageBuffer } from "../../lib/file-validation.js";
 import { sanitizeFilename } from "../../lib/filename.js";
-import { ensureSharpCompat } from "../../lib/heic-converter.js";
+import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
+import { decodeHeic } from "../../lib/heic-converter.js";
 import { createWorkspace } from "../../lib/workspace.js";
 
 const targetSizeSchema = z.object({
@@ -179,8 +181,21 @@ export function registerImageToPdf(app: FastifyInstance) {
 
       const preparedBuffers: Buffer[] = [];
       for (const file of files) {
-        const compatBuffer = await autoOrient(await ensureSharpCompat(file.buffer));
-        preparedBuffers.push(compatBuffer);
+        let buf = file.buffer;
+
+        const validation = await validateImageBuffer(buf, file.filename);
+        if (!validation.valid) {
+          return reply.status(400).send({ error: `Invalid image: ${validation.reason}` });
+        }
+
+        if (validation.format === "heif") {
+          buf = await decodeHeic(buf);
+        } else if (needsCliDecode(validation.format)) {
+          const fileExt = file.filename.split(".").pop()?.toLowerCase();
+          buf = await decodeToSharpCompat(buf, validation.format, fileExt);
+        }
+
+        preparedBuffers.push(await autoOrient(buf));
       }
 
       let imageBuffers: Buffer[];

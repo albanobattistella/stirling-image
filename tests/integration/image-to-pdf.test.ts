@@ -216,7 +216,7 @@ describe("image-to-pdf", () => {
 
   // ── Branch coverage: lines 143-147 (processing failure) ───────────
 
-  it("returns 422 when processing fails on corrupted image data", async () => {
+  it("returns 400 when image format is unrecognized", async () => {
     const corruptedBuffer = Buffer.alloc(100, 0xff);
     const { body, contentType } = createMultipartPayload([
       { name: "file", filename: "bad.png", contentType: "image/png", content: corruptedBuffer },
@@ -230,9 +230,9 @@ describe("image-to-pdf", () => {
       body,
     });
 
-    expect(res.statusCode).toBe(422);
+    expect(res.statusCode).toBe(400);
     const json = JSON.parse(res.body);
-    expect(json.error).toContain("PDF creation failed");
+    expect(json.error).toContain("Invalid image");
   });
 
   // ── HEIC input handling ───────────────────────────────────────────
