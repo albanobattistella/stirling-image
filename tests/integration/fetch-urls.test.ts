@@ -48,6 +48,7 @@ import { buildTestApp, loginAsAdmin, type TestApp } from "./test-server.js";
 
 const FIXTURES = join(__dirname, "..", "fixtures");
 const JPG = readFileSync(join(FIXTURES, "test-100x100.jpg"));
+const TIFF = readFileSync(join(FIXTURES, "formats", "sample.tiff"));
 
 let testApp: TestApp;
 let app: TestApp["app"];
@@ -81,6 +82,31 @@ function startMockServer(): Promise<{ server: Server; port: number }> {
       if (url === "/missing.jpg") {
         res.writeHead(404);
         res.end("Not Found");
+        return;
+      }
+
+      if (url === "/photo.tiff") {
+        res.writeHead(200, { "Content-Type": "image/tiff" });
+        res.end(TIFF);
+        return;
+      }
+
+      if (url === "/empty") {
+        res.writeHead(200, { "Content-Type": "image/jpeg" });
+        res.end();
+        return;
+      }
+
+      if (url === "/server-error") {
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end("Internal Server Error");
+        return;
+      }
+
+      if (url === "/slow-close") {
+        // Return a valid response with no body stream at all
+        res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": "0" });
+        res.end();
         return;
       }
 
@@ -354,5 +380,117 @@ describe("POST /api/v1/fetch-urls", () => {
     expect(res.statusCode).toBe(400);
     const body = JSON.parse(res.body);
     expect(body.error).toBeTruthy();
+  });
+
+  it("generates a preview for non-browser-previewable formats", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/fetch-urls",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+      },
+      payload: {
+        urls: [`http://127.0.0.1:${mockPort}/photo.tiff`],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.results).toHaveLength(1);
+
+    const result = body.results[0];
+    expect(result.success).toBe(true);
+    expect(result.contentType).toBe("image/tiff");
+    expect(result.previewUrl).toBeTruthy();
+    expect(result.previewUrl).toContain("preview-");
+    expect(result.previewUrl).toContain(".webp");
+
+    // Preview URL should serve a valid webp image
+    const previewRes = await app.inject({
+      method: "GET",
+      url: result.previewUrl,
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+      },
+    });
+    expect(previewRes.statusCode).toBe(200);
+  });
+
+  it("returns failure for empty response body", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/fetch-urls",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+      },
+      payload: {
+        urls: [`http://127.0.0.1:${mockPort}/empty`],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.results).toHaveLength(1);
+    expect(body.results[0].success).toBe(false);
+    expect(body.results[0].error).toContain("Empty");
+  });
+
+  it("returns failure for 500 server error", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/fetch-urls",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+      },
+      payload: {
+        urls: [`http://127.0.0.1:${mockPort}/server-error`],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.results).toHaveLength(1);
+    expect(body.results[0].success).toBe(false);
+    expect(body.results[0].error).toContain("500");
+  });
+
+  it("returns failure when fetch throws a network error", async () => {
+    // Port 1 is almost guaranteed to refuse connections, triggering the outer
+    // catch block (lines 275-278 in fetch-urls.ts).
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/fetch-urls",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+      },
+      payload: {
+        urls: ["http://127.0.0.1:1/unreachable.jpg"],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.results).toHaveLength(1);
+    expect(body.results[0].success).toBe(false);
+    expect(body.results[0].error).toBeTruthy();
+  });
+
+  it("returns failure for zero-length content", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/fetch-urls",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+      },
+      payload: {
+        urls: [`http://127.0.0.1:${mockPort}/slow-close`],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.results).toHaveLength(1);
+    expect(body.results[0].success).toBe(false);
+    expect(body.results[0].error).toContain("Empty");
   });
 });

@@ -68,9 +68,82 @@ describe("validateFetchUrl", () => {
     await expect(validateFetchUrl("http://[2001:DB8::1]/image.jpg")).rejects.toThrow("private");
   });
 
+  it("allows a public IP address directly in URL", async () => {
+    // Exercises the early-return path in resolveAndCheck when hostname is a
+    // non-private IP literal (covers the `return` after the isIP check).
+    await expect(validateFetchUrl("http://8.8.8.8/image.jpg")).resolves.toBeUndefined();
+  });
+
   it("rejects invalid URLs", async () => {
     await expect(validateFetchUrl("not-a-url")).rejects.toThrow();
     await expect(validateFetchUrl("")).rejects.toThrow();
+  });
+});
+
+/**
+ * Tests that require DNS mocking to exercise resolveAndCheck paths that only
+ * trigger when the hostname is a non-IP string and lookup returns results.
+ */
+describe("validateFetchUrl with DNS mocking", () => {
+  const originalLookup = vi.hoisted(() => {
+    return { fn: null as null | ((...args: unknown[]) => unknown) };
+  });
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  vi.mock("node:dns/promises", async (importOriginal) => {
+    const orig = (await importOriginal()) as Record<string, unknown>;
+    originalLookup.fn = orig.lookup as (...args: unknown[]) => unknown;
+    return {
+      ...orig,
+      lookup: vi.fn((...args: unknown[]) => originalLookup.fn?.(...args)),
+    };
+  });
+
+  it("rejects hostname that resolves to IPv4-mapped IPv6 with private IPv4", async () => {
+    // Covers isPrivateIPv6 lines 28-31 (::ffff: mapped address path)
+    const dns = await import("node:dns/promises");
+    vi.mocked(dns.lookup).mockResolvedValueOnce([
+      { address: "::ffff:127.0.0.1", family: 6 },
+    ] as never);
+    await expect(validateFetchUrl("http://mapped-v6.example.com/image.jpg")).rejects.toThrow(
+      "private",
+    );
+  });
+
+  it("rejects hostname resolving to IPv4-mapped IPv6 with 10.x private", async () => {
+    const dns = await import("node:dns/promises");
+    vi.mocked(dns.lookup).mockResolvedValueOnce([
+      { address: "::ffff:10.0.0.1", family: 6 },
+    ] as never);
+    await expect(validateFetchUrl("http://mapped-ten.example.com/image.jpg")).rejects.toThrow(
+      "private",
+    );
+  });
+
+  it("handles DNS lookup returning a single result object", async () => {
+    // Covers the Array.isArray fallback branch (line 45: wrapping non-array in [])
+    const dns = await import("node:dns/promises");
+    vi.mocked(dns.lookup).mockResolvedValueOnce({
+      address: "203.0.113.1",
+      family: 4,
+    } as never);
+    await expect(
+      validateFetchUrl("http://single-result.example.com/image.jpg"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects when DNS returns multiple addresses with one private", async () => {
+    const dns = await import("node:dns/promises");
+    vi.mocked(dns.lookup).mockResolvedValueOnce([
+      { address: "203.0.113.1", family: 4 },
+      { address: "10.0.0.1", family: 4 },
+    ] as never);
+    await expect(validateFetchUrl("http://dual-addr.example.com/image.jpg")).rejects.toThrow(
+      "private",
+    );
   });
 });
 
