@@ -65,7 +65,7 @@ export function ComposeSettings() {
           id="compose-overlay-image"
           ref={overlayInputRef}
           type="file"
-          accept="image/*,.avif,.heic,.heif,.hif"
+          accept="image/*,.avif,.heic,.heif,.hif,.jxl,.dng,.cr2,.cr3,.nef,.nrw,.arw,.orf,.rw2,.raf,.pef,.3fr,.iiq,.srw,.x3f,.rwl,.gpr,.fff,.mrw,.mef,.kdc,.dcr,.erf,.ptx,.tga,.psd,.exr,.hdr,.svgz,.jp2,.j2k,.qoi,.eps,.dds,.cur,.apng,.dpx,.cin,.fits,.ppm,.pgm,.pbm,.pfm"
           onChange={(e) => setOverlayFile(e.target.files?.[0] ?? null)}
           className="hidden"
         />

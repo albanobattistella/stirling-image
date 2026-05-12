@@ -1,4 +1,7 @@
-import { expect, test, uploadTestImage, waitForProcessing } from "./helpers";
+import fs from "node:fs";
+import path from "node:path";
+import type { Page } from "@playwright/test";
+import { expect, getTestImagePath, test, uploadTestImage, waitForProcessing } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // GUI E2E: Watermark & Overlay Tools
@@ -277,18 +280,36 @@ test.describe("GUI Watermark & Overlay Tools", () => {
 
   // ========================================================================
   // COMPOSE (Image Composition)
+  //
+  // The compose page has two dashed-border elements: the overlay upload
+  // button in the settings sidebar and the main dropzone. The generic
+  // uploadTestImage helper picks the first border-dashed element (overlay
+  // button), so compose tests use the dropzone's aria-label and set
+  // overlay files directly on the hidden input.
   // ========================================================================
   test.describe("Compose", () => {
+    async function uploadBaseImage(page: Page) {
+      const fileChooserPromise = page.waitForEvent("filechooser");
+      await page.locator("section[aria-label='File drop zone']").click();
+      const fileChooser = await fileChooserPromise;
+      await fileChooser.setFiles(getTestImagePath());
+      await page.waitForTimeout(500);
+    }
+
+    async function uploadOverlayImage(page: Page, filePath?: string) {
+      await page.locator("#compose-overlay-image").setInputFiles(filePath ?? getTestImagePath());
+      await page.waitForTimeout(500);
+    }
+
     test("renders tool page with dropzone", async ({ loggedInPage: page }) => {
       await page.goto("/compose");
       await expect(page.getByText("Image Composition").first()).toBeVisible();
-      await expect(page.getByText("Upload from computer")).toBeVisible();
+      await expect(page.locator("section[aria-label='File drop zone']")).toBeVisible();
     });
 
     test("shows overlay upload and position controls", async ({ loggedInPage: page }) => {
       await page.goto("/compose");
 
-      // Position and opacity controls visible in settings panel
       await expect(page.getByText("X Position")).toBeVisible();
       await expect(page.getByText("Y Position")).toBeVisible();
       await expect(page.getByText("Opacity").first()).toBeVisible();
@@ -322,15 +343,111 @@ test.describe("GUI Watermark & Overlay Tools", () => {
       const select = page.locator("#compose-blend-mode");
       await expect(select).toBeVisible();
       const options = select.locator("option");
-      await expect(options).toHaveCount(10); // Normal, Multiply, Screen, Overlay, Darken, Lighten, Hard Light, Soft Light, Difference, Exclusion
+      await expect(options).toHaveCount(10);
     });
 
     test("submit disabled without overlay file", async ({ loggedInPage: page }) => {
       await page.goto("/compose");
-      await uploadTestImage(page);
+      await uploadBaseImage(page);
 
       const submitBtn = page.getByTestId("compose-submit");
       await expect(submitBtn).toBeDisabled();
+    });
+
+    test("submit enabled after uploading both base and overlay", async ({ loggedInPage: page }) => {
+      await page.goto("/compose");
+      await uploadBaseImage(page);
+      await uploadOverlayImage(page);
+
+      await expect(page.getByTestId("compose-submit")).toBeEnabled();
+    });
+
+    test("processes composition and shows download", async ({ loggedInPage: page }) => {
+      await page.goto("/compose");
+      await uploadBaseImage(page);
+      await uploadOverlayImage(page);
+
+      await page.getByTestId("compose-submit").click();
+      await waitForProcessing(page);
+
+      await expect(page.getByTestId("compose-download")).toBeVisible({ timeout: 15_000 });
+    });
+
+    test("processes with custom position and opacity", async ({ loggedInPage: page }) => {
+      await page.goto("/compose");
+      await uploadBaseImage(page);
+      await uploadOverlayImage(page);
+
+      await page.locator("#compose-x-position").fill("10");
+      await page.locator("#compose-y-position").fill("20");
+      await page.locator("#compose-opacity").fill("50");
+
+      await page.getByTestId("compose-submit").click();
+      await waitForProcessing(page);
+
+      await expect(page.getByTestId("compose-download")).toBeVisible({ timeout: 15_000 });
+    });
+
+    test("processes with multiply blend mode", async ({ loggedInPage: page }) => {
+      await page.goto("/compose");
+      await uploadBaseImage(page);
+      await uploadOverlayImage(page);
+
+      await page.locator("#compose-blend-mode").selectOption("multiply");
+
+      await page.getByTestId("compose-submit").click();
+      await waitForProcessing(page);
+
+      await expect(page.getByTestId("compose-download")).toBeVisible({ timeout: 15_000 });
+    });
+
+    test("overlay filename shown after selection", async ({ loggedInPage: page }) => {
+      await page.goto("/compose");
+      await uploadOverlayImage(page);
+
+      await expect(page.getByText("test-image.png")).toBeVisible();
+    });
+
+    test("shows size info after processing", async ({ loggedInPage: page }) => {
+      await page.goto("/compose");
+      await uploadBaseImage(page);
+      await uploadOverlayImage(page);
+
+      await page.getByTestId("compose-submit").click();
+      await waitForProcessing(page);
+
+      await expect(page.getByTestId("compose-download")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText(/Original:/).first()).toBeVisible();
+      await expect(page.getByText(/Processed:/).first()).toBeVisible();
+    });
+
+    test("processes webp overlay on png base", async ({ loggedInPage: page }) => {
+      await page.goto("/compose");
+      await uploadBaseImage(page);
+
+      const webpPath = path.join(process.cwd(), "tests", "fixtures", "test-50x50.webp");
+      await uploadOverlayImage(page, webpPath);
+
+      await page.getByTestId("compose-submit").click();
+      await waitForProcessing(page);
+
+      await expect(page.getByTestId("compose-download")).toBeVisible({ timeout: 15_000 });
+    });
+
+    test("shows error for corrupt overlay file", async ({ loggedInPage: page }) => {
+      await page.goto("/compose");
+      await uploadBaseImage(page);
+
+      const tmpDir = path.join(process.cwd(), "test-results");
+      const corruptPath = path.join(tmpDir, "corrupt-overlay.png");
+      fs.writeFileSync(corruptPath, Buffer.from("not-an-image"));
+      await uploadOverlayImage(page, corruptPath);
+
+      await page.getByTestId("compose-submit").click();
+
+      await expect(page.getByText(/Processing failed|Invalid image|error/i)).toBeVisible({
+        timeout: 15_000,
+      });
     });
   });
 

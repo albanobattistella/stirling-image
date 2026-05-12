@@ -6,9 +6,31 @@ import sharp from "sharp";
 import { z } from "zod";
 import { autoOrient } from "../../lib/auto-orient.js";
 import { formatZodErrors } from "../../lib/errors.js";
+import { validateImageBuffer } from "../../lib/file-validation.js";
 import { sanitizeFilename } from "../../lib/filename.js";
-import { ensureSharpCompat } from "../../lib/heic-converter.js";
+import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
+import { decodeHeic } from "../../lib/heic-converter.js";
+import { decompressSvgz, sanitizeSvg } from "../../lib/svg-sanitize.js";
 import { createWorkspace } from "../../lib/workspace.js";
+
+async function decodeBuffer(buffer: Buffer, filename: string): Promise<Buffer> {
+  const validation = await validateImageBuffer(buffer, filename);
+  if (!validation.valid) {
+    throw new Error(`Invalid image: ${validation.reason}`);
+  }
+
+  if (validation.format === "heif") {
+    buffer = await decodeHeic(buffer);
+  } else if (needsCliDecode(validation.format)) {
+    const ext = filename.split(".").pop()?.toLowerCase();
+    buffer = await decodeToSharpCompat(buffer, validation.format, ext);
+  } else if (validation.format === "svg") {
+    buffer = decompressSvgz(buffer);
+    buffer = sanitizeSvg(buffer);
+  }
+
+  return autoOrient(buffer);
+}
 
 const settingsSchema = z.object({
   x: z.number().min(0).default(0),
@@ -35,6 +57,7 @@ export function registerCompose(app: FastifyInstance) {
     let baseBuffer: Buffer | null = null;
     let overlayBuffer: Buffer | null = null;
     let filename = "image";
+    let overlayFilename = "overlay";
     let settingsRaw: string | null = null;
 
     try {
@@ -48,6 +71,7 @@ export function registerCompose(app: FastifyInstance) {
           const buf = Buffer.concat(chunks);
           if (part.fieldname === "overlay") {
             overlayBuffer = buf;
+            overlayFilename = sanitizeFilename(part.filename ?? "overlay");
           } else {
             baseBuffer = buf;
             filename = sanitizeFilename(part.filename ?? "image");
@@ -85,9 +109,8 @@ export function registerCompose(app: FastifyInstance) {
     }
 
     try {
-      // Decode HEIC/HEIF if needed, then normalize EXIF orientation
-      baseBuffer = await autoOrient(await ensureSharpCompat(baseBuffer));
-      overlayBuffer = await autoOrient(await ensureSharpCompat(overlayBuffer));
+      baseBuffer = await decodeBuffer(baseBuffer, filename);
+      overlayBuffer = await decodeBuffer(overlayBuffer, overlayFilename);
 
       // Apply opacity to overlay if needed
       let processedOverlay = overlayBuffer;
