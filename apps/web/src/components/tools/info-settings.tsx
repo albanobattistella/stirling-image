@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatHeaders } from "@/lib/api";
 import { useFileStore } from "@/stores/file-store";
 
@@ -32,37 +32,83 @@ interface ImageInfoData {
 
 export function InfoSettings() {
   const { files, processing, error, setProcessing, setError } = useFileStore();
+  const selectedIndex = useFileStore((s) => s.selectedIndex);
   const [info, setInfo] = useState<ImageInfoData | null>(null);
+  const cacheRef = useRef<Map<number, ImageInfoData>>(new Map());
+  const autoFetchRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const handleProcess = async () => {
-    if (files.length === 0) return;
+  const fetchInfo = useCallback(
+    async (index: number) => {
+      const file = useFileStore.getState().entries[index]?.file;
+      if (!file) return;
 
-    setProcessing(true);
-    setError(null);
-    setInfo(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", files[0]);
-
-      const res = await fetch("/api/v1/tools/info", {
-        method: "POST",
-        headers: formatHeaders(),
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `Failed: ${res.status}`);
+      const cached = cacheRef.current.get(index);
+      if (cached) {
+        setInfo(cached);
+        return;
       }
 
-      const data: ImageInfoData = await res.json();
-      setInfo(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to read info");
-    } finally {
-      setProcessing(false);
-    }
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      setProcessing(true);
+      setError(null);
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch("/api/v1/tools/info", {
+          method: "POST",
+          headers: formatHeaders(),
+          body: formData,
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `Failed: ${res.status}`);
+        }
+
+        const data: ImageInfoData = await res.json();
+        cacheRef.current.set(index, data);
+        setInfo(data);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Failed to read info");
+      } finally {
+        if (!controller.signal.aborted) {
+          setProcessing(false);
+        }
+      }
+    },
+    [setProcessing, setError],
+  );
+
+  useEffect(() => {
+    cacheRef.current.clear();
+    autoFetchRef.current = false;
+    setInfo(null);
+  }, [files.length]);
+
+  useEffect(() => {
+    if (!autoFetchRef.current || files.length === 0) return;
+    fetchInfo(selectedIndex);
+  }, [selectedIndex, fetchInfo, files.length]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  const handleProcess = () => {
+    if (files.length === 0) return;
+    autoFetchRef.current = true;
+    setInfo(null);
+    fetchInfo(selectedIndex);
   };
 
   const hasFile = files.length > 0;
