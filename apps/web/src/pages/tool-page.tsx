@@ -494,7 +494,13 @@ export function ToolPage() {
       );
     }
 
-    if (displayMode === "interactive-eraser" && hasFile && !hasProcessed && originalBlobUrl) {
+    if (
+      displayMode === "interactive-eraser" &&
+      hasFile &&
+      !hasProcessed &&
+      originalBlobUrl &&
+      !currentEntry?.previewLoading
+    ) {
       return (
         <EraserCanvas
           ref={eraserRef}
