@@ -39,6 +39,7 @@ const settingsSchema = z.object({
   extendRight: z.number().int().min(0).default(0),
   extendBottom: z.number().int().min(0).default(0),
   extendLeft: z.number().int().min(0).default(0),
+  tier: z.enum(["fast", "balanced", "high"]).default("balanced"),
   format: z
     .enum(["auto", "png", "jpg", "jpeg", "webp", "tiff", "gif", "avif", "heic", "heif", "jxl"])
     .default("auto"),
@@ -155,7 +156,7 @@ export function registerAiCanvasExpand(app: FastifyInstance) {
       } catch (err) {
         request.log.error({ err, toolId: "ai-canvas-expand" }, "Input decoding failed");
         return reply.status(422).send({
-          error: "Content-aware crop failed",
+          error: "AI canvas expand failed",
           details: err instanceof Error ? err.message : "Unknown error",
         });
       }
@@ -171,7 +172,7 @@ export function registerAiCanvasExpand(app: FastifyInstance) {
       } catch (err) {
         request.log.error({ err, toolId: "ai-canvas-expand" }, "Workspace creation failed");
         return reply.status(422).send({
-          error: "Content-aware crop failed",
+          error: "AI canvas expand failed",
           details: err instanceof Error ? err.message : "Unknown error",
         });
       }
@@ -185,9 +186,10 @@ export function registerAiCanvasExpand(app: FastifyInstance) {
           extendRight: settings.extendRight,
           extendBottom: settings.extendBottom,
           extendLeft: settings.extendLeft,
+          tier: settings.tier,
           format,
         },
-        "Starting content-aware crop",
+        "Starting AI canvas expand",
       );
 
       // Reply immediately so the HTTP connection closes within proxy timeout limits.
@@ -212,6 +214,7 @@ export function registerAiCanvasExpand(app: FastifyInstance) {
             extendRight: settings.extendRight,
             extendBottom: settings.extendBottom,
             extendLeft: settings.extendLeft,
+            tier: settings.tier,
           },
           join(workspacePath, "output"),
           onProgress,
@@ -287,14 +290,14 @@ export function registerAiCanvasExpand(app: FastifyInstance) {
           },
         });
 
-        log.info({ toolId: "ai-canvas-expand", jobId, downloadUrl }, "Content-aware crop complete");
+        log.info({ toolId: "ai-canvas-expand", jobId, downloadUrl }, "AI canvas expand complete");
       })().catch((err) => {
-        log.error({ err, toolId: "ai-canvas-expand" }, "Content-aware crop failed");
+        log.error({ err, toolId: "ai-canvas-expand" }, "AI canvas expand failed");
         updateSingleFileProgress({
           jobId: progressJobId,
           phase: "failed",
           percent: 0,
-          error: err instanceof Error ? err.message : "Content-aware crop failed",
+          error: err instanceof Error ? err.message : "AI canvas expand failed",
         });
       });
     },
@@ -331,6 +334,7 @@ export function registerAiCanvasExpand(app: FastifyInstance) {
           extendRight: s.extendRight,
           extendBottom: s.extendBottom,
           extendLeft: s.extendLeft,
+          tier: s.tier,
         },
         join(workspacePath, "output"),
       );
