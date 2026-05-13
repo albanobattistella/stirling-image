@@ -12,6 +12,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.0.0",
     "@fastify/multipart": "^9.0.0",
     "@fastify/rate-limit": "^10.2.0",
@@ -31,6 +32,7 @@
     "fflate": "^0.8.2",
     "js-yaml": "^4.1.1",
     "mupdf": "^1.27.0",
+    "openid-client": "^6.8.4",
     "opentype.js": "^2.0.0",
     "p-queue": "^9.1.0",
     "pdfkit": "^0.18.0",
