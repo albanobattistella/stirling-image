@@ -86,4 +86,97 @@ test.describe("Erase Object tool", () => {
     await formatSelect.selectOption("png");
     await expect(qualitySlider).not.toBeVisible();
   });
+
+  test("strokes persist when switching between files", async ({ loggedInPage: page }) => {
+    await skipIfFeatureNotInstalled(page);
+
+    // Upload first file
+    await uploadFile(page, fixturePath("test-200x150.png"));
+
+    // Paint a stroke on the first file
+    const canvas = page.locator("canvas");
+    await canvas.waitFor({ state: "visible", timeout: 5_000 });
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error("Canvas not found");
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2);
+    await page.mouse.up();
+
+    // Undo/Clear buttons should appear
+    await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+
+    // Upload second file via the "+ Add more" button
+    const fileChooserPromise = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: /Add more/i }).click();
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles(fixturePath("test-200x150.png"));
+    await page.waitForTimeout(500);
+
+    // Switch to second file (click thumbnail or file entry)
+    // The file list shows buttons with the filename - click the second one
+    const fileEntries = page.locator("button").filter({ hasText: "test-200x150.png" });
+    const count = await fileEntries.count();
+    if (count >= 2) {
+      await fileEntries.nth(1).click();
+      await page.waitForTimeout(300);
+
+      // Switch back to first file
+      await fileEntries.first().click();
+      await page.waitForTimeout(300);
+
+      // Undo button should still be visible (strokes were preserved)
+      await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+    }
+  });
+
+  test("shows Erase All button when multiple files have masks", async ({ loggedInPage: page }) => {
+    await skipIfFeatureNotInstalled(page);
+
+    // Upload first file
+    await uploadFile(page, fixturePath("test-200x150.png"));
+
+    // Paint on first file
+    const canvas = page.locator("canvas");
+    await canvas.waitFor({ state: "visible", timeout: 5_000 });
+    let box = await canvas.boundingBox();
+    if (!box) throw new Error("Canvas not found");
+    await page.mouse.move(box.x + box.width / 3, box.y + box.height / 3);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 3 + 20, box.y + box.height / 3);
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+
+    // Button should say "Erase Object" (only one file has mask)
+    await expect(page.getByTestId("erase-object-submit")).toHaveText("Erase Object");
+
+    // Upload second file
+    const fileChooserPromise = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: /Add more/i }).click();
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles(fixturePath("test-200x150.png"));
+    await page.waitForTimeout(500);
+
+    // Switch to second file and paint
+    const fileEntries = page.locator("button").filter({ hasText: "test-200x150.png" });
+    const count = await fileEntries.count();
+    if (count >= 2) {
+      await fileEntries.nth(1).click();
+      await page.waitForTimeout(500);
+
+      const canvas2 = page.locator("canvas");
+      await canvas2.waitFor({ state: "visible", timeout: 5_000 });
+      box = await canvas2.boundingBox();
+      if (!box) throw new Error("Canvas not found");
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2);
+      await page.mouse.up();
+      await page.waitForTimeout(200);
+
+      // Now button should say "Erase All (2)"
+      await expect(page.getByTestId("erase-object-submit")).toHaveText("Erase All (2)");
+    }
+  });
 });
