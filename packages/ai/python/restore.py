@@ -175,15 +175,6 @@ def _get_lama_path():
 
 
 def inpaint_damage(img_bgr, mask):
-    """Inpaint damaged areas using LaMa ONNX model.
-
-    Args:
-        img_bgr: Input BGR image as numpy array.
-        mask: Binary mask (255 = damage to repair, 0 = keep).
-
-    Returns:
-        Restored BGR image with damage inpainted.
-    """
     from gpu import safe_onnx_session
 
     model_path = _get_lama_path()
@@ -192,43 +183,109 @@ def inpaint_damage(img_bgr, mask):
     orig_h, orig_w = img_bgr.shape[:2]
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-    # Preprocess image: resize to 512x512, normalize to [0,1], NCHW
-    img_resized = cv2.resize(img_rgb, (LAMA_MODEL_SIZE, LAMA_MODEL_SIZE))
-    img_input = img_resized.astype(np.float32) / 255.0
-    img_input = np.transpose(img_input, (2, 0, 1))[np.newaxis, ...]  # (1,3,512,512)
+    if orig_h <= LAMA_MODEL_SIZE and orig_w <= LAMA_MODEL_SIZE:
+        inpainted_rgb = _inpaint_padded(img_rgb, mask, session)
+    else:
+        inpainted_rgb = _inpaint_tiled(img_rgb, mask, session)
 
-    # Preprocess mask: resize to 512x512, binary, NCHW
-    mask_resized = cv2.resize(mask, (LAMA_MODEL_SIZE, LAMA_MODEL_SIZE),
-                              interpolation=cv2.INTER_NEAREST)
-    mask_binary = (mask_resized > 127).astype(np.float32)
-    mask_input = mask_binary[np.newaxis, np.newaxis, ...]  # (1,1,512,512)
-
-    # Run inference
-    outputs = session.run(None, {"image": img_input, "mask": mask_input})
-    result = outputs[0][0]  # (3, 512, 512)
-    result = np.transpose(result, (1, 2, 0))  # (512, 512, 3)
-    result = np.clip(result, 0, 255).astype(np.uint8)
-
-    # Resize inpainted result back to original dimensions
-    inpainted = cv2.resize(result, (orig_w, orig_h), interpolation=cv2.INTER_LANCZOS4)
-
-    # Feathered composite: preserve quality outside mask, blend at edges
-    mask_full = mask.astype(np.float32) / 255.0
-    feather_r = max(3, min(orig_w, orig_h) // 200)
+    # Feathered composite: only replace masked areas
+    mask_float = mask.astype(np.float32) / 255.0
+    feather_r = max(5, min(orig_w, orig_h) // 100)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (feather_r, feather_r))
-    dilated = cv2.dilate(mask_full, kernel, iterations=1)
+    dilated = cv2.dilate(mask_float, kernel, iterations=1)
     blur_size = feather_r * 2 + 1
     alpha = cv2.GaussianBlur(dilated, (blur_size, blur_size), 0)
-    alpha = np.clip(alpha, 0.0, 1.0)[:, :, np.newaxis]
+    alpha = np.clip(alpha * 1.2, 0.0, 1.0)[:, :, np.newaxis]
 
-    # Composite in RGB space, then convert back to BGR
-    inpainted_rgb = inpainted
-    original_rgb = img_rgb
-    composited = (original_rgb.astype(np.float32) * (1.0 - alpha) +
+    composited = (img_rgb.astype(np.float32) * (1.0 - alpha) +
                   inpainted_rgb.astype(np.float32) * alpha)
     composited = np.clip(composited, 0, 255).astype(np.uint8)
 
     return cv2.cvtColor(composited, cv2.COLOR_RGB2BGR)
+
+
+def _lama_single(session, tile_rgb, tile_mask):
+    img_input = tile_rgb.astype(np.float32) / 255.0
+    img_input = np.transpose(img_input, (2, 0, 1))[np.newaxis, ...]
+    mask_binary = (tile_mask > 127).astype(np.float32)
+    mask_input = mask_binary[np.newaxis, np.newaxis, ...]
+    outputs = session.run(None, {"image": img_input, "mask": mask_input})
+    result = outputs[0][0]
+    result = np.transpose(result, (1, 2, 0))
+    return np.clip(result, 0, 255).astype(np.uint8)
+
+
+def _inpaint_padded(img_rgb, mask, session):
+    h, w = img_rgb.shape[:2]
+    sz = LAMA_MODEL_SIZE
+    pad_bottom = sz - h
+    pad_right = sz - w
+    padded_img = cv2.copyMakeBorder(img_rgb, 0, pad_bottom, 0, pad_right,
+                                     cv2.BORDER_REFLECT_101)
+    padded_mask = cv2.copyMakeBorder(mask, 0, pad_bottom, 0, pad_right,
+                                      cv2.BORDER_CONSTANT, value=0)
+    result = _lama_single(session, padded_img, padded_mask)
+    return result[:h, :w]
+
+
+def _make_cosine_window(size):
+    x = np.linspace(0, np.pi, size)
+    w1d = (1 - np.cos(x)) / 2
+    return np.outer(w1d, w1d).astype(np.float32)
+
+
+def _inpaint_tiled(img_rgb, mask, session):
+    h, w = img_rgb.shape[:2]
+    sz = LAMA_MODEL_SIZE
+    stride = 384
+    window = _make_cosine_window(sz)
+
+    result_sum = np.zeros((h, w, 3), dtype=np.float64)
+    weight_sum = np.zeros((h, w), dtype=np.float64)
+
+    y_starts = list(range(0, max(h - sz, 0) + 1, stride))
+    if len(y_starts) == 0 or y_starts[-1] + sz < h:
+        y_starts.append(max(0, h - sz))
+
+    x_starts = list(range(0, max(w - sz, 0) + 1, stride))
+    if len(x_starts) == 0 or x_starts[-1] + sz < w:
+        x_starts.append(max(0, w - sz))
+
+    for y in y_starts:
+        for x in x_starts:
+            y2 = y + sz
+            x2 = x + sz
+
+            # Pad if tile extends beyond image
+            if y2 > h or x2 > w:
+                tile_img = cv2.copyMakeBorder(
+                    img_rgb[y:min(y2, h), x:min(x2, w)],
+                    0, max(0, y2 - h), 0, max(0, x2 - w),
+                    cv2.BORDER_REFLECT_101)
+                tile_mask = cv2.copyMakeBorder(
+                    mask[y:min(y2, h), x:min(x2, w)],
+                    0, max(0, y2 - h), 0, max(0, x2 - w),
+                    cv2.BORDER_CONSTANT, value=0)
+            else:
+                tile_img = img_rgb[y:y2, x:x2]
+                tile_mask = mask[y:y2, x:x2]
+
+            if np.count_nonzero(tile_mask) == 0:
+                tile_result = tile_img.astype(np.float64)
+            else:
+                tile_result = _lama_single(session, tile_img, tile_mask).astype(np.float64)
+
+            # Clip to actual image bounds
+            ey = min(y2, h) - y
+            ex = min(x2, w) - x
+            win = window[:ey, :ex]
+
+            result_sum[y:y+ey, x:x+ex] += tile_result[:ey, :ex] * win[:, :, np.newaxis]
+            weight_sum[y:y+ey, x:x+ex] += win
+
+    weight_sum = np.maximum(weight_sum, 1e-8)
+    result = result_sum / weight_sum[:, :, np.newaxis]
+    return np.clip(result, 0, 255).astype(np.uint8)
 
 
 # ── CodeFormer face enhancement ──────────────────────────────────────
