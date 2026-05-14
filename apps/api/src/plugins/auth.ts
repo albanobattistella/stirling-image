@@ -72,19 +72,19 @@ function validateUsername(username: string): string | null {
 
 // ── Zod schemas for auth request bodies ──────────────────────────
 
-const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
+export const loginSchema = z.object({
+  username: z.string().min(1, "Username is required").max(255, "Username too long"),
+  password: z.string().min(1, "Password is required").max(1024, "Password too long"),
 });
 
-const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, "Current password is required"),
-  newPassword: z.string().min(1, "New password is required"),
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required").max(1024, "Password too long"),
+  newPassword: z.string().min(1, "New password is required").max(1024, "Password too long"),
 });
 
-const registerSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
+export const registerSchema = z.object({
+  username: z.string().min(1, "Username is required").max(255, "Username too long"),
+  password: z.string().min(1, "Password is required").max(1024, "Password too long"),
   role: z.string().optional(),
   team: z.string().optional(),
 });
@@ -94,8 +94,8 @@ const updateUserSchema = z.object({
   team: z.string().optional(),
 });
 
-const resetPasswordSchema = z.object({
-  newPassword: z.string().min(1, "New password is required"),
+export const resetPasswordSchema = z.object({
+  newPassword: z.string().min(1, "New password is required").max(1024, "Password too long"),
 });
 
 // ── Request helpers ───────────────────────────────────────────────
@@ -641,6 +641,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
       db.update(schema.users).set(updates).where(eq(schema.users.id, id)).run();
 
+      // Invalidate all sessions when role changes to force re-login with new permissions
+      if (updates.role && updates.role !== user.role) {
+        db.delete(schema.sessions).where(eq(schema.sessions.userId, id)).run();
+        request.log.info(
+          { targetUserId: id, oldRole: user.role, newRole: updates.role },
+          "Sessions invalidated due to role change",
+        );
+      }
+
       auditLog(request.log, "USER_UPDATED", {
         adminId: admin.id,
         targetUserId: id,
@@ -813,15 +822,21 @@ export async function authMiddleware(app: FastifyInstance): Promise<void> {
           .from(schema.apiKeys)
           .where(eq(schema.apiKeys.keyPrefix, prefix))
           .all();
-        // Fall back to full scan for legacy keys without a prefix
-        const keysToCheck =
-          candidates.length > 0
-            ? candidates
-            : db
-                .select()
-                .from(schema.apiKeys)
-                .all()
-                .filter((k) => !k.keyPrefix);
+        // Fall back to full scan for legacy keys without a prefix (bounded to 100)
+        let keysToCheck: typeof candidates;
+        if (candidates.length > 0) {
+          keysToCheck = candidates;
+        } else {
+          request.log.warn(
+            "Legacy API key lookup triggered (no keyPrefix match). Migrate keys to use prefix-based lookup.",
+          );
+          keysToCheck = db
+            .select()
+            .from(schema.apiKeys)
+            .all()
+            .filter((k) => !k.keyPrefix)
+            .slice(0, 100);
+        }
         for (const key of keysToCheck) {
           const matches = await verifyPassword(token, key.keyHash);
           if (matches) {

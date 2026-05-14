@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
+import { stripInternalPaths } from "../../lib/errors.js";
 import { validateImageBuffer } from "../../lib/file-validation.js";
 import { sanitizeFilename } from "../../lib/filename.js";
 import { decodeToSharpCompat, needsCliDecode } from "../../lib/format-decoders.js";
@@ -36,7 +37,7 @@ export function registerInfo(app: FastifyInstance) {
     } catch (err) {
       return reply.status(400).send({
         error: "Failed to parse multipart request",
-        details: err instanceof Error ? err.message : String(err),
+        details: stripInternalPaths(err instanceof Error ? err.message : String(err)),
       });
     }
 
@@ -109,7 +110,7 @@ export function registerInfo(app: FastifyInstance) {
     } catch (err) {
       return reply.status(422).send({
         error: "Failed to read image metadata",
-        details: err instanceof Error ? err.message : "Unknown error",
+        details: stripInternalPaths(err instanceof Error ? err.message : "Unknown error"),
       });
     }
   });

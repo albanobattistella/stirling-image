@@ -32,7 +32,7 @@ print_banner() {
   printf '  \033[2m────────────────────────────────────────%b\n' "$RST"
   printf '\n'
   printf '  \033[32m➜%b  Open   \033[1;4mhttp://localhost:%s%b\n' "$RST" "${PORT:-1349}" "$RST"
-  printf '  \033[33m➜%b  Login  \033[1m%s%b / \033[1m%s%b\n' "$RST" "${DEFAULT_USERNAME}" "$RST" "${DEFAULT_PASSWORD}" "$RST"
+  printf '  \033[33m➜%b  Login  \033[1m%s%b / \033[1m[CHANGE ON FIRST LOGIN]%b\n' "$RST" "${DEFAULT_USERNAME}" "$RST" "$RST"
   printf '  \033[36m➜%b  Docs   \033[2mhttps://docs.snapotter.com%b\n' "$RST" "$RST"
   printf '\n'
 }

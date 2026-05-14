@@ -111,11 +111,9 @@ app.setErrorHandler((error: Error & { statusCode?: number }, request, reply) => 
   if (statusCode >= 500) {
     captureException(error, request);
   }
-  const isProduction = process.env.NODE_ENV === "production";
   reply.status(statusCode).send({
     error: statusCode >= 500 ? "Internal server error" : error.message,
     ...(statusCode < 500 && { details: error.message }),
-    ...(!isProduction && statusCode >= 500 && { details: error.stack ?? error.message }),
   });
 });
 
@@ -126,24 +124,23 @@ await app.register(cors, {
     : process.env.NODE_ENV !== "production",
 });
 
-// Security headers
+// Security headers -- applied in all environments. HSTS is ignored over plain
+// HTTP so it is safe (and desirable) to send it in dev/staging too. CSP catches
+// injection issues early when applied during development.
 app.addHook("onSend", async (_request, reply) => {
   reply.header("X-Content-Type-Options", "nosniff");
   reply.header("X-Frame-Options", "DENY");
   reply.header("X-XSS-Protection", "0");
   reply.header("Referrer-Policy", "strict-origin-when-cross-origin");
   reply.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  if (process.env.NODE_ENV === "production") {
-    reply.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-    reply.header("Content-Security-Policy", buildCsp(_request.url.startsWith("/api/docs")));
-  }
+  reply.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  reply.header("Content-Security-Policy", buildCsp(_request.url.startsWith("/api/docs")));
 });
 
 // Always register rate-limit plugin so per-route limits (login brute-force protection) work.
-// When RATE_LIMIT_PER_MIN=0, the global limit is set high enough to be effectively unlimited
-// while still enabling per-route overrides like the login endpoint.
+// RATE_LIMIT_PER_MIN defaults to 300 via env schema; floor at 1 as a safety net.
 await app.register(rateLimit, {
-  max: env.RATE_LIMIT_PER_MIN > 0 ? env.RATE_LIMIT_PER_MIN : 50000,
+  max: Math.max(env.RATE_LIMIT_PER_MIN, 1),
   timeWindow: "1 minute",
   allowList: (request) => !request.url.startsWith("/api/"),
 });

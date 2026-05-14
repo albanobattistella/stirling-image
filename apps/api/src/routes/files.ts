@@ -25,67 +25,71 @@ function isPathTraversal(segment: string): boolean {
 
 export async function fileRoutes(app: FastifyInstance): Promise<void> {
   // ── POST /api/v1/upload ────────────────────────────────────────
-  app.post("/api/v1/upload", async (request: FastifyRequest, reply: FastifyReply) => {
-    const jobId = randomUUID();
-    const workspacePath = await createWorkspace(jobId);
-    const inputDir = join(workspacePath, "input");
+  app.post(
+    "/api/v1/upload",
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const jobId = randomUUID();
+      const workspacePath = await createWorkspace(jobId);
+      const inputDir = join(workspacePath, "input");
 
-    const uploadedFiles: Array<{
-      name: string;
-      size: number;
-      format: string;
-    }> = [];
+      const uploadedFiles: Array<{
+        name: string;
+        size: number;
+        format: string;
+      }> = [];
 
-    const parts = request.parts();
+      const parts = request.parts();
 
-    for await (const part of parts) {
-      // Skip non-file fields
-      if (part.type !== "file") continue;
+      for await (const part of parts) {
+        // Skip non-file fields
+        if (part.type !== "file") continue;
 
-      // Consume buffer from the stream
-      const chunks: Buffer[] = [];
-      for await (const chunk of part.file) {
-        chunks.push(chunk);
-      }
-      const buffer = Buffer.concat(chunks);
+        // Consume buffer from the stream
+        const chunks: Buffer[] = [];
+        for await (const chunk of part.file) {
+          chunks.push(chunk);
+        }
+        const buffer = Buffer.concat(chunks);
 
-      // Skip empty parts (e.g. empty file field)
-      if (buffer.length === 0) continue;
+        // Skip empty parts (e.g. empty file field)
+        if (buffer.length === 0) continue;
 
-      // Validate the image (pass filename for extension-based format detection)
-      const validation = await validateImageBuffer(buffer, part.filename);
-      if (!validation.valid) {
-        return reply.status(400).send({
-          error: `Invalid file "${part.filename}": ${validation.reason}`,
+        // Validate the image (pass filename for extension-based format detection)
+        const validation = await validateImageBuffer(buffer, part.filename);
+        if (!validation.valid) {
+          return reply.status(400).send({
+            error: `Invalid file "${part.filename}": ${validation.reason}`,
+          });
+        }
+
+        // Sanitize SVG uploads to prevent XXE, SSRF, and script injection
+        const safeBuffer = isSvgBuffer(buffer) ? sanitizeSvg(buffer) : buffer;
+
+        // Sanitize filename
+        const safeName = sanitizeFilename(part.filename ?? "upload");
+
+        // Write to workspace input directory
+        const filePath = join(inputDir, safeName);
+        await writeFile(filePath, safeBuffer);
+
+        uploadedFiles.push({
+          name: safeName,
+          size: safeBuffer.length,
+          format: validation.format,
         });
       }
 
-      // Sanitize SVG uploads to prevent XXE, SSRF, and script injection
-      const safeBuffer = isSvgBuffer(buffer) ? sanitizeSvg(buffer) : buffer;
+      if (uploadedFiles.length === 0) {
+        return reply.status(400).send({ error: "No valid files uploaded" });
+      }
 
-      // Sanitize filename
-      const safeName = sanitizeFilename(part.filename ?? "upload");
-
-      // Write to workspace input directory
-      const filePath = join(inputDir, safeName);
-      await writeFile(filePath, safeBuffer);
-
-      uploadedFiles.push({
-        name: safeName,
-        size: safeBuffer.length,
-        format: validation.format,
+      return reply.send({
+        jobId,
+        files: uploadedFiles,
       });
-    }
-
-    if (uploadedFiles.length === 0) {
-      return reply.status(400).send({ error: "No valid files uploaded" });
-    }
-
-    return reply.send({
-      jobId,
-      files: uploadedFiles,
-    });
-  });
+    },
+  );
 
   // ── GET /api/v1/download/:jobId/:filename ──────────────────────
   app.get(

@@ -1,4 +1,6 @@
 import { lookup } from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
 import { isIP } from "node:net";
 
 function isPrivateIPv4(ip: string): boolean {
@@ -25,6 +27,10 @@ function isPrivateIPv6(ip: string): boolean {
   if (normalized.startsWith("fe80:")) return true;
   if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
   if (normalized.startsWith("2001:db8:")) return true;
+  // 6to4 addresses can encapsulate private IPv4 addresses
+  if (normalized.startsWith("2002:")) return true;
+  // NAT64 prefix maps to IPv4 -- block to prevent SSRF via IPv4-mapped addresses
+  if (normalized.startsWith("64:ff9b:")) return true;
   if (normalized.includes("::ffff:")) {
     const v4 = normalized.split("::ffff:")[1];
     if (v4 && isPrivateIPv4(v4)) return true;
@@ -32,13 +38,18 @@ function isPrivateIPv6(ip: string): boolean {
   return false;
 }
 
-async function resolveAndCheck(hostname: string): Promise<void> {
+/**
+ * Resolve a hostname and validate all returned IPs are public.
+ * Returns the first valid resolved IP so callers can pin it for the actual
+ * connection, preventing DNS rebinding (TOCTOU) attacks.
+ */
+async function resolveAndCheck(hostname: string): Promise<string> {
   const bare = hostname.replace(/^\[|]$/g, "");
   if (isIP(bare)) {
     if (isPrivateIPv4(bare) || isPrivateIPv6(bare)) {
       throw new Error("URL resolves to a private or reserved IP address");
     }
-    return;
+    return bare;
   }
 
   const result = await lookup(hostname, { all: true });
@@ -49,9 +60,15 @@ async function resolveAndCheck(hostname: string): Promise<void> {
       throw new Error("URL resolves to a private or reserved IP address");
     }
   }
+  return addresses[0].address;
 }
 
-export async function validateFetchUrl(url: string): Promise<void> {
+/**
+ * Validate that a URL points to a public address and return the pinned IP.
+ * The resolved IP should be used for the actual connection to prevent DNS
+ * rebinding between validation and fetch.
+ */
+export async function validateFetchUrl(url: string): Promise<{ resolvedIp: string }> {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -63,7 +80,8 @@ export async function validateFetchUrl(url: string): Promise<void> {
     throw new Error("Only HTTP and HTTPS URLs are supported");
   }
 
-  await resolveAndCheck(parsed.hostname);
+  const resolvedIp = await resolveAndCheck(parsed.hostname);
+  return { resolvedIp };
 }
 
 export const MAX_REDIRECTS = 5;
@@ -72,21 +90,107 @@ export const MAX_URL_FETCH_SIZE = 50 * 1024 * 1024;
 export const MAX_URLS_PER_REQUEST = 50;
 export const URL_FETCH_CONCURRENCY = 4;
 
+/**
+ * Create an HTTP(S) agent that pins DNS resolution to a specific IP address.
+ * This prevents DNS rebinding attacks where a hostname resolves to a different
+ * (private) IP between our SSRF validation and the actual connection.
+ */
+function createPinnedAgent(resolvedIp: string, protocol: string): http.Agent | https.Agent {
+  const pinnedLookup: (
+    hostname: string,
+    options: object,
+    callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
+  ) => void = (_hostname, _options, callback) => {
+    const family = resolvedIp.includes(":") ? 6 : 4;
+    callback(null, resolvedIp, family);
+  };
+
+  if (protocol === "https:") {
+    return new https.Agent({ lookup: pinnedLookup as never, maxSockets: 1 });
+  }
+  return new http.Agent({ lookup: pinnedLookup as never, maxSockets: 1 });
+}
+
 export async function safeFetch(url: string, signal?: AbortSignal): Promise<Response> {
   let currentUrl = url;
   for (let i = 0; i <= MAX_REDIRECTS; i++) {
-    await validateFetchUrl(currentUrl);
-    const res = await fetch(currentUrl, {
+    const { resolvedIp } = await validateFetchUrl(currentUrl);
+    const parsed = new URL(currentUrl);
+    const agent = createPinnedAgent(resolvedIp, parsed.protocol);
+
+    // Use the Node.js fetch dispatcher option for IP pinning.
+    // Replace hostname with the resolved IP for HTTP; for HTTPS, use
+    // the pinned agent to maintain SNI with the original hostname.
+    let fetchUrl = currentUrl;
+    if (parsed.protocol === "http:") {
+      // For HTTP, replace hostname directly -- no TLS/SNI concerns
+      const pinnedUrl = new URL(currentUrl);
+      pinnedUrl.hostname = resolvedIp.includes(":") ? `[${resolvedIp}]` : resolvedIp;
+      fetchUrl = pinnedUrl.href;
+    }
+
+    const fetchOptions: RequestInit & { agent?: http.Agent | https.Agent } = {
       signal,
       redirect: "manual",
-      headers: { "User-Agent": "SnapOtter/1.0 (image-fetch)" },
-    });
+      headers: {
+        "User-Agent": "SnapOtter/1.0 (image-fetch)",
+        Host: parsed.host,
+      },
+    };
+
+    // Node.js undici-based fetch does not support the `agent` option directly.
+    // For HTTP we use the IP-replaced URL. For HTTPS we use the pinned agent
+    // via the Node.js http/https request internals by importing from node:https.
+    let res: Response;
+    if (parsed.protocol === "https:") {
+      // For HTTPS, use node:https with the pinned agent and original hostname for SNI
+      res = await new Promise<Response>((resolve, reject) => {
+        const req = https.request(
+          currentUrl,
+          {
+            agent,
+            signal: signal ?? undefined,
+            headers: {
+              "User-Agent": "SnapOtter/1.0 (image-fetch)",
+            },
+            method: "GET",
+          },
+          (incomingMessage) => {
+            const chunks: Buffer[] = [];
+            incomingMessage.on("data", (chunk: Buffer) => chunks.push(chunk));
+            incomingMessage.on("end", () => {
+              const body = Buffer.concat(chunks);
+              const headers = new Headers();
+              for (const [key, value] of Object.entries(incomingMessage.headers)) {
+                if (value) {
+                  const vals = Array.isArray(value) ? value : [value];
+                  for (const v of vals) headers.append(key, v);
+                }
+              }
+              resolve(
+                new Response(body, {
+                  status: incomingMessage.statusCode ?? 500,
+                  statusText: incomingMessage.statusMessage ?? "",
+                  headers,
+                }),
+              );
+            });
+            incomingMessage.on("error", reject);
+          },
+        );
+        req.on("error", reject);
+        req.end();
+      });
+    } else {
+      res = await fetch(fetchUrl, fetchOptions);
+    }
 
     if (res.status >= 300 && res.status < 400) {
       const location = res.headers.get("location");
       if (!location) throw new Error("Redirect without Location header");
       await res.body?.cancel();
       currentUrl = new URL(location, currentUrl).href;
+      agent.destroy();
       continue;
     }
 

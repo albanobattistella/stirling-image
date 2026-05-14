@@ -9,13 +9,48 @@ Request format:  {"id": "uuid", "script": "remove_bg", "args": [...]}
 Response format: {"id": "uuid", "stdout": "...", "exitCode": 0}
 
 Pre-imports heavy libraries at startup to eliminate cold-start latency.
+
+Security boundary
+-----------------
+Scripts run in the dispatcher process space via dynamic module loading (exec()).
+There is NO process-level isolation between scripts. The security boundary is the
+ALLOWED_SCRIPTS allowlist below -- only filenames present in that set can be
+loaded and executed. The allowlist is validated against a strict regex that
+forbids path separators, dots (except the .py suffix added internally), and
+non-alphanumeric characters other than underscores.
 """
+import re
 import sys
 import json
 import gc
 import io
 import os
 import traceback
+
+
+# ── Script allowlist ───────────────────────────────────────────────────
+# Only these script names (without .py) may be dispatched. This is the
+# primary security gate -- no path traversal, no arbitrary file execution.
+ALLOWED_SCRIPTS = {
+    "colorize",
+    "detect_faces",
+    "enhance_faces",
+    "face_landmarks",
+    "inpaint",
+    "install_feature",
+    "noise_removal",
+    "ocr",
+    "ocr_preprocess",
+    "outpaint",
+    "red_eye_removal",
+    "remove_bg",
+    "restore",
+    "upscale",
+}
+
+# Strict pattern: lowercase alphanumeric and underscores only.
+# No path separators, no dots, no spaces, no special characters.
+_SCRIPT_NAME_RE = re.compile(r"^[a-z0-9_]+$")
 
 
 INSTALLED_PATH = os.path.join(os.environ.get("DATA_DIR", "/data"), "ai", "installed.json")
@@ -123,6 +158,21 @@ def _run_script_main(script_name, args):
     scripts produce more than 64 KB of stdout (e.g. ONNX runtime logging).
     """
     import threading
+
+    # ── Security gate: validate script name against allowlist ──
+    if not _SCRIPT_NAME_RE.match(script_name):
+        return (json.dumps({
+            "success": False,
+            "error": "invalid_script_name",
+            "message": f"Script name contains invalid characters: {script_name!r}"
+        }), 1)
+
+    if script_name not in ALLOWED_SCRIPTS:
+        return (json.dumps({
+            "success": False,
+            "error": "script_not_allowed",
+            "message": f"Script '{script_name}' is not in the allowed scripts list"
+        }), 1)
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
 

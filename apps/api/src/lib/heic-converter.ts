@@ -1,11 +1,25 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { open, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Write a buffer to a temp file exclusively (O_CREAT | O_EXCL | O_WRONLY).
+ * Prevents symlink / race-condition attacks on predictable temp paths.
+ */
+async function writeTempExclusive(filePath: string, buffer: Buffer): Promise<void> {
+  const fh = await open(filePath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY);
+  try {
+    await fh.writeFile(buffer);
+  } finally {
+    await fh.close();
+  }
+}
 
 /**
  * Find the HEIF decode command. Both heif-convert and heif-dec accept
@@ -44,7 +58,7 @@ export async function decodeHeic(buffer: Buffer): Promise<Buffer> {
   const suffixedPath = outputPath.replace(/\.png$/, "-1.png");
 
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     await execFileAsync(cmd, [inputPath, outputPath], { timeout: 120_000 });
 
     // Single-image HEIF: exact filename. Multi-image: -1 suffix on first image.
@@ -92,7 +106,7 @@ export async function encodeHeic(buffer: Buffer, quality = 80): Promise<Buffer> 
   const outputPath = join(tmpdir(), `heic-out-${id}.heic`);
 
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     await execFileAsync("heif-enc", ["-q", String(quality), "-o", outputPath, inputPath], {
       timeout: 120_000,
     });

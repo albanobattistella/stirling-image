@@ -138,38 +138,42 @@ function getUniqueName(name: string, used: Set<string>): string {
 }
 
 export async function registerFetchUrlsRoute(app: FastifyInstance): Promise<void> {
-  app.post("/api/v1/fetch-urls", async (request, reply) => {
-    // Validate body
-    const parsed = fetchUrlsSchema.safeParse(request.body);
-    if (!parsed.success) {
-      const messages = parsed.error.issues.map((i) => i.message).join("; ");
-      return reply.status(400).send({ error: messages });
-    }
+  app.post(
+    "/api/v1/fetch-urls",
+    { config: { rateLimit: { max: 200, timeWindow: "1 hour" } } },
+    async (request, reply) => {
+      // Validate body
+      const parsed = fetchUrlsSchema.safeParse(request.body);
+      if (!parsed.success) {
+        const messages = parsed.error.issues.map((i) => i.message).join("; ");
+        return reply.status(400).send({ error: messages });
+      }
 
-    const { urls } = parsed.data;
-    const jobId = randomUUID();
-    const workspace = await createWorkspace(jobId);
-    const outputDir = join(workspace, "output");
+      const { urls } = parsed.data;
+      const jobId = randomUUID();
+      const workspace = await createWorkspace(jobId);
+      const outputDir = join(workspace, "output");
 
-    const queue = new PQueue({ concurrency: URL_FETCH_CONCURRENCY });
+      const queue = new PQueue({ concurrency: URL_FETCH_CONCURRENCY });
 
-    // Track filenames to prevent collisions when multiple URLs resolve to the
-    // same name (e.g. https://a.com/photo.jpg and https://b.com/photo.jpg).
-    const usedFilenames = new Set<string>();
+      // Track filenames to prevent collisions when multiple URLs resolve to the
+      // same name (e.g. https://a.com/photo.jpg and https://b.com/photo.jpg).
+      const usedFilenames = new Set<string>();
 
-    // Pre-allocate result slots to preserve order
-    const resultSlots: FetchResult[] = new Array(urls.length);
+      // Pre-allocate result slots to preserve order
+      const resultSlots: FetchResult[] = new Array(urls.length);
 
-    await Promise.all(
-      urls.map((url, index) =>
-        queue.add(async () => {
-          resultSlots[index] = await fetchSingleUrl(url, jobId, outputDir, usedFilenames);
-        }),
-      ),
-    );
+      await Promise.all(
+        urls.map((url, index) =>
+          queue.add(async () => {
+            resultSlots[index] = await fetchSingleUrl(url, jobId, outputDir, usedFilenames);
+          }),
+        ),
+      );
 
-    return reply.send({ results: resultSlots });
-  });
+      return reply.send({ results: resultSlots });
+    },
+  );
 }
 
 async function fetchSingleUrl(

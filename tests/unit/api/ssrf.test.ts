@@ -3,13 +3,14 @@ import { MAX_REDIRECTS, safeFetch, validateFetchUrl } from "../../../apps/api/sr
 
 describe("validateFetchUrl", () => {
   it("allows valid public HTTP URL", async () => {
-    await expect(
-      validateFetchUrl("https://images.unsplash.com/photo.jpg"),
-    ).resolves.toBeUndefined();
+    const result = await validateFetchUrl("https://images.unsplash.com/photo.jpg");
+    expect(result).toHaveProperty("resolvedIp");
+    expect(typeof result.resolvedIp).toBe("string");
   });
 
   it("allows valid public HTTP URL without TLS", async () => {
-    await expect(validateFetchUrl("http://example.com/image.png")).resolves.toBeUndefined();
+    const result = await validateFetchUrl("http://example.com/image.png");
+    expect(result).toHaveProperty("resolvedIp");
   });
 
   it("rejects non-HTTP schemes", async () => {
@@ -68,10 +69,11 @@ describe("validateFetchUrl", () => {
     await expect(validateFetchUrl("http://[2001:DB8::1]/image.jpg")).rejects.toThrow("private");
   });
 
-  it("allows a public IP address directly in URL", async () => {
+  it("allows a public IP address directly in URL and returns resolved IP", async () => {
     // Exercises the early-return path in resolveAndCheck when hostname is a
     // non-private IP literal (covers the `return` after the isIP check).
-    await expect(validateFetchUrl("http://8.8.8.8/image.jpg")).resolves.toBeUndefined();
+    const result = await validateFetchUrl("http://8.8.8.8/image.jpg");
+    expect(result).toEqual({ resolvedIp: "8.8.8.8" });
   });
 
   it("rejects invalid URLs", async () => {
@@ -124,15 +126,14 @@ describe("validateFetchUrl with DNS mocking", () => {
   });
 
   it("handles DNS lookup returning a single result object", async () => {
-    // Covers the Array.isArray fallback branch (line 45: wrapping non-array in [])
+    // Covers the Array.isArray fallback branch (wrapping non-array in [])
     const dns = await import("node:dns/promises");
     vi.mocked(dns.lookup).mockResolvedValueOnce({
       address: "203.0.113.1",
       family: 4,
     } as never);
-    await expect(
-      validateFetchUrl("http://single-result.example.com/image.jpg"),
-    ).resolves.toBeUndefined();
+    const result = await validateFetchUrl("http://single-result.example.com/image.jpg");
+    expect(result).toEqual({ resolvedIp: "203.0.113.1" });
   });
 
   it("rejects when DNS returns multiple addresses with one private", async () => {
@@ -163,9 +164,11 @@ describe("safeFetch", () => {
     } as unknown as Response;
   }
 
+  // HTTP URLs use global fetch (pinned via IP replacement); HTTPS uses node:https
+  // with a pinned agent. These tests exercise the HTTP path via the mocked fetch.
   it("returns response for a direct (non-redirect) fetch", async () => {
     mockFetch.mockResolvedValueOnce(mockResponse(200));
-    const res = await safeFetch("https://example.com/image.jpg");
+    const res = await safeFetch("http://93.184.216.34/image.jpg");
     expect(res.status).toBe(200);
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
@@ -173,12 +176,12 @@ describe("safeFetch", () => {
   it("follows a redirect chain within MAX_REDIRECTS", async () => {
     // 3 redirects then a 200
     mockFetch
-      .mockResolvedValueOnce(mockResponse(302, { location: "https://example.com/hop1" }))
-      .mockResolvedValueOnce(mockResponse(301, { location: "https://example.com/hop2" }))
-      .mockResolvedValueOnce(mockResponse(307, { location: "https://example.com/final" }))
+      .mockResolvedValueOnce(mockResponse(302, { location: "http://93.184.216.34/hop1" }))
+      .mockResolvedValueOnce(mockResponse(301, { location: "http://93.184.216.34/hop2" }))
+      .mockResolvedValueOnce(mockResponse(307, { location: "http://93.184.216.34/final" }))
       .mockResolvedValueOnce(mockResponse(200));
 
-    const res = await safeFetch("https://example.com/start");
+    const res = await safeFetch("http://93.184.216.34/start");
     expect(res.status).toBe(200);
     expect(mockFetch).toHaveBeenCalledTimes(4);
   });
@@ -187,23 +190,23 @@ describe("safeFetch", () => {
     // Return redirects for every call (MAX_REDIRECTS + 1 iterations, all redirects)
     for (let i = 0; i <= MAX_REDIRECTS; i++) {
       mockFetch.mockResolvedValueOnce(
-        mockResponse(302, { location: `https://example.com/hop${i + 1}` }),
+        mockResponse(302, { location: `http://93.184.216.34/hop${i + 1}` }),
       );
     }
 
-    await expect(safeFetch("https://example.com/start")).rejects.toThrow("Too many redirects");
+    await expect(safeFetch("http://93.184.216.34/start")).rejects.toThrow("Too many redirects");
   });
 
   it("rejects a redirect to a private IP", async () => {
     mockFetch.mockResolvedValueOnce(mockResponse(302, { location: "http://127.0.0.1/evil" }));
 
-    await expect(safeFetch("https://example.com/image.jpg")).rejects.toThrow("private");
+    await expect(safeFetch("http://93.184.216.34/image.jpg")).rejects.toThrow("private");
   });
 
   it("throws when redirect has no Location header", async () => {
     mockFetch.mockResolvedValueOnce(mockResponse(302));
 
-    await expect(safeFetch("https://example.com/image.jpg")).rejects.toThrow(
+    await expect(safeFetch("http://93.184.216.34/image.jpg")).rejects.toThrow(
       "Redirect without Location header",
     );
   });

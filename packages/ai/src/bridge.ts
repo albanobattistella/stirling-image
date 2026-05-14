@@ -6,6 +6,40 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PYTHON_DIR = resolve(__dirname, "../python");
 
+/**
+ * Build a minimal environment for spawned Python processes.
+ * Only passes through variables needed for venv, CUDA, model cache,
+ * package resolution, and locale -- avoids leaking secrets or
+ * application config from the parent process.
+ */
+function buildMinimalEnv(): Record<string, string> {
+  const env: Record<string, string> = {
+    PYTHONUNBUFFERED: "1",
+    LANG: process.env.LANG || "C.UTF-8",
+  };
+  const passthrough = [
+    "PATH",
+    "HOME",
+    "VIRTUAL_ENV",
+    "PYTHONPATH",
+    "CUDA_VISIBLE_DEVICES",
+    "LD_LIBRARY_PATH",
+    // Application-specific vars the sidecar scripts depend on
+    "DATA_DIR",
+    "MODELS_DIR",
+    "U2NET_HOME",
+    "PROCESSING_TIMEOUT_S",
+    "DISPATCHER_MAX_REQUESTS",
+    "PYTHON_VENV_PATH",
+  ];
+  for (const key of passthrough) {
+    if (process.env[key] !== undefined) {
+      env[key] = process.env[key] as string;
+    }
+  }
+  return env;
+}
+
 /** Try venv first, then system python. */
 function getPythonPath(): string {
   const venvPath = process.env.PYTHON_VENV_PATH || resolve(__dirname, "../../../.venv");
@@ -115,6 +149,7 @@ function startDispatcher(): ChildProcess | null {
   try {
     const child = spawn(getPythonPath(), [resolve(PYTHON_DIR, "dispatcher.py")], {
       stdio: ["pipe", "pipe", "pipe"],
+      env: buildMinimalEnv(),
     });
 
     let stderrBuffer = "";
@@ -394,6 +429,7 @@ function runPythonPerRequest(
     const trySpawn = (pythonBin: string, isFallback: boolean) => {
       const child = spawn(pythonBin, [scriptPath, ...args], {
         stdio: ["ignore", "pipe", "pipe"],
+        env: buildMinimalEnv(),
       });
 
       let stdout = "";

@@ -295,7 +295,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 EXPOSE 1349
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:1349/api/v1/health || exit 1
+    CMD curl -sf --max-time 5 http://localhost:1349/api/v1/health || exit 1
 
 # tini as PID 1 for zombie reaping + signal forwarding
 ENTRYPOINT ["tini", "--", "entrypoint.sh"]

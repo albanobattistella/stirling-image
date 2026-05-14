@@ -203,11 +203,10 @@ describe("buildTagArgs", () => {
     expect(args).toContain("-Copyright=");
   });
 
-  it("filters unsafe field names from removal", () => {
-    const args = buildTagArgs({ fieldsToRemove: ["Artist", "rm -rf /", "../../etc"] });
-    expect(args).toContain("-Artist=");
-    expect(args).not.toContain("-rm -rf /=");
-    expect(args).not.toContain("-../../etc=");
+  it("rejects unsafe field names from removal", () => {
+    expect(() => buildTagArgs({ fieldsToRemove: ["Artist", "rm -rf /", "../../etc"] })).toThrow(
+      "Invalid tag name",
+    );
   });
 
   it("allows field names with colons and hyphens", () => {

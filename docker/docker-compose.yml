@@ -12,6 +12,8 @@ services:
     image: snapotter:latest
     container_name: SnapOtter
     ports:
+      # For internet-facing deployments, bind to localhost only:
+      # - "127.0.0.1:1349:1349"
       - "1349:1349"
     volumes:
       - SnapOtter-data:/data           # Database, AI models, user files
@@ -19,6 +21,8 @@ services:
     environment:
       - AUTH_ENABLED=true
       - DEFAULT_USERNAME=admin
+      # Set a strong password. Default is 'admin' -- CHANGE THIS for any non-local deployment.
+      # - DEFAULT_PASSWORD=your-strong-password-here
       - DEFAULT_PASSWORD=admin
       - SKIP_MUST_CHANGE_PASSWORD=${SKIP_MUST_CHANGE_PASSWORD:-false}
       - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-0}
@@ -33,6 +37,25 @@ services:
       - SESSION_DURATION_HOURS=${SESSION_DURATION_HOURS:-168}
       - TRUST_PROXY=${TRUST_PROXY:-true}
     restart: unless-stopped
+    # --- Security hardening ---
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 4
+    pids_limit: 512
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+    # NOTE: security_opt: [no-new-privileges:true] is intentionally omitted.
+    # gosu requires setuid to drop from root to the snapotter user.
+    # Mitigation: cap_drop: ALL limits available capabilities after privilege drop.
+    # NOTE: read_only: true is not set because PUID/PGID remapping requires
+    # writing to /etc/passwd and /etc/group. Consider using Docker --user flag
+    # instead of PUID/PGID for read-only rootfs support.
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:1349/api/v1/health"]
       interval: 30s

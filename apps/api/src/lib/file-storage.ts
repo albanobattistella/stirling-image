@@ -1,7 +1,28 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, statfs, unlink, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { env } from "../config.js";
+
+/** Minimum free disk space (100 MB) before refusing writes. */
+const MIN_FREE_BYTES = 100 * 1024 * 1024;
+
+/**
+ * Check available disk space and throw 507 if below threshold.
+ */
+async function assertDiskSpace(dir: string): Promise<void> {
+  try {
+    const stats = await statfs(dir);
+    const freeBytes = stats.bfree * stats.bsize;
+    if (freeBytes < MIN_FREE_BYTES) {
+      const err = new Error("Insufficient disk space") as Error & { statusCode: number };
+      err.statusCode = 507;
+      throw err;
+    }
+  } catch (e) {
+    // Re-throw our own 507 errors; swallow statfs failures (e.g. unsupported OS)
+    if (e instanceof Error && (e as Error & { statusCode?: number }).statusCode === 507) throw e;
+  }
+}
 
 const SAFE_STORAGE_EXTENSIONS = new Set([
   ".jpg",
@@ -41,6 +62,7 @@ export async function ensureStorageDir(): Promise<void> {
 
 export async function saveFile(buffer: Buffer, originalName: string): Promise<string> {
   await ensureStorageDir();
+  await assertDiskSpace(env.FILES_STORAGE_PATH);
   let ext = extname(originalName).toLowerCase() || ".bin";
   // Only allow known image extensions to be stored — reject dangerous extensions
   // even if they somehow pass upstream sanitization.

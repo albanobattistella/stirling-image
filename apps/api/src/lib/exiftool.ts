@@ -4,8 +4,42 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 import { promisify } from "node:util";
+import { stripInternalPaths } from "./errors.js";
 
 const execFileAsync = promisify(execFile);
+
+/** Maximum character length for any single ExifTool tag value. */
+const MAX_TAG_VALUE_LENGTH = 10_000;
+
+/** Allowed pattern for ExifTool tag names (alphanumeric, colon, underscore, hyphen). */
+const TAG_NAME_PATTERN = /^[a-zA-Z0-9:_-]+$/;
+
+/**
+ * Validate and sanitize a tag value: strip null bytes, enforce length limit.
+ * Returns the sanitized value or throws if it exceeds the length limit.
+ */
+export function sanitizeTagValue(value: string, tagName: string): string {
+  // Strip null bytes
+  const cleaned = value.replace(/\0/g, "");
+  if (cleaned.length > MAX_TAG_VALUE_LENGTH) {
+    throw new Error(
+      `Tag value for "${tagName}" exceeds maximum length of ${MAX_TAG_VALUE_LENGTH} characters`,
+    );
+  }
+  return cleaned;
+}
+
+/**
+ * Validate a tag name against the allowed pattern.
+ * Throws if the name contains invalid characters.
+ */
+export function validateTagName(name: string): void {
+  if (!TAG_NAME_PATTERN.test(name)) {
+    throw new Error(
+      `Invalid tag name "${name}": only alphanumeric, colon, underscore, and hyphen are allowed`,
+    );
+  }
+}
 
 /** Grouped metadata returned by ExifTool -json -G */
 export interface ExifToolMetadata {
@@ -102,6 +136,9 @@ export async function inspectMetadata(buffer: Buffer, filename: string): Promise
       gps: Object.keys(gps).length > 0 ? gps : null,
       keywords: uniqueKeywords,
     };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(stripInternalPaths(message));
   } finally {
     await rm(tempPath, { force: true }).catch(() => {});
   }
@@ -130,6 +167,9 @@ export async function writeMetadata(
       maxBuffer: 10 * 1024 * 1024,
     });
     return await readFile(tempPath);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(stripInternalPaths(message));
   } finally {
     await rm(tempPath, { force: true }).catch(() => {});
   }
@@ -191,35 +231,42 @@ export interface EditMetadataSettings {
 
 /**
  * Convert settings object into ExifTool CLI tag arguments.
+ * All tag values are sanitized (null bytes stripped, length limited).
+ * All tag names in fieldsToRemove are validated against an allowed pattern.
  */
 export function buildTagArgs(settings: EditMetadataSettings): string[] {
   const args: string[] = [];
+
+  /** Helper: sanitize a string value before adding as a tag argument. */
+  const s = (value: string, tagName: string): string => sanitizeTagValue(value, tagName);
 
   // Common aliases
   const artist = settings.artist || settings.author;
   const description = settings.imageDescription || settings.title;
 
   // Basic EXIF fields
-  if (artist) args.push(`-Artist=${artist}`);
-  if (settings.copyright) args.push(`-Copyright=${settings.copyright}`);
-  if (description) args.push(`-ImageDescription=${description}`);
-  if (settings.software) args.push(`-Software=${settings.software}`);
-  if (settings.title) args.push(`-XMP:Title=${settings.title}`);
+  if (artist) args.push(`-Artist=${s(artist, "Artist")}`);
+  if (settings.copyright) args.push(`-Copyright=${s(settings.copyright, "Copyright")}`);
+  if (description) args.push(`-ImageDescription=${s(description, "ImageDescription")}`);
+  if (settings.software) args.push(`-Software=${s(settings.software, "Software")}`);
+  if (settings.title) args.push(`-XMP:Title=${s(settings.title, "XMP:Title")}`);
 
   // Date fields
-  if (settings.dateTime) args.push(`-ModifyDate=${settings.dateTime}`);
-  if (settings.dateTimeOriginal) args.push(`-DateTimeOriginal=${settings.dateTimeOriginal}`);
+  if (settings.dateTime) args.push(`-ModifyDate=${s(settings.dateTime, "ModifyDate")}`);
+  if (settings.dateTimeOriginal)
+    args.push(`-DateTimeOriginal=${s(settings.dateTimeOriginal, "DateTimeOriginal")}`);
 
   // Date shift (applies to all date fields)
   if (settings.dateShift) {
-    const direction = settings.dateShift.startsWith("-") ? "-" : "+";
-    const value = settings.dateShift.replace(/^[+-]/, "");
+    const cleaned = s(settings.dateShift, "dateShift");
+    const direction = cleaned.startsWith("-") ? "-" : "+";
+    const value = cleaned.replace(/^[+-]/, "");
     args.push(`-AllDates${direction}=0:0:0 ${value}:0`);
   }
 
   // Set all dates to a specific value
   if (settings.setAllDates) {
-    args.push(`-AllDates=${settings.setAllDates}`);
+    args.push(`-AllDates=${s(settings.setAllDates, "setAllDates")}`);
   }
 
   // GPS coordinates
@@ -248,26 +295,31 @@ export function buildTagArgs(settings: EditMetadataSettings): string[] {
       args.push("-XMP:Subject=");
     }
     for (const kw of settings.keywords) {
-      if (kw.trim()) {
-        args.push(`-IPTC:Keywords+=${kw.trim()}`);
-        args.push(`-XMP:Subject+=${kw.trim()}`);
+      const trimmed = s(kw, "keyword").trim();
+      if (trimmed) {
+        args.push(`-IPTC:Keywords+=${trimmed}`);
+        args.push(`-XMP:Subject+=${trimmed}`);
       }
     }
   }
 
   // IPTC fields
-  if (settings.iptcTitle) args.push(`-IPTC:ObjectName=${settings.iptcTitle}`);
-  if (settings.iptcHeadline) args.push(`-IPTC:Headline=${settings.iptcHeadline}`);
-  if (settings.iptcCity) args.push(`-IPTC:City=${settings.iptcCity}`);
-  if (settings.iptcState) args.push(`-IPTC:Province-State=${settings.iptcState}`);
-  if (settings.iptcCountry) args.push(`-IPTC:Country-PrimaryLocationName=${settings.iptcCountry}`);
+  if (settings.iptcTitle) args.push(`-IPTC:ObjectName=${s(settings.iptcTitle, "IPTC:ObjectName")}`);
+  if (settings.iptcHeadline)
+    args.push(`-IPTC:Headline=${s(settings.iptcHeadline, "IPTC:Headline")}`);
+  if (settings.iptcCity) args.push(`-IPTC:City=${s(settings.iptcCity, "IPTC:City")}`);
+  if (settings.iptcState)
+    args.push(`-IPTC:Province-State=${s(settings.iptcState, "IPTC:Province-State")}`);
+  if (settings.iptcCountry)
+    args.push(
+      `-IPTC:Country-PrimaryLocationName=${s(settings.iptcCountry, "IPTC:Country-PrimaryLocationName")}`,
+    );
 
-  // Field removal -- only allow safe EXIF/IPTC/XMP tag names (alphanumeric, colon, hyphen)
+  // Field removal -- validate tag names against allowed pattern
   if (settings.fieldsToRemove && settings.fieldsToRemove.length > 0) {
     for (const field of settings.fieldsToRemove) {
-      if (/^[A-Za-z0-9:_-]+$/.test(field)) {
-        args.push(`-${field}=`);
-      }
+      validateTagName(field);
+      args.push(`-${field}=`);
     }
   }
 

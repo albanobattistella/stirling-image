@@ -1,12 +1,26 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { open, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import sharp from "sharp";
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Write a buffer to a temp file exclusively (O_CREAT | O_EXCL | O_WRONLY).
+ * Prevents symlink / race-condition attacks on predictable temp paths.
+ */
+async function writeTempExclusive(filePath: string, buffer: Buffer): Promise<void> {
+  const fh = await open(filePath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY);
+  try {
+    await fh.writeFile(buffer);
+  } finally {
+    await fh.close();
+  }
+}
 
 /** Formats that need external CLI tools (not decodable by Sharp). */
 const CLI_DECODED_FORMATS = new Set([
@@ -102,7 +116,7 @@ export async function decodeAnyFormat(buffer: Buffer, format: string): Promise<B
   const outputPath = join(tmpdir(), `any-out-${id}.png`);
 
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     await execFileAsync(
       cmd,
       magickArgs(cmd, [inputPath, "-colorspace", "sRGB", `png:${outputPath}`]),
@@ -146,7 +160,7 @@ async function decodeIco(buffer: Buffer): Promise<Buffer> {
   const outputPath = join(tmpdir(), `ico-out-${id}.png`);
 
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     // ICO contains multiple sizes; extract the largest by sorting
     await execFileAsync(cmd, magickArgs(cmd, [`${inputPath}[-1]`, `png:${outputPath}`]), {
       timeout: 120_000,
@@ -176,7 +190,7 @@ async function decodeRaw(buffer: Buffer, ext?: string): Promise<Buffer> {
   const outputPath = join(tmpdir(), `raw-out-${id}.png`);
 
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
 
     // Attempt 1: ExifTool embedded JPEG extraction (fast path)
     try {
@@ -223,7 +237,7 @@ async function decodePsd(buffer: Buffer): Promise<Buffer> {
   const outputPath = join(tmpdir(), `psd-out-${id}.png`);
 
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     await execFileAsync(cmd, magickArgs(cmd, [`${inputPath}[0]`, `png:${outputPath}`]), {
       timeout: 120_000,
     });
@@ -244,7 +258,7 @@ async function decodeTga(buffer: Buffer): Promise<Buffer> {
   const outputPath = join(tmpdir(), `tga-out-${id}.png`);
 
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     await execFileAsync(cmd, magickArgs(cmd, [inputPath, `png:${outputPath}`]), {
       timeout: 120_000,
     });
@@ -265,7 +279,7 @@ async function decodeExr(buffer: Buffer): Promise<Buffer> {
   const outputPath = join(tmpdir(), `exr-out-${id}.png`);
 
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
 
     // ImageMagick needs the OpenEXR delegate which is often missing on macOS
     try {
@@ -302,7 +316,7 @@ async function decodeHdr(buffer: Buffer): Promise<Buffer> {
   const outputPath = join(tmpdir(), `hdr-out-${id}.png`);
 
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     await execFileAsync(
       cmd,
       magickArgs(cmd, [inputPath, "-colorspace", "sRGB", "-depth", "8", `png:${outputPath}`]),
@@ -322,7 +336,7 @@ async function decodeBmp(buffer: Buffer): Promise<Buffer> {
   const outputPath = join(tmpdir(), `bmp-out-${id}.png`);
 
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     await execFileAsync(cmd, magickArgs(cmd, [inputPath, `png:${outputPath}`]), {
       timeout: 120_000,
     });
@@ -339,7 +353,7 @@ async function decodeJxl(buffer: Buffer): Promise<Buffer> {
   const outputPath = join(tmpdir(), `jxl-out-${id}.png`);
 
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
 
     // Try djxl first (from libjxl-tools) — works even when ImageMagick
     // lacks a JXL delegate (common on Ubuntu stock packages).
@@ -368,7 +382,7 @@ async function decodeJp2(buffer: Buffer): Promise<Buffer> {
   const inputPath = join(tmpdir(), `jp2-in-${id}.jp2`);
   const outputPath = join(tmpdir(), `jp2-out-${id}.png`);
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     try {
       await execFileAsync("opj_decompress", ["-i", inputPath, "-o", outputPath], {
         timeout: 60_000,
@@ -403,7 +417,7 @@ async function decodeEps(buffer: Buffer): Promise<Buffer> {
   const inputPath = join(tmpdir(), `eps-in-${id}.eps`);
   const outputPath = join(tmpdir(), `eps-out-${id}.png`);
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     await execFileAsync(
       cmd,
       magickArgs(cmd, [
@@ -433,7 +447,7 @@ async function decodeDds(buffer: Buffer): Promise<Buffer> {
   const inputPath = join(tmpdir(), `dds-in-${id}.dds`);
   const outputPath = join(tmpdir(), `dds-out-${id}.png`);
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     await execFileAsync(cmd, magickArgs(cmd, [`${inputPath}[0]`, `png:${outputPath}`]), {
       timeout: 120_000,
     });
@@ -452,7 +466,7 @@ async function decodeDpx(buffer: Buffer): Promise<Buffer> {
   const inputPath = join(tmpdir(), `dpx-in-${id}.dpx`);
   const outputPath = join(tmpdir(), `dpx-out-${id}.png`);
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     await execFileAsync(
       cmd,
       magickArgs(cmd, [inputPath, "-colorspace", "sRGB", `png:${outputPath}`]),
@@ -473,7 +487,7 @@ async function decodeFits(buffer: Buffer): Promise<Buffer> {
   const inputPath = join(tmpdir(), `fits-in-${id}.fits`);
   const outputPath = join(tmpdir(), `fits-out-${id}.png`);
   try {
-    await writeFile(inputPath, buffer);
+    await writeTempExclusive(inputPath, buffer);
     await execFileAsync(
       cmd,
       magickArgs(cmd, [
@@ -516,7 +530,7 @@ async function decodeNetpbm(buffer: Buffer, format: string): Promise<Buffer> {
     const inputPath = join(tmpdir(), `netpbm-in-${id}.${ext}`);
     const outputPath = join(tmpdir(), `netpbm-out-${id}.png`);
     try {
-      await writeFile(inputPath, buffer);
+      await writeTempExclusive(inputPath, buffer);
       await execFileAsync(cmd, magickArgs(cmd, [inputPath, `png:${outputPath}`]), {
         timeout: 120_000,
       });

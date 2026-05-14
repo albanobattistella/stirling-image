@@ -17,6 +17,7 @@ import { and, desc, eq, like, sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import sharp from "sharp";
 import { z } from "zod";
+import { env } from "../config.js";
 import { db, schema, sqlite } from "../db/index.js";
 import { auditLog } from "../lib/audit.js";
 import {
@@ -79,6 +80,31 @@ function serializeFile(row: typeof schema.userFiles.$inferSelect) {
     toolChain: row.toolChain ? JSON.parse(row.toolChain) : [],
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+/**
+ * Check whether a user has exceeded their storage quota.
+ * Returns the total bytes used, or throws if the quota is exceeded.
+ */
+function checkStorageQuota(userId: string | null): void {
+  if (!userId || env.MAX_STORAGE_PER_USER_MB <= 0) return;
+
+  const result = db
+    .select({ total: sql<number>`coalesce(sum(${schema.userFiles.size}), 0)` })
+    .from(schema.userFiles)
+    .where(eq(schema.userFiles.userId, userId))
+    .get();
+
+  const usedBytes = result?.total ?? 0;
+  const limitBytes = env.MAX_STORAGE_PER_USER_MB * 1024 * 1024;
+
+  if (usedBytes >= limitBytes) {
+    const error = new Error(
+      `Storage quota exceeded. Used ${(usedBytes / (1024 * 1024)).toFixed(1)}MB of ${env.MAX_STORAGE_PER_USER_MB}MB`,
+    );
+    (error as Error & { statusCode: number }).statusCode = 413;
+    throw error;
+  }
 }
 
 // ── Route registration ─────────────────────────────────────────────
@@ -160,82 +186,94 @@ export async function userFileRoutes(app: FastifyInstance): Promise<void> {
    * Multipart form with one or more image file parts.
    * Validates each (magic bytes + dimensions), stores to disk, creates DB record.
    */
-  app.post("/api/v1/files/upload", async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = getAuthUser(request);
-    const userId = user?.id ?? null;
+  app.post(
+    "/api/v1/files/upload",
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const user = getAuthUser(request);
+      const userId = user?.id ?? null;
 
-    const created: ReturnType<typeof serializeFile>[] = [];
-
-    const parts = request.parts();
-
-    for await (const part of parts) {
-      if (part.type !== "file") continue;
-
-      // Consume the stream into a buffer
-      const chunks: Buffer[] = [];
-      for await (const chunk of part.file) {
-        chunks.push(chunk);
-      }
-      const buffer = Buffer.concat(chunks);
-
-      if (buffer.length === 0) continue;
-
-      // Validate image
-      const validation = await validateImageBuffer(buffer, part.filename);
-      if (!validation.valid) {
-        return reply.status(400).send({
-          error: `Invalid file "${part.filename}": ${validation.reason}`,
-        });
-      }
-
-      // Sanitize SVG uploads to prevent XXE, SSRF, and script injection
-      const safeBuffer = isSvgBuffer(buffer) ? sanitizeSvg(buffer) : buffer;
-
-      const safeName = sanitizeFilename(part.filename ?? "upload");
-      const mimeType = formatToMime(validation.format);
-
-      // Persist to disk
-      const storedName = await saveFile(safeBuffer, safeName);
-
-      // Create DB record
-      const id = randomUUID();
+      // Enforce per-user storage quota before accepting uploads
       try {
-        db.insert(schema.userFiles)
-          .values({
-            id,
-            userId,
-            originalName: safeName,
-            storedName,
-            mimeType,
-            size: safeBuffer.length,
-            width: validation.width,
-            height: validation.height,
-            version: 1,
-            parentId: null,
-            toolChain: null,
-          })
-          .run();
-      } catch {
-        return reply.status(409).send({ error: "Failed to save file record" });
+        checkStorageQuota(userId);
+      } catch (err) {
+        const statusCode = (err as Error & { statusCode?: number }).statusCode ?? 413;
+        return reply.status(statusCode).send({ error: (err as Error).message });
       }
 
-      const row = db.select().from(schema.userFiles).where(eq(schema.userFiles.id, id)).get();
+      const created: ReturnType<typeof serializeFile>[] = [];
 
-      if (row) created.push(serializeFile(row));
-    }
+      const parts = request.parts();
 
-    if (created.length === 0) {
-      return reply.status(400).send({ error: "No valid files uploaded" });
-    }
+      for await (const part of parts) {
+        if (part.type !== "file") continue;
 
-    auditLog(request.log, "FILE_UPLOADED", {
-      userId,
-      count: created.length,
-      files: created.map((f) => f.originalName),
-    });
+        // Consume the stream into a buffer
+        const chunks: Buffer[] = [];
+        for await (const chunk of part.file) {
+          chunks.push(chunk);
+        }
+        const buffer = Buffer.concat(chunks);
 
-    return reply.status(201).send({ files: created });
-  });
+        if (buffer.length === 0) continue;
+
+        // Validate image
+        const validation = await validateImageBuffer(buffer, part.filename);
+        if (!validation.valid) {
+          return reply.status(400).send({
+            error: `Invalid file "${part.filename}": ${validation.reason}`,
+          });
+        }
+
+        // Sanitize SVG uploads to prevent XXE, SSRF, and script injection
+        const safeBuffer = isSvgBuffer(buffer) ? sanitizeSvg(buffer) : buffer;
+
+        const safeName = sanitizeFilename(part.filename ?? "upload");
+        const mimeType = formatToMime(validation.format);
+
+        // Persist to disk
+        const storedName = await saveFile(safeBuffer, safeName);
+
+        // Create DB record
+        const id = randomUUID();
+        try {
+          db.insert(schema.userFiles)
+            .values({
+              id,
+              userId,
+              originalName: safeName,
+              storedName,
+              mimeType,
+              size: safeBuffer.length,
+              width: validation.width,
+              height: validation.height,
+              version: 1,
+              parentId: null,
+              toolChain: null,
+            })
+            .run();
+        } catch {
+          return reply.status(409).send({ error: "Failed to save file record" });
+        }
+
+        const row = db.select().from(schema.userFiles).where(eq(schema.userFiles.id, id)).get();
+
+        if (row) created.push(serializeFile(row));
+      }
+
+      if (created.length === 0) {
+        return reply.status(400).send({ error: "No valid files uploaded" });
+      }
+
+      auditLog(request.log, "FILE_UPLOADED", {
+        userId,
+        count: created.length,
+        files: created.map((f) => f.originalName),
+      });
+
+      return reply.status(201).send({ files: created });
+    },
+  );
 
   /**
    * GET /api/v1/files/:id
@@ -502,6 +540,14 @@ export async function userFileRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/v1/files/save-result", async (request: FastifyRequest, reply: FastifyReply) => {
     const user = getAuthUser(request);
     const userId = user?.id ?? null;
+
+    // Enforce per-user storage quota before saving results
+    try {
+      checkStorageQuota(userId);
+    } catch (err) {
+      const statusCode = (err as Error & { statusCode?: number }).statusCode ?? 413;
+      return reply.status(statusCode).send({ error: (err as Error).message });
+    }
 
     let fileBuffer: Buffer | null = null;
     let filename = "result";

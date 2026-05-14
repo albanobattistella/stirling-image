@@ -2,6 +2,16 @@ import { gunzipSync } from "node:zlib";
 import { env } from "../config.js";
 
 /**
+ * Decode common HTML/XML numeric character references (&#xNN; and &#NNN;)
+ * so that obfuscated `javascript:` / `data:` URIs are caught by later regex passes.
+ */
+function decodeNumericEntities(input: string): string {
+  return input
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_m, dec) => String.fromCharCode(Number.parseInt(dec, 10)));
+}
+
+/**
  * Sanitize an SVG buffer to prevent XXE, SSRF, and script injection.
  * Throws if the SVG exceeds the maximum allowed size.
  */
@@ -11,6 +21,13 @@ export function sanitizeSvg(buffer: Buffer): Buffer {
     throw new Error(`SVG exceeds maximum size of ${env.MAX_SVG_SIZE_MB}MB`);
   }
   let svg = buffer.toString("utf-8");
+
+  // ── Pre-processing: strip CDATA sections and decode numeric entities ──
+  // CDATA sections can hide script content from regex-based checks.
+  svg = svg.replace(/<!\[CDATA\[[\s\S]*?\]\]>/gi, "");
+  // Decode numeric entities so obfuscated URIs (e.g. &#106;avascript:) are visible.
+  svg = decodeNumericEntities(svg);
+
   // Remove DOCTYPE (XXE prevention, including internal subsets)
   svg = svg.replace(/<!DOCTYPE[^>[]*(?:\[[^\]]*\])?>/gi, "");
   // Remove XML processing instructions except <?xml version...?>
@@ -18,22 +35,49 @@ export function sanitizeSvg(buffer: Buffer): Buffer {
   // Remove XInclude elements and namespace declarations
   svg = svg.replace(/<[^>]*xi:include[^>]*\/?>/gi, "");
   svg = svg.replace(/xmlns:xi\s*=\s*["'][^"']*["']/gi, "");
-  // Remove script tags
+
+  // ── Strip dangerous elements ──
+  // Remove script tags (including nested inside <svg>)
   svg = svg.replace(/<script[\s\S]*?<\/script>/gi, "");
+  svg = svg.replace(/<script[^>]*\/>/gi, "");
   // Remove foreignObject elements (can embed arbitrary HTML)
   svg = svg.replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, "");
   svg = svg.replace(/<foreignObject[^>]*\/>/gi, "");
+  // Remove iframe elements (non-SVG, can load external content)
+  svg = svg.replace(/<iframe[\s\S]*?<\/iframe>/gi, "");
+  svg = svg.replace(/<iframe[^>]*\/>/gi, "");
+  // Remove embed elements (non-SVG, can load external content)
+  svg = svg.replace(/<embed[\s\S]*?<\/embed>/gi, "");
+  svg = svg.replace(/<embed[^>]*\/>/gi, "");
+  // Remove <set> elements (can inject attributes/URIs at runtime)
+  svg = svg.replace(/<set[\s\S]*?<\/set>/gi, "");
+  svg = svg.replace(/<set\b[^>]*\/>/gi, "");
+  // Remove <animate> elements (can inject attributes/URIs at runtime)
+  svg = svg.replace(/<animate[\s\S]*?<\/animate>/gi, "");
+  svg = svg.replace(/<animate\b[^>]*\/>/gi, "");
+
   // Remove event handlers (onload, onclick, onerror, etc.)
-  svg = svg.replace(/\bon\w+\s*=/gi, "data-removed=");
-  // Block dangerous URI schemes in href attributes
+  // Replace both the attribute name and its value to prevent residual payloads.
+  svg = svg.replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, 'data-removed=""');
+  svg = svg.replace(/\bon\w+\s*=\s*\S+/gi, 'data-removed=""');
+
+  // ── Block <use> with external href (before generic href blocking) ──
+  svg = svg.replace(/<use\b[^>]*href\s*=\s*["']https?:\/\/[^"']*["'][^>]*\/?>/gi, "");
+  svg = svg.replace(/<use\b[^>]*xlink:href\s*=\s*["']https?:\/\/[^"']*["'][^>]*\/?>/gi, "");
+
+  // ── Block dangerous URI schemes in href attributes ──
   svg = svg.replace(/xlink:href\s*=\s*["']https?:\/\//gi, 'xlink:href="data:,');
   svg = svg.replace(/href\s*=\s*["']https?:\/\//gi, 'href="data:,');
   svg = svg.replace(/href\s*=\s*["']javascript:/gi, 'href="data:,');
-  svg = svg.replace(/href\s*=\s*["']data:text\/html/gi, 'href="data:,');
+  // Block ALL data: URIs in href (not just data:text/html)
+  svg = svg.replace(/href\s*=\s*["']data:/gi, 'href="data:,');
   svg = svg.replace(/href\s*=\s*["']file:/gi, 'href="data:,');
-  // Block use elements referencing external resources
+
+  // ── Block dangerous schemes in url() values ──
   svg = svg.replace(/url\s*\(\s*["']?https?:\/\//gi, 'url("data:,');
   svg = svg.replace(/url\s*\(\s*["']?file:/gi, 'url("data:,');
+  svg = svg.replace(/url\s*\(\s*["']?data:/gi, 'url("data:,');
+
   return Buffer.from(svg, "utf-8");
 }
 

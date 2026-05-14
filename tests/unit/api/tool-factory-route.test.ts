@@ -83,6 +83,7 @@ vi.mock("../../../apps/api/src/lib/feature-status.js", () => ({
 
 vi.mock("../../../apps/api/src/lib/errors.js", () => ({
   formatZodErrors: (issues: Array<{ message: string }>) => issues.map((i) => i.message).join("; "),
+  stripInternalPaths: (msg: string) => msg,
 }));
 
 vi.mock("sharp", () => ({

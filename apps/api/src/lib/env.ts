@@ -20,7 +20,7 @@ const envSchema = z.object({
   MAX_BATCH_SIZE: z.coerce.number().default(0),
   CONCURRENT_JOBS: z.coerce.number().default(0),
   MAX_MEGAPIXELS: z.coerce.number().default(0),
-  RATE_LIMIT_PER_MIN: z.coerce.number().default(0),
+  RATE_LIMIT_PER_MIN: z.coerce.number().default(1000),
   DB_PATH: z.string().default("./data/snapotter.db"),
   FILES_STORAGE_PATH: z.string().default("./data/files"),
   WORKSPACE_PATH: z.string().default("./tmp/workspace"),
@@ -35,9 +35,11 @@ const envSchema = z.object({
   MAX_CANVAS_PIXELS: z.coerce.number().default(0),
   MAX_SVG_SIZE_MB: z.coerce.number().default(0),
   MAX_SPLIT_GRID: z.coerce.number().default(100),
+  MAX_STORAGE_PER_USER_MB: z.coerce.number().default(5000),
+  MAX_WORKSPACE_SIZE_GB: z.coerce.number().default(10),
   MAX_PDF_PAGES: z.coerce.number().default(0),
   SESSION_DURATION_HOURS: z.coerce.number().default(168),
-  LOGIN_ATTEMPT_LIMIT: z.coerce.number().default(500),
+  LOGIN_ATTEMPT_LIMIT: z.coerce.number().default(30),
   TRUST_PROXY: z
     .enum(["true", "false"])
     .default("true")

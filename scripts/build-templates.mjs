@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const sharp = require("sharp");
@@ -107,15 +107,43 @@ const CURATED_BOXES = {
 
 function classifyCategory(name) {
   const n = name.toLowerCase();
-  if (/brain|boyfriend|buff|vs|tuxedo|pooh|handshake|same picture|gru|clown|bike|exit|draw 25|horse|scroll|virgin|bell curve/i.test(n)) return "comparison";
-  if (/change my mind|pills|lisa|hannibal|boardroom|balloon|salesman|getting paid|everywhere|megamind|presentation|bernie|roof/i.test(n)) return "opinion";
-  if (/doge|cat|dog|skeleton|kermit|monkey|penguin|cheems|pigeon|spongebob|bird|frog|seal|bear/i.test(n)) return "animals";
-  if (/simply|y u no|bad luck|success|aliens|batman|first time|well yes|flex|x everywhere|ancient|futurama|matrix|chuck/i.test(n)) return "classic";
+  if (
+    /brain|boyfriend|buff|vs|tuxedo|pooh|handshake|same picture|gru|clown|bike|exit|draw 25|horse|scroll|virgin|bell curve/i.test(
+      n,
+    )
+  )
+    return "comparison";
+  if (
+    /change my mind|pills|lisa|hannibal|boardroom|balloon|salesman|getting paid|everywhere|megamind|presentation|bernie|roof/i.test(
+      n,
+    )
+  )
+    return "opinion";
+  if (
+    /doge|cat|dog|skeleton|kermit|monkey|penguin|cheems|pigeon|spongebob|bird|frog|seal|bear/i.test(
+      n,
+    )
+  )
+    return "animals";
+  if (
+    /simply|y u no|bad luck|success|aliens|batman|first time|well yes|flex|x everywhere|ancient|futurama|matrix|chuck/i.test(
+      n,
+    )
+  )
+    return "classic";
   return "reaction";
 }
 
 function generateTags(name) {
-  return [...new Set(name.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter((w) => w.length > 2))];
+  return [
+    ...new Set(
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, "")
+        .split(/\s+/)
+        .filter((w) => w.length > 2),
+    ),
+  ];
 }
 
 async function downloadImage(url, dest) {
@@ -135,7 +163,10 @@ async function main() {
   let downloaded = 0;
 
   for (const meme of memes) {
-    const slug = meme.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const slug = meme.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
     const filename = slug + ".jpg";
     const destPath = join(FULL_DIR, filename);
 
@@ -171,7 +202,11 @@ async function main() {
 
   console.log(`\nDownloaded ${downloaded} new images`);
 
-  const manifest = { version: 1, categories: ["reaction", "comparison", "opinion", "animals", "classic"], templates };
+  const manifest = {
+    version: 1,
+    categories: ["reaction", "comparison", "opinion", "animals", "classic"],
+    templates,
+  };
   writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
   console.log(`Manifest: ${templates.length} templates`);
 
@@ -180,7 +215,10 @@ async function main() {
   for (const file of files) {
     const thumbPath = join(THUMBS_DIR, file.replace(".jpg", ".webp"));
     if (!existsSync(thumbPath)) {
-      await sharp(join(FULL_DIR, file)).resize({ width: 200 }).webp({ quality: 80 }).toFile(thumbPath);
+      await sharp(join(FULL_DIR, file))
+        .resize({ width: 200 })
+        .webp({ quality: 80 })
+        .toFile(thumbPath);
     }
   }
   console.log(`Thumbnails: ${readdirSync(THUMBS_DIR).length}`);
