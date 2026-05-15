@@ -14,7 +14,7 @@ Stores user accounts. Created automatically on first run from `DEFAULT_USERNAME`
 |---|---|---|
 | `id` | integer | Primary key, auto-increment |
 | `username` | text | Unique, required |
-| `passwordHash` | text | bcrypt hash |
+| `passwordHash` | text | scrypt hash |
 | `role` | text | `admin` or `user` |
 | `mustChangePassword` | integer | Boolean flag for forced password reset |
 | `createdAt` | text | ISO timestamp |
@@ -49,7 +49,7 @@ API keys for programmatic access. The raw key is shown once on creation; only th
 |---|---|---|
 | `id` | integer | Primary key, auto-increment |
 | `userId` | integer | Foreign key to `users.id` |
-| `keyHash` | text | SHA-256 hash of the key |
+| `keyHash` | text | scrypt hash of the key |
 | `name` | text | User-provided label |
 | `createdAt` | text | ISO timestamp |
 | `lastUsedAt` | text | Updated on each authenticated request |

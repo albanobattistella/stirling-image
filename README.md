@@ -58,6 +58,7 @@ For Docker Compose, persistent storage, and other setup options, see the [Gettin
 
 - [Getting Started](https://docs.snapotter.com/guide/getting-started)
 - [Configuration](https://docs.snapotter.com/guide/configuration)
+- [OIDC / SSO](https://docs.snapotter.com/guide/oidc)
 - [Deployment](https://docs.snapotter.com/guide/deployment)
 - [Supported Formats](https://docs.snapotter.com/guide/supported-formats)
 - [Docker Tags](https://docs.snapotter.com/guide/docker-tags)

@@ -205,6 +205,7 @@ security:
 paths:
   /api/v1/health:
     get:
+      operationId: healthCheck
       tags: [System]
       summary: Health check
       description: Returns server health status. Used by Docker HEALTHCHECK. Public endpoint.
@@ -219,6 +220,7 @@ paths:
 
   /api/v1/tools/resize:
     post:
+      operationId: resizeImage
       tags: [Tools]
       summary: Resize
       description: Resize an image to specific dimensions or by percentage.
@@ -267,6 +269,7 @@ paths:
 
   /api/v1/tools/content-aware-resize:
     post:
+      operationId: contentAwareResize
       tags: [Tools]
       summary: Content-aware resize
       description: Resize an image using seam carving to intelligently remove or insert content while preserving important features.
@@ -325,6 +328,7 @@ paths:
 
   /api/v1/tools/crop:
     post:
+      operationId: cropImage
       tags: [Tools]
       summary: Crop
       description: Crop an image to a specific region.
@@ -373,6 +377,7 @@ paths:
 
   /api/v1/tools/rotate:
     post:
+      operationId: rotateImage
       tags: [Tools]
       summary: Rotate and flip
       description: Rotate an image by angle or flip horizontally/vertically.
@@ -419,6 +424,7 @@ paths:
 
   /api/v1/tools/convert:
     post:
+      operationId: convertFormat
       tags: [Tools]
       summary: Convert format
       description: Convert an image to a different format.
@@ -440,7 +446,7 @@ paths:
                   type: string
                   description: |
                     JSON string with options:
-                    - `format` (string, required) — One of: jpg, png, webp, avif, tiff, gif, heic, heif
+                    - `format` (string, required) — One of: jpg, png, webp, avif, tiff, gif, heic, heif, jxl, bmp, ico, jp2, qoi, psd
                     - `quality` (number 1-100, optional) — Output quality
       responses:
         "200":
@@ -464,6 +470,7 @@ paths:
 
   /api/v1/tools/compress:
     post:
+      operationId: compressImage
       tags: [Tools]
       summary: Compress
       description: Reduce image file size by quality level or target size.
@@ -510,6 +517,7 @@ paths:
 
   /api/v1/tools/strip-metadata:
     post:
+      operationId: stripMetadata
       tags: [Tools]
       summary: Strip metadata
       description: Remove EXIF, GPS, ICC, or XMP metadata from an image.
@@ -558,6 +566,7 @@ paths:
 
   /api/v1/tools/border:
     post:
+      operationId: addBorder
       tags: [Tools]
       summary: Border and frame
       description: Add a border, rounded corners, padding, or shadow to an image.
@@ -612,6 +621,7 @@ paths:
 
   /api/v1/tools/beautify:
     post:
+      operationId: beautifyScreenshot
       tags: [Tools]
       summary: Beautify screenshot
       description: |
@@ -683,6 +693,7 @@ paths:
 
   /api/v1/tools/adjust-colors:
     post:
+      operationId: adjustColors
       tags: [Tools]
       summary: Color adjustments
       description: >
@@ -741,6 +752,7 @@ paths:
 
   /api/v1/tools/sharpening:
     post:
+      operationId: sharpenImage
       tags: [Tools]
       summary: Sharpening
       description: Sharpen an image using adaptive, unsharp mask, or high-pass methods with optional noise reduction.
@@ -797,6 +809,7 @@ paths:
 
   /api/v1/tools/optimize-for-web:
     post:
+      operationId: optimizeForWeb
       tags: [Tools]
       summary: Optimize for web
       description: Optimize an image for web delivery by converting to modern formats, adjusting quality, and optionally resizing.
@@ -818,7 +831,7 @@ paths:
                   type: string
                   description: |
                     JSON string with options:
-                    - `format` (string, default "webp") - One of: webp, jpeg, avif, png
+                    - `format` (string, default "webp") - One of: webp, jpeg, avif, png, jxl
                     - `quality` (number 1-100, default 80) - Output quality
                     - `maxWidth` (number, optional) - Maximum width in pixels
                     - `maxHeight` (number, optional) - Maximum height in pixels
@@ -846,6 +859,7 @@ paths:
 
   /api/v1/tools/optimize-for-web/preview:
     post:
+      operationId: optimizeForWebPreview
       tags: [Tools]
       summary: Optimize for web (preview)
       description: |
@@ -905,6 +919,7 @@ paths:
 
   /api/v1/tools/image-enhancement:
     post:
+      operationId: enhanceImage
       tags: [Tools]
       summary: Image enhancement
       description: |
@@ -938,6 +953,7 @@ paths:
                       - `saturation` (boolean, default true)
                       - `sharpness` (boolean, default true)
                       - `denoise` (boolean, default true)
+                    - `deepEnhance` (boolean, default false) - Use AI noise removal for deeper enhancement (requires noise-removal feature)
       responses:
         "200":
           description: Processed image
@@ -960,6 +976,7 @@ paths:
 
   /api/v1/tools/image-enhancement/analyze:
     post:
+      operationId: analyzeImageEnhancement
       tags: [Tools]
       summary: Analyze image for enhancement
       description: |
@@ -1008,6 +1025,7 @@ paths:
 
   /api/v1/tools/noise-removal:
     post:
+      operationId: removeNoise
       tags: [Tools]
       summary: Noise removal
       description: |
@@ -1036,18 +1054,24 @@ paths:
                     - `strength` (number, default 50) - Denoising strength
                     - `detailPreservation` (number, default 50) - Detail preservation level
                     - `colorNoise` (number, default 30) - Color noise reduction
-                    - `format` (string, default "original") - One of: original, png, jpeg, webp, avif
+                    - `format` (string, default "original") - One of: original, png, jpeg, webp, avif, jxl
                     - `quality` (number, default 90) - Output quality (1-100)
                 clientJobId:
                   type: string
                   description: Client-provided job ID for SSE progress tracking
       responses:
-        "200":
-          description: Processed image
+        "202":
+          description: Accepted for async processing. Track progress via SSE at /api/v1/jobs/{jobId}/progress.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ToolResponse"
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  async:
+                    type: boolean
+                    example: true
         "400":
           description: Invalid input
           content:
@@ -1075,6 +1099,7 @@ paths:
 
   /api/v1/tools/red-eye-removal:
     post:
+      operationId: removeRedEye
       tags: [Tools]
       summary: Red-eye removal
       description: |
@@ -1107,21 +1132,18 @@ paths:
                   type: string
                   description: Client-provided job ID for SSE progress tracking
       responses:
-        "200":
-          description: Processed image with correction details
+        "202":
+          description: Accepted for async processing. Track progress via SSE at /api/v1/jobs/{jobId}/progress.
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/ToolResponse"
-                  - type: object
-                    properties:
-                      facesDetected:
-                        type: integer
-                        description: Number of faces detected
-                      eyesCorrected:
-                        type: integer
-                        description: Number of eyes corrected
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  async:
+                    type: boolean
+                    example: true
         "400":
           description: Invalid input
           content:
@@ -1149,6 +1171,7 @@ paths:
 
   /api/v1/tools/restore-photo:
     post:
+      operationId: restorePhoto
       tags: [Tools]
       summary: Photo restoration
       description: |
@@ -1173,50 +1196,29 @@ paths:
                   type: string
                   description: |
                     JSON string with options:
-                    - `mode` (string, default "auto") - One of: auto, light, heavy
                     - `scratchRemoval` (boolean, default true) - Enable scratch repair
                     - `faceEnhancement` (boolean, default true) - Enhance detected faces
                     - `fidelity` (number 0-1, default 0.7) - Face enhancement fidelity
                     - `denoise` (boolean, default true) - Enable denoising
-                    - `denoiseStrength` (number 0-100, default 40) - Denoising strength
+                    - `denoiseStrength` (number 0-100, default 25) - Denoising strength
                     - `colorize` (boolean, default false) - Colorize grayscale photos
+                    - `colorizeStrength` (number 0-100, default 85) - Colorization strength
                 clientJobId:
                   type: string
                   description: Client-provided job ID for SSE progress tracking
       responses:
-        "200":
-          description: Restored image with processing details
+        "202":
+          description: Accepted for async processing. Track progress via SSE at /api/v1/jobs/{jobId}/progress.
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/ToolResponse"
-                  - type: object
-                    properties:
-                      previewUrl:
-                        type: string
-                        description: WebP preview URL for non-previewable formats
-                      width:
-                        type: integer
-                      height:
-                        type: integer
-                      steps:
-                        type: array
-                        items:
-                          type: string
-                        description: Processing steps performed
-                      scratchCoverage:
-                        type: number
-                        description: Percentage of image with scratches detected
-                      facesEnhanced:
-                        type: integer
-                        description: Number of faces enhanced
-                      isGrayscale:
-                        type: boolean
-                        description: Whether the input was grayscale
-                      colorized:
-                        type: boolean
-                        description: Whether colorization was applied
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  async:
+                    type: boolean
+                    example: true
         "400":
           description: Invalid input
           content:
@@ -1244,6 +1246,7 @@ paths:
 
   /api/v1/tools/passport-photo/analyze:
     post:
+      operationId: analyzePassportPhoto
       tags: [Tools]
       summary: Passport photo - analyze
       description: |
@@ -1374,6 +1377,7 @@ paths:
 
   /api/v1/tools/passport-photo/generate:
     post:
+      operationId: generatePassportPhoto
       tags: [Tools]
       summary: Passport photo - generate
       description: |
@@ -1510,6 +1514,7 @@ paths:
 
   /api/v1/tools/colorize:
     post:
+      operationId: colorizeImage
       tags: [Tools]
       summary: Colorize
       description: |
@@ -1540,25 +1545,18 @@ paths:
                   type: string
                   description: Client-provided job ID for SSE progress tracking
       responses:
-        "200":
-          description: Colorized image
+        "202":
+          description: Accepted for async processing. Track progress via SSE at /api/v1/jobs/{jobId}/progress.
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/ToolResponse"
-                  - type: object
-                    properties:
-                      previewUrl:
-                        type: string
-                        description: WebP preview URL for non-previewable formats
-                      width:
-                        type: integer
-                      height:
-                        type: integer
-                      method:
-                        type: string
-                        description: Colorization model used (ddcolor or opencv)
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  async:
+                    type: boolean
+                    example: true
         "400":
           description: Invalid input
           content:
@@ -1586,6 +1584,7 @@ paths:
 
   /api/v1/tools/enhance-faces:
     post:
+      operationId: enhanceFaces
       tags: [Tools]
       summary: Face enhancement
       description: |
@@ -1618,29 +1617,18 @@ paths:
                   type: string
                   description: Client-provided job ID for SSE progress tracking
       responses:
-        "200":
-          description: Enhanced image with face details
+        "202":
+          description: Accepted for async processing. Track progress via SSE at /api/v1/jobs/{jobId}/progress.
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/ToolResponse"
-                  - type: object
-                    properties:
-                      previewUrl:
-                        type: string
-                        description: WebP preview URL
-                      facesDetected:
-                        type: integer
-                        description: Number of faces detected
-                      faces:
-                        type: array
-                        items:
-                          type: object
-                        description: Per-face bounding boxes and confidence scores
-                      model:
-                        type: string
-                        description: Model actually used (gfpgan or codeformer)
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  async:
+                    type: boolean
+                    example: true
         "400":
           description: Invalid input
           content:
@@ -1668,6 +1656,7 @@ paths:
 
   /api/v1/tools/image-to-base64:
     post:
+      operationId: imageToBase64
       tags: [Tools]
       summary: Image to Base64
       description: |
@@ -1694,7 +1683,7 @@ paths:
                   type: string
                   description: |
                     JSON string with options:
-                    - `outputFormat` (string, default "original") - One of: original, jpeg, png, webp, avif
+                    - `outputFormat` (string, default "original") - One of: original, jpeg, png, webp, avif, jxl
                     - `quality` (integer 1-100, default 80) - Output quality for lossy formats
                     - `maxWidth` (integer, default 0) - Max width in pixels (0 = no limit)
                     - `maxHeight` (integer, default 0) - Max height in pixels (0 = no limit)
@@ -1758,6 +1747,7 @@ paths:
 
   /api/v1/tools/watermark-text:
     post:
+      operationId: addTextWatermark
       tags: [Tools]
       summary: Text watermark
       description: Add a text watermark to an image.
@@ -1807,6 +1797,7 @@ paths:
 
   /api/v1/tools/text-overlay:
     post:
+      operationId: addTextOverlay
       tags: [Tools]
       summary: Text overlay
       description: Add styled text overlay with optional background box.
@@ -1857,6 +1848,7 @@ paths:
 
   /api/v1/tools/replace-color:
     post:
+      operationId: replaceColor
       tags: [Tools]
       summary: Replace color
       description: Replace a specific color in an image with another color or transparency.
@@ -1904,6 +1896,7 @@ paths:
 
   /api/v1/tools/color-blindness:
     post:
+      operationId: simulateColorBlindness
       tags: [Tools]
       summary: Color blindness simulation
       description: Simulate how an image appears to people with various types of color vision deficiency.
@@ -1948,9 +1941,10 @@ paths:
 
   /api/v1/tools/gif-tools:
     post:
+      operationId: processGif
       tags: [Tools]
       summary: GIF tools
-      description: Resize, extract frames from, or optimize animated GIFs.
+      description: Resize, optimize, speed-adjust, reverse, extract frames from, or rotate animated GIFs.
       security:
         - bearerAuth: []
       requestBody:
@@ -2008,6 +2002,7 @@ paths:
 
   /api/v1/tools/gif-tools/info:
     post:
+      operationId: getGifInfo
       tags: [Tools]
       summary: GIF info
       description: Get metadata about an animated GIF including dimensions, frame count, delays, and duration.
@@ -2061,6 +2056,7 @@ paths:
 
   /api/v1/tools/smart-crop:
     post:
+      operationId: smartCrop
       tags: [Tools]
       summary: Smart crop
       description: Smart crop with three modes - subject focus, face focus, or auto trim.
@@ -2087,13 +2083,13 @@ paths:
                     - `width` (integer, optional) — Target width in pixels
                     - `height` (integer, optional) — Target height in pixels
                     - `padding` (integer 0-50, default 0) — Padding percentage around focus area
-                    - `facePreset` (string) — "closeup", "head-shoulders", "upper-body", "half-body" (face mode)
-                    - `sensitivity` (number 0-1) — Face detection sensitivity (face mode)
-                    - `threshold` (integer 0-255) — Trim tolerance (trim mode)
-                    - `padToSquare` (boolean) — Pad to square after trimming (trim mode)
-                    - `padColor` (string) — Hex color for padding (trim mode)
-                    - `targetSize` (integer) — Target size for padded output (trim mode)
-                    - `quality` (integer 1-100) — Output quality
+                    - `facePreset` (string, default "head-shoulders") — One of: closeup, head-shoulders, upper-body, half-body (face mode)
+                    - `sensitivity` (number 0-1, default 0.5) — Face detection sensitivity (face mode)
+                    - `threshold` (integer 0-255, default 30) — Trim tolerance (trim mode)
+                    - `padToSquare` (boolean, default false) — Pad to square after trimming (trim mode)
+                    - `padColor` (string, default "#ffffff") — Hex color for padding (trim mode)
+                    - `targetSize` (integer, optional) — Target size for padded output (trim mode)
+                    - `quality` (integer 1-100, optional) — Output quality
       responses:
         "200":
           description: Processed image
@@ -2116,6 +2112,7 @@ paths:
 
   /api/v1/tools/vectorize:
     post:
+      operationId: vectorizeImage
       tags: [Tools]
       summary: Image to SVG
       description: Convert a raster image to SVG vector format using potrace (B&W) or VTracer (color).
@@ -2167,6 +2164,7 @@ paths:
 
   /api/v1/tools/svg-to-raster:
     post:
+      operationId: svgToRaster
       tags: [Tools]
       summary: SVG to raster
       description: Convert an SVG file to a raster image format at custom scale and DPI.
@@ -2193,7 +2191,7 @@ paths:
                     - `dpi` (number 36-2400, default 300) — Render density for SVG rasterization
                     - `quality` (number 1-100, default 90) — Output quality for lossy formats
                     - `backgroundColor` (hex string, default "#00000000") — Background color
-                    - `outputFormat` (string, default "png") — One of: png, jpg, webp, avif, tiff, gif, heif
+                    - `outputFormat` (string, default "png") — One of: png, jpg, webp, avif, tiff, gif, heif, jxl
       responses:
         "200":
           description: Processed image
@@ -2216,6 +2214,7 @@ paths:
 
   /api/v1/tools/svg-to-raster/batch:
     post:
+      operationId: svgToRasterBatch
       tags: [Tools]
       summary: SVG to raster (batch)
       description: Convert multiple SVG files to raster images. Returns a ZIP archive.
@@ -2251,6 +2250,10 @@ paths:
                 format: binary
         "400":
           description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
           description: Authentication required
           content:
@@ -2259,9 +2262,14 @@ paths:
                 $ref: "#/components/schemas/UnauthorizedError"
         "422":
           description: All files failed processing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/v1/tools/image-to-pdf:
     post:
+      operationId: imageToPdf
       tags: [Tools]
       summary: Image to PDF
       description: Convert one or more images into a PDF document.
@@ -2292,6 +2300,7 @@ paths:
                       - `value` (number, required) — Positive number (decimals allowed)
                       - `unit` (string, required) — One of: KB, MB
                       Minimum effective target is 50KB. When set, images are compressed as JPEG with quality auto-tuned to meet the target.
+                    - `collate` (boolean, default true) — When true, all images go into one PDF. When false, each image becomes a separate PDF and the result is a ZIP.
       responses:
         "200":
           description: Generated PDF (downloadUrl points to .pdf file)
@@ -2339,6 +2348,7 @@ paths:
 
   /api/v1/tools/pdf-to-image:
     post:
+      operationId: pdfToImage
       tags: [Tools]
       summary: PDF to image
       description: Convert PDF pages to images. Returns individual page downloads and a ZIP of all pages.
@@ -2360,7 +2370,7 @@ paths:
                   type: string
                   description: |
                     JSON string with options:
-                    - `format` (string, default "png") — Output format: png, jpg, webp, avif, tiff, gif, heic, heif
+                    - `format` (string, default "png") — Output format: png, jpg, webp, avif, tiff, gif, heic, heif, jxl
                     - `dpi` (number 36-2400, default 150) — Resolution in dots per inch
                     - `quality` (number 1-100, default 85) — Output quality
                     - `colorMode` (string, default "color") — One of: color, grayscale, bw
@@ -2415,6 +2425,7 @@ paths:
 
   /api/v1/tools/pdf-to-image/info:
     post:
+      operationId: getPdfInfo
       tags: [Tools]
       summary: PDF page count
       description: Get the number of pages in a PDF file.
@@ -2450,6 +2461,7 @@ paths:
 
   /api/v1/tools/pdf-to-image/preview:
     post:
+      operationId: previewPdfPages
       tags: [Tools]
       summary: PDF page thumbnails
       description: Generate thumbnail previews for each page in a PDF (max 200 pages, JPEG 300px wide).
@@ -2499,6 +2511,7 @@ paths:
 
   /api/v1/tools/split:
     post:
+      operationId: splitImage
       tags: [Tools]
       summary: Split image
       description: Split an image into a grid of tiles. Returns a ZIP file.
@@ -2524,7 +2537,7 @@ paths:
                     - `rows` (number 1-100, default 3) — Number of rows
                     - `tileWidth` (number, min 10, optional) — Fixed tile width in pixels
                     - `tileHeight` (number, min 10, optional) — Fixed tile height in pixels
-                    - `outputFormat` (string, default "original") — One of: original, png, jpg, webp, avif
+                    - `outputFormat` (string, default "original") — One of: original, png, jpg, webp, avif, jxl
                     - `quality` (number 1-100, default 90) — Output quality
       responses:
         "200":
@@ -2549,6 +2562,7 @@ paths:
 
   /api/v1/tools/bulk-rename:
     post:
+      operationId: bulkRename
       tags: [Tools]
       summary: Bulk rename
       description: Rename multiple images using a pattern template. Supports {{index}}, {{padded}}, and {{original}} tokens. Returns a ZIP file.
@@ -2597,6 +2611,7 @@ paths:
 
   /api/v1/tools/favicon:
     post:
+      operationId: generateFavicon
       tags: [Tools]
       summary: Favicon generator
       description: Generate a complete favicon set (16px to 512px PNGs, ICO, and manifest.json) from an image. Returns a ZIP file.
@@ -2637,6 +2652,7 @@ paths:
 
   /api/v1/tools/watermark-image:
     post:
+      operationId: addImageWatermark
       tags: [Tools]
       summary: Image watermark
       description: Add an image watermark overlay.
@@ -2648,7 +2664,7 @@ paths:
           multipart/form-data:
             schema:
               type: object
-              required: [file, watermark, settings]
+              required: [file, watermark]
               properties:
                 file:
                   type: string
@@ -2687,6 +2703,7 @@ paths:
 
   /api/v1/tools/compose:
     post:
+      operationId: composeImages
       tags: [Tools]
       summary: Image composition
       description: Composite an overlay image onto a base image with blend modes.
@@ -2698,7 +2715,7 @@ paths:
           multipart/form-data:
             schema:
               type: object
-              required: [file, overlay, settings]
+              required: [file, overlay]
               properties:
                 file:
                   type: string
@@ -2738,6 +2755,7 @@ paths:
 
   /api/v1/tools/meme-generator:
     post:
+      operationId: generateMeme
       tags: [Tools]
       summary: Meme generator
       description: >
@@ -2815,6 +2833,7 @@ paths:
 
   /api/v1/meme-templates:
     get:
+      operationId: listMemeTemplates
       tags: [Tools]
       summary: List meme templates
       description: Returns the full manifest of available meme templates including text box positions.
@@ -2867,6 +2886,7 @@ paths:
 
   /api/v1/meme-templates/full/{filename}:
     get:
+      operationId: getMemeTemplateImage
       tags: [Tools]
       summary: Get meme template image
       description: Serve a full-size meme template image.
@@ -2889,11 +2909,20 @@ paths:
                 format: binary
         "400":
           description: Invalid filename
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "404":
           description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/v1/meme-templates/thumbs/{filename}:
     get:
+      operationId: getMemeTemplateThumbnail
       tags: [Tools]
       summary: Get meme template thumbnail
       description: Serve a thumbnail of a meme template.
@@ -2916,11 +2945,56 @@ paths:
                 format: binary
         "400":
           description: Invalid filename
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "404":
           description: Thumbnail not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/meme-templates/fonts/{filename}:
+    get:
+      operationId: getMemeTemplateFont
+      tags: [Tools]
+      summary: Get meme template font
+      description: Serve a font file used by the meme generator.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Font filename (e.g. anton.ttf)
+      responses:
+        "200":
+          description: Font file
+          content:
+            font/ttf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid filename
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Font not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/v1/tools/compare:
     post:
+      operationId: compareImages
       tags: [Tools]
       summary: Image compare
       description: Compare two images and generate a visual difference report.
@@ -2954,7 +3028,7 @@ paths:
                     properties:
                       similarity:
                         type: number
-                        description: Structural similarity score (0-1)
+                        description: Similarity percentage (0-100)
                       dimensions:
                         type: object
                         properties:
@@ -2983,6 +3057,7 @@ paths:
 
   /api/v1/tools/erase-object:
     post:
+      operationId: eraseObject
       tags: [Tools]
       summary: Object eraser
       description: Erase objects from an image using a mask. White areas in the mask indicate regions to erase. Uses LaMa inpainting.
@@ -3006,8 +3081,8 @@ paths:
                   description: Mask image (white areas will be erased)
                 format:
                   type: string
-                  enum: [png, jpg, jpeg, webp, tiff, gif, avif, heic, heif]
-                  default: png
+                  enum: [auto, png, jpg, jpeg, webp, tiff, gif, avif, heic, heif, jxl]
+                  default: auto
                   description: Output format
                 quality:
                   type: integer
@@ -3019,12 +3094,18 @@ paths:
                   type: string
                   description: Client-provided job ID for SSE progress tracking
       responses:
-        "200":
-          description: Processed image with erased regions
+        "202":
+          description: Accepted for async processing. Track progress via SSE at /api/v1/jobs/{jobId}/progress.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ToolResponse"
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  async:
+                    type: boolean
+                    example: true
         "400":
           description: Invalid input
           content:
@@ -3050,8 +3131,87 @@ paths:
               schema:
                 $ref: "#/components/schemas/FeatureNotInstalledError"
 
+  /api/v1/tools/ai-canvas-expand:
+    post:
+      operationId: aiCanvasExpand
+      tags: [Tools]
+      summary: AI canvas expand (experimental)
+      description: |
+        Expand an image canvas using AI outpainting. Extends the image in any
+        direction by generating new content that blends seamlessly with the
+        original. Uses LaMa-based outpainting. Requires the ai-canvas-expand
+        feature bundle to be installed.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file to expand
+                settings:
+                  type: string
+                  description: |
+                    JSON string with options:
+                    - `extendTop` (integer >= 0, default 0) - Pixels to extend upward
+                    - `extendRight` (integer >= 0, default 0) - Pixels to extend rightward
+                    - `extendBottom` (integer >= 0, default 0) - Pixels to extend downward
+                    - `extendLeft` (integer >= 0, default 0) - Pixels to extend leftward
+                    - `tier` (string, default "balanced") - One of: fast, balanced, high
+                    - `format` (string, default "auto") - One of: auto, png, jpg, jpeg, webp, tiff, gif, avif, heic, heif, jxl
+                    - `quality` (integer 1-100, default 95) - Output quality
+
+                    At least one extend direction must be greater than 0.
+                clientJobId:
+                  type: string
+                  description: Client-provided job ID for SSE progress tracking
+      responses:
+        "202":
+          description: Accepted for async processing. Track progress via SSE at /api/v1/jobs/{jobId}/progress.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  async:
+                    type: boolean
+                    example: true
+        "400":
+          description: Invalid input (or no extend direction > 0)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+        "422":
+          description: Processing failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "501":
+          description: Feature not installed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeatureNotInstalledError"
+
   /api/v1/tools/collage:
     post:
+      operationId: createCollage
       tags: [Tools]
       summary: Collage / grid
       description: Combine multiple images into a grid collage.
@@ -3081,7 +3241,7 @@ paths:
                     - `cornerRadius` (number 0-500, default 0) — Corner rounding radius
                     - `backgroundColor` (string, default "#FFFFFF") — Background fill color
                     - `aspectRatio` (string, default "free") — Aspect ratio constraint
-                    - `outputFormat` (string, default "png") — One of: png, jpeg, webp, avif
+                    - `outputFormat` (string, default "png") — One of: png, jpeg, webp, avif, jxl
                     - `quality` (number 1-100, default 90) — Output quality
       responses:
         "200":
@@ -3105,6 +3265,7 @@ paths:
 
   /api/v1/tools/stitch:
     post:
+      operationId: stitchImages
       tags: [Tools]
       summary: Stitch images
       description: Join multiple images horizontally, vertically, or in a grid layout.
@@ -3136,7 +3297,7 @@ paths:
                     - `border` (number 0-500, default 0) — Border width in pixels
                     - `cornerRadius` (number 0-500, default 0) — Corner radius in pixels
                     - `backgroundColor` (hex string, default "#FFFFFF") — Hex color for background and gap fill
-                    - `format` (string, default "png") — One of: png, jpeg, webp, avif
+                    - `format` (string, default "png") — One of: png, jpeg, webp, avif, jxl
                     - `quality` (number 1-100, default 90) — Output quality
       responses:
         "200":
@@ -3160,6 +3321,7 @@ paths:
 
   /api/v1/tools/remove-background:
     post:
+      operationId: removeBackground
       tags: [Tools]
       summary: Remove background
       description: Remove the background from an image using AI (rembg). Runs locally.
@@ -3191,26 +3353,22 @@ paths:
                     - `blurIntensity` (number 0-100, optional) — Blur strength
                     - `shadowEnabled` (boolean, optional) — Enable drop shadow
                     - `shadowOpacity` (number 0-100, optional) — Shadow opacity
+                clientJobId:
+                  type: string
+                  description: Client-provided job ID for SSE progress tracking
       responses:
-        "200":
-          description: Processed image with background removed
+        "202":
+          description: Accepted for async processing. Track progress via SSE at /api/v1/jobs/{jobId}/progress.
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/ToolResponse"
-                  - type: object
-                    properties:
-                      maskUrl:
-                        type: string
-                        description: URL to the mask image
-                      originalUrl:
-                        type: string
-                        description: URL to the original uploaded image
-                      filename:
-                        type: string
-                      model:
-                        type: string
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  async:
+                    type: boolean
+                    example: true
         "400":
           description: Invalid input
           content:
@@ -3238,6 +3396,7 @@ paths:
 
   /api/v1/tools/remove-background/effects:
     post:
+      operationId: applyBackgroundEffects
       tags: [Tools]
       summary: Apply background effects
       description: >
@@ -3301,6 +3460,7 @@ paths:
 
   /api/v1/tools/transparency-fixer:
     post:
+      operationId: fixTransparency
       tags: [Tools]
       summary: Fix fake transparency
       description: |
@@ -3329,26 +3489,23 @@ paths:
                     JSON string with options:
                     - `defringe` (number 0-100, default 30) — Edge defringe strength to remove color contamination
                     - `outputFormat` (string, default "png") — One of: png, webp
+                    - `removeWatermark` (boolean, default false) — Apply median filter to reduce watermark artifacts before matting
                 clientJobId:
                   type: string
                   description: Client-provided job ID for SSE progress tracking
       responses:
-        "200":
-          description: Image with corrected transparency
+        "202":
+          description: Accepted for async processing. Track progress via SSE at /api/v1/jobs/{jobId}/progress.
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/ToolResponse"
-                  - type: object
-                    properties:
-                      width:
-                        type: integer
-                      height:
-                        type: integer
-                      model:
-                        type: string
-                        description: AI model that was used (may differ from default due to OOM fallback)
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  async:
+                    type: boolean
+                    example: true
         "400":
           description: Invalid input
           content:
@@ -3376,6 +3533,7 @@ paths:
 
   /api/v1/tools/upscale:
     post:
+      operationId: upscaleImage
       tags: [Tools]
       summary: Image upscaling
       description: Upscale an image using AI (Real-ESRGAN). Runs locally.
@@ -3401,24 +3559,24 @@ paths:
                     - `model` (string, default "auto") — AI model name
                     - `faceEnhance` (boolean, default false) — Enable face enhancement
                     - `denoise` (number, default 0) — Denoise strength
-                    - `format` (string, default "png") — Output format
+                    - `format` (string, default "auto") — Output format (auto, png, jpg, jpeg, webp, tiff, gif, avif, heic, heif, jxl)
                     - `quality` (number, default 95) — Output quality (1-100)
+                clientJobId:
+                  type: string
+                  description: Client-provided job ID for SSE progress tracking
       responses:
-        "200":
-          description: Upscaled image
+        "202":
+          description: Accepted for async processing. Track progress via SSE at /api/v1/jobs/{jobId}/progress.
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/ToolResponse"
-                  - type: object
-                    properties:
-                      width:
-                        type: integer
-                      height:
-                        type: integer
-                      method:
-                        type: string
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  async:
+                    type: boolean
+                    example: true
         "400":
           description: Invalid input
           content:
@@ -3446,6 +3604,7 @@ paths:
 
   /api/v1/tools/blur-faces:
     post:
+      operationId: blurFaces
       tags: [Tools]
       summary: Face blur
       description: Detect and blur faces in an image for privacy. Uses OpenCV. Runs locally.
@@ -3471,24 +3630,20 @@ paths:
                     - `sensitivity` (number 0-1, default 0.5) — Face detection sensitivity
                 clientJobId:
                   type: string
+                  description: Client-provided job ID for SSE progress tracking
       responses:
-        "200":
-          description: Processed image with faces blurred
+        "202":
+          description: Accepted for async processing. Track progress via SSE at /api/v1/jobs/{jobId}/progress.
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/ToolResponse"
-                  - type: object
-                    properties:
-                      facesDetected:
-                        type: integer
-                      faces:
-                        type: array
-                        items:
-                          type: object
-                      warning:
-                        type: string
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  async:
+                    type: boolean
+                    example: true
         "400":
           description: Invalid input
           content:
@@ -3516,6 +3671,7 @@ paths:
 
   /api/v1/tools/ocr:
     post:
+      operationId: extractText
       tags: [Tools]
       summary: OCR / text extraction
       description: Extract text from an image using OCR. Runs locally.
@@ -3587,6 +3743,7 @@ paths:
 
   /api/v1/tools/info:
     post:
+      operationId: getImageInfo
       tags: [Tools]
       summary: Image info
       description: Get detailed metadata about an image including dimensions, format, color space, and EXIF data.
@@ -3684,6 +3841,7 @@ paths:
 
   /api/v1/tools/color-palette:
     post:
+      operationId: extractColorPalette
       tags: [Tools]
       summary: Color palette
       description: Extract the dominant colors from an image.
@@ -3733,6 +3891,7 @@ paths:
 
   /api/v1/tools/barcode-read:
     post:
+      operationId: readBarcode
       tags: [Tools]
       summary: Barcode reader
       description: Read QR codes and barcodes from an image.
@@ -3824,6 +3983,7 @@ paths:
 
   /api/v1/tools/find-duplicates:
     post:
+      operationId: findDuplicates
       tags: [Tools]
       summary: Find duplicates
       description: Find duplicate images in a set using perceptual hashing.
@@ -3886,10 +4046,21 @@ paths:
                                 type: boolean
                               thumbnail:
                                 type: string
+                                nullable: true
                   uniqueImages:
                     type: integer
                   spaceSaveable:
                     type: integer
+                  skippedFiles:
+                    type: array
+                    description: Files that could not be processed (present only when non-empty)
+                    items:
+                      type: object
+                      properties:
+                        filename:
+                          type: string
+                        reason:
+                          type: string
         "400":
           description: Invalid input
           content:
@@ -3911,6 +4082,7 @@ paths:
 
   /api/v1/tools/qr-generate:
     post:
+      operationId: generateQrCode
       tags: [Tools]
       summary: QR code generator
       description: Generate a QR code image from text. This tool accepts a JSON body, not multipart.
@@ -3968,6 +4140,7 @@ paths:
 
   /api/v1/tools/strip-metadata/inspect:
     post:
+      operationId: inspectMetadata
       tags: [Tools]
       summary: Inspect metadata
       description: View all metadata (EXIF, GPS, ICC, XMP) in an image without removing it.
@@ -4027,6 +4200,7 @@ paths:
 
   /api/v1/tools/edit-metadata:
     post:
+      operationId: editMetadata
       tags: [Tools]
       summary: Edit metadata
       description: Edit EXIF, IPTC, GPS, and other metadata fields in an image using ExifTool.
@@ -4092,6 +4266,7 @@ paths:
 
   /api/v1/tools/edit-metadata/inspect:
     post:
+      operationId: inspectMetadataExifTool
       tags: [Tools]
       summary: Inspect metadata (ExifTool)
       description: Read all metadata from an image using ExifTool. Returns all embedded EXIF, IPTC, XMP, and GPS fields.
@@ -4127,6 +4302,7 @@ paths:
 
   /api/v1/tools/{toolId}/batch:
     post:
+      operationId: batchProcess
       tags: [Batch]
       summary: Batch process images
       description: >
@@ -4188,6 +4364,7 @@ paths:
 
   /api/v1/pipeline/execute:
     post:
+      operationId: executePipeline
       tags: [Pipelines]
       summary: Execute a pipeline
       description: Run an image through a chain of tools. The pipeline definition is sent as a JSON string in the `pipeline` multipart field.
@@ -4257,8 +4434,10 @@ paths:
 
   /api/v1/pipeline/save:
     post:
+      operationId: savePipeline
       tags: [Pipelines]
       summary: Save a pipeline
+      description: Persist a named pipeline definition with its tool steps for later execution. Use this to save reusable workflows.
       security:
         - bearerAuth: []
       requestBody:
@@ -4273,6 +4452,7 @@ paths:
                   type: string
                 description:
                   type: string
+                  description: Optional human-readable description of the pipeline
                 steps:
                   type: array
                   items:
@@ -4296,6 +4476,7 @@ paths:
                     type: string
                   description:
                     type: string
+                    description: Human-readable description of the pipeline
                   steps:
                     type: array
                     items:
@@ -4318,8 +4499,10 @@ paths:
 
   /api/v1/pipeline/list:
     get:
+      operationId: listPipelines
       tags: [Pipelines]
       summary: List saved pipelines
+      description: Retrieve all saved pipeline definitions for the current user. Returns name, steps, and creation date for each.
       security:
         - bearerAuth: []
       responses:
@@ -4341,6 +4524,7 @@ paths:
                           type: string
                         description:
                           type: string
+                          description: Human-readable description of the pipeline
                         steps:
                           type: array
                           items:
@@ -4363,8 +4547,10 @@ paths:
 
   /api/v1/pipeline/{id}:
     delete:
+      operationId: deletePipeline
       tags: [Pipelines]
       summary: Delete a pipeline
+      description: Permanently delete a saved pipeline by its ID. Only the pipeline owner or an admin can delete it.
       security:
         - bearerAuth: []
       parameters:
@@ -4411,6 +4597,7 @@ paths:
 
   /api/v1/pipeline/tools:
     get:
+      operationId: listPipelineTools
       tags: [Pipelines]
       summary: List pipeline-compatible tools
       description: Returns all tool IDs that can be used as pipeline steps.
@@ -4430,6 +4617,7 @@ paths:
 
   /api/v1/pipeline/batch:
     post:
+      operationId: batchPipeline
       tags: [Pipelines]
       summary: Run pipeline on multiple files
       description: Execute a pipeline across multiple images. Returns a ZIP file with all processed results.
@@ -4493,8 +4681,10 @@ paths:
 
   /api/v1/upload:
     post:
+      operationId: uploadImage
       tags: [Files]
       summary: Upload an image
+      description: Upload a raw image file for later processing by tool endpoints. Returns a jobId and file metadata.
       security:
         - bearerAuth: []
       requestBody:
@@ -4544,8 +4734,10 @@ paths:
 
   /api/v1/download/{jobId}/{filename}:
     get:
+      operationId: downloadProcessedImage
       tags: [Files]
       summary: Download a processed image
+      description: Download a processed image by its job ID and filename. This is the URL returned in downloadUrl from tool responses.
       security: []
       parameters:
         - name: jobId
@@ -4570,9 +4762,14 @@ paths:
                 format: binary
         "404":
           description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/v1/preview:
     post:
+      operationId: generatePreview
       tags: [Files]
       summary: Generate image preview
       description: Convert any image (including HEIC/HEIF) to a WebP preview, resized to fit within 1200x1200 pixels.
@@ -4606,6 +4803,7 @@ paths:
 
   /api/v1/files:
     get:
+      operationId: listFiles
       tags: [Files]
       summary: List saved files
       description: Returns the latest version of each file (one per version chain). Supports pagination and search.
@@ -4675,6 +4873,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/UnauthorizedError"
     delete:
+      operationId: bulkDeleteFiles
       tags: [Files]
       summary: Bulk delete saved files
       description: Delete files and their entire version chains. Non-admin users can only delete their own files.
@@ -4719,8 +4918,10 @@ paths:
 
   /api/v1/files/upload:
     post:
+      operationId: saveFileToLibrary
       tags: [Files]
       summary: Save file to library
+      description: Upload one or more image files directly to the file library for persistent storage and version tracking.
       security:
         - bearerAuth: []
       requestBody:
@@ -4762,6 +4963,7 @@ paths:
 
   /api/v1/files/save-result:
     post:
+      operationId: saveProcessingResult
       tags: [Files]
       summary: Save a processing result to library
       description: Save a tool processing result as a new version of an existing file. Creates a version chain.
@@ -4817,8 +5019,10 @@ paths:
 
   /api/v1/files/{id}:
     get:
+      operationId: getFile
       tags: [Files]
       summary: Get file metadata and version history
+      description: Retrieve metadata and the full version history for a saved file. Use this to inspect file details before downloading.
       security:
         - bearerAuth: []
       parameters:
@@ -4883,8 +5087,10 @@ paths:
 
   /api/v1/files/{id}/download:
     get:
+      operationId: downloadSavedFile
       tags: [Files]
       summary: Download a saved file
+      description: Download the binary content of a saved file from the library by its ID.
       security:
         - bearerAuth: []
       parameters:
@@ -4917,9 +5123,12 @@ paths:
 
   /api/v1/files/{id}/thumbnail:
     get:
+      operationId: getFileThumbnail
       tags: [Files]
       summary: Get file thumbnail
-      security: []
+      description: Retrieve a 300px JPEG thumbnail of a saved file. Useful for gallery views and file browsers.
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -4948,12 +5157,109 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+
+  /api/v1/fetch-urls:
+    post:
+      operationId: fetchImageUrls
+      tags: [Files]
+      summary: Fetch images from URLs
+      description: |
+        Fetch one or more images from external URLs. Each URL is validated against SSRF
+        attacks, size-limited, and verified as a valid image. Returns download URLs for
+        each successfully fetched image. Rate limited to 200 requests per hour.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [urls]
+              properties:
+                urls:
+                  type: array
+                  items:
+                    type: string
+                    format: uri
+                  minItems: 1
+                  maxItems: 50
+                  description: URLs of images to fetch (1-50)
+      responses:
+        "200":
+          description: Fetch results for each URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        success:
+                          type: boolean
+                        url:
+                          type: string
+                        filename:
+                          type: string
+                        contentType:
+                          type: string
+                        size:
+                          type: integer
+                        width:
+                          type: integer
+                        height:
+                          type: integer
+                        downloadUrl:
+                          type: string
+                        previewUrl:
+                          type: string
+                          nullable: true
+                        error:
+                          type: string
+                          description: Present only when success is false
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnauthorizedError"
+
+  /api/v1/config/locale:
+    get:
+      operationId: getLocaleConfig
+      tags: [System]
+      summary: Get default locale
+      description: Returns the default locale setting. Public endpoint.
+      security: []
+      responses:
+        "200":
+          description: Default locale
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  defaultLocale:
+                    type: string
+                    example: en
+
   # ─── Auth ─────────────────────────────────────────────────────────────────
 
   /api/auth/login:
     post:
+      operationId: login
       tags: [Auth]
       summary: Log in
+      description: Authenticate with username and password. Returns a bearer token for subsequent API requests.
       security: []
       requestBody:
         required: true
@@ -5022,8 +5328,10 @@ paths:
 
   /api/auth/logout:
     post:
+      operationId: logout
       tags: [Auth]
       summary: Log out
+      description: Invalidate the current session token. The token cannot be used for further requests after logout.
       security:
         - bearerAuth: []
       responses:
@@ -5045,8 +5353,10 @@ paths:
 
   /api/auth/session:
     get:
+      operationId: getSession
       tags: [Auth]
       summary: Get current session
+      description: Retrieve the current session details including user profile, role, and permissions. Returns null user when not authenticated.
       security: []
       responses:
         "200":
@@ -5087,8 +5397,10 @@ paths:
 
   /api/auth/change-password:
     post:
+      operationId: changePassword
       tags: [Auth]
       summary: Change password
+      description: Change the authenticated user's password. Requires the current password for verification.
       security:
         - bearerAuth: []
       requestBody:
@@ -5130,6 +5442,7 @@ paths:
 
   /api/auth/users:
     get:
+      operationId: listUsers
       tags: [Auth]
       summary: List users
       description: Requires users:manage permission.
@@ -5176,6 +5489,7 @@ paths:
 
   /api/auth/register:
     post:
+      operationId: createUser
       tags: [Auth]
       summary: Create user
       description: Requires users:manage permission.
@@ -5244,6 +5558,7 @@ paths:
 
   /api/auth/users/{id}:
     put:
+      operationId: updateUser
       tags: [Auth]
       summary: Update user
       description: Requires users:manage permission.
@@ -5297,6 +5612,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ForbiddenError"
     delete:
+      operationId: deleteUser
       tags: [Auth]
       summary: Delete user
       description: Requires users:manage permission.
@@ -5334,6 +5650,7 @@ paths:
 
   /api/auth/users/{id}/reset-password:
     post:
+      operationId: resetUserPassword
       tags: [Auth]
       summary: Reset user password
       description: Requires users:manage permission.
@@ -5390,6 +5707,7 @@ paths:
 
   /api/v1/api-keys:
     post:
+      operationId: createApiKey
       tags: [API Keys]
       summary: Create an API key
       description: >
@@ -5456,6 +5774,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/UnauthorizedError"
     get:
+      operationId: listApiKeys
       tags: [API Keys]
       summary: List API keys
       description: Returns key metadata but not the full key.
@@ -5502,8 +5821,10 @@ paths:
 
   /api/v1/api-keys/{id}:
     delete:
+      operationId: deleteApiKey
       tags: [API Keys]
       summary: Delete an API key
+      description: Permanently revoke and delete an API key. The key cannot be used for authentication after deletion.
       security:
         - bearerAuth: []
       parameters:
@@ -5534,8 +5855,10 @@ paths:
 
   /api/v1/settings:
     get:
+      operationId: getSettings
       tags: [Settings]
       summary: Get all settings
+      description: Retrieve all system settings as key-value pairs. Requires authentication.
       security:
         - bearerAuth: []
       responses:
@@ -5557,6 +5880,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/UnauthorizedError"
     put:
+      operationId: updateSettings
       tags: [Settings]
       summary: Update settings
       description: Accepts a flat JSON object of key-value pairs to set. Requires admin role.
@@ -5603,8 +5927,10 @@ paths:
 
   /api/v1/settings/{key}:
     get:
+      operationId: getSetting
       tags: [Settings]
       summary: Get a single setting
+      description: Retrieve a single setting value by its key name. Returns the value and last-updated timestamp.
       security:
         - bearerAuth: []
       parameters:
@@ -5640,12 +5966,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UnauthorizedError"
+                $ref: "#/components/schemas/Error"
 
   # ─── Teams ────────────────────────────────────────────────────────────────
 
   /api/v1/teams:
     get:
+      operationId: listTeams
       tags: [Teams]
       summary: List teams
       description: Requires teams:manage permission.
@@ -5686,6 +6013,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ForbiddenError"
     post:
+      operationId: createTeam
       tags: [Teams]
       summary: Create a team
       description: Requires teams:manage permission.
@@ -5740,6 +6068,7 @@ paths:
 
   /api/v1/teams/{id}:
     put:
+      operationId: updateTeam
       tags: [Teams]
       summary: Rename a team
       description: Requires teams:manage permission.
@@ -5797,6 +6126,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ConflictError"
     delete:
+      operationId: deleteTeam
       tags: [Teams]
       summary: Delete a team
       description: Requires teams:manage permission.
@@ -5842,8 +6172,10 @@ paths:
 
   /api/v1/config/auth:
     get:
+      operationId: getAuthConfig
       tags: [System]
       summary: Auth configuration
+      description: Check whether authentication is enabled on this instance. Public endpoint used by the frontend to determine login flow.
       security: []
       responses:
         "200":
@@ -5858,6 +6190,7 @@ paths:
 
   /api/v1/jobs/{jobId}/progress:
     get:
+      operationId: getJobProgress
       tags: [System]
       summary: Job progress (SSE)
       description: >
@@ -5917,6 +6250,7 @@ paths:
 
   /api/v1/admin/health:
     get:
+      operationId: adminHealthCheck
       tags: [Admin]
       summary: Admin health check
       description: |
@@ -5948,6 +6282,7 @@ paths:
 
   /api/v1/config/analytics:
     get:
+      operationId: getAnalyticsConfig
       tags: [Analytics]
       summary: Get analytics configuration
       description: |
@@ -5977,6 +6312,7 @@ paths:
 
   /api/v1/user/analytics:
     put:
+      operationId: updateAnalyticsConsent
       tags: [Analytics]
       summary: Update user analytics consent
       description: |
@@ -6021,6 +6357,7 @@ paths:
 
   /api/v1/features:
     get:
+      operationId: listFeatures
       tags: [Features]
       summary: List feature bundles
       description: |
@@ -6047,6 +6384,7 @@ paths:
                           type: string
                         description:
                           type: string
+                          description: Human-readable description of the feature bundle
                         status:
                           type: string
                           enum: [installed, not_installed, installing, error]
@@ -6079,6 +6417,7 @@ paths:
 
   /api/v1/admin/features/{bundleId}/install:
     post:
+      operationId: installFeature
       tags: [Features]
       summary: Install a feature bundle
       description: |
@@ -6132,6 +6471,7 @@ paths:
 
   /api/v1/admin/features/{bundleId}/uninstall:
     post:
+      operationId: uninstallFeature
       tags: [Features]
       summary: Uninstall a feature bundle
       description: |
@@ -6183,6 +6523,7 @@ paths:
 
   /api/v1/admin/features/disk-usage:
     get:
+      operationId: getFeatureDiskUsage
       tags: [Features]
       summary: AI model disk usage
       description: |
@@ -6218,6 +6559,7 @@ paths:
 
   /api/v1/audit-log:
     get:
+      operationId: queryAuditLog
       tags: [Audit]
       summary: Query audit log
       description: |
@@ -6315,6 +6657,7 @@ paths:
 
   /api/v1/roles:
     get:
+      operationId: listRoles
       tags: [Roles]
       summary: List roles
       description: |
@@ -6341,6 +6684,7 @@ paths:
                           type: string
                         description:
                           type: string
+                          description: Human-readable description of the role
                         permissions:
                           type: array
                           items:
@@ -6368,6 +6712,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ForbiddenError"
     post:
+      operationId: createRole
       tags: [Roles]
       summary: Create a custom role
       description: |
@@ -6416,6 +6761,7 @@ paths:
                     type: string
                   description:
                     type: string
+                    description: Human-readable description of the role
                   permissions:
                     type: array
                     items:
@@ -6449,6 +6795,7 @@ paths:
 
   /api/v1/roles/{id}:
     put:
+      operationId: updateRole
       tags: [Roles]
       summary: Update a custom role
       description: |
@@ -6476,6 +6823,7 @@ paths:
                   maxLength: 30
                 description:
                   type: string
+                  description: Updated description for the role
                 permissions:
                   type: array
                   items:
@@ -6521,6 +6869,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ConflictError"
     delete:
+      operationId: deleteRole
       tags: [Roles]
       summary: Delete a custom role
       description: |

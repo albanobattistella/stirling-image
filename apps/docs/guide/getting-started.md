@@ -70,7 +70,7 @@ pnpm dev
 |----------|-------|
 | **Essentials** | Resize, Crop, Rotate & Flip, Convert, Compress |
 | **Optimization** | Optimize for Web, Strip Metadata, Edit Metadata, Bulk Rename, Image to PDF, Favicon Generator |
-| **Adjustments** | Adjust Colors, Sharpening, Replace Color |
+| **Adjustments** | Adjust Colors, Sharpening, Replace Color, Color Blindness Simulation |
 | **AI Tools** | Remove Background, Upscale, Erase Object, OCR, Blur Faces, Smart Crop, Image Enhancement, Enhance Faces, Colorize, Noise Removal, Red Eye Removal, Restore Photo, Passport Photo, Content-Aware Resize, PNG Transparency Fixer |
 | **Watermark & Overlay** | Text Watermark, Image Watermark, Text Overlay, Image Composition |
 | **Utilities** | Image Info, Compare, Find Duplicates, Color Palette, QR Code Generator, Barcode Reader, Image to Base64 |
