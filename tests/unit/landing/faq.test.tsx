@@ -19,6 +19,10 @@ vi.mock("@/components/navbar", () => ({
   Navbar: () => <nav data-testid="navbar" />,
 }));
 
+vi.mock("@/components/json-ld", () => ({
+  JsonLd: () => null,
+}));
+
 vi.mock("framer-motion", () => ({
   motion: {
     div: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => (

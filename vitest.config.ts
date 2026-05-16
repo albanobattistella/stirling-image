@@ -81,6 +81,7 @@ export default defineConfig({
       // Landing page components that don't exist in web but are imported via @/
       "@/components/fade-in": path.resolve(__dirname, "apps/landing/src/components/fade-in"),
       "@/components/footer": path.resolve(__dirname, "apps/landing/src/components/footer"),
+      "@/components/json-ld": path.resolve(__dirname, "apps/landing/src/components/json-ld"),
       "@/components/navbar": path.resolve(__dirname, "apps/landing/src/components/navbar"),
       "@": path.resolve(__dirname, "apps/web/src"),
       "framer-motion": path.join(landingNodeModules, "framer-motion"),

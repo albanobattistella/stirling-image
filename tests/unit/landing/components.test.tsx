@@ -41,7 +41,7 @@ describe("Hero", () => {
 
   it("renders the subheadline", () => {
     render(<Hero />);
-    expect(screen.getByText("Every image tool you need.")).toBeDefined();
+    expect(screen.getByText(/free, open-source image toolkit/)).toBeDefined();
   });
 
   it("renders the CTA button linking to GitHub", () => {
