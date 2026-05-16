@@ -18,6 +18,7 @@ const freePlan = {
     "ARM and x86 support",
     "Air-gapped and offline ready",
     "Multi-user with team permissions",
+    "Available in 21 languages",
     "Audit logging",
     "Community support via GitHub and Discord",
     "All updates included",

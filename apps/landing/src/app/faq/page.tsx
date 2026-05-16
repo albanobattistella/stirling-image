@@ -31,7 +31,7 @@ const faqs = [
   {
     question: "What AI features are included?",
     answer:
-      "SnapOtter includes 14 local AI models for background removal, upscaling, OCR, face detection, colorization, noise removal, photo restoration, and more. All models run on your hardware.",
+      "SnapOtter includes 15 local AI models for background removal, upscaling, OCR, face detection, colorization, noise removal, photo restoration, and more. All models run on your hardware.",
   },
   {
     question: "Does SnapOtter collect any analytics?",
