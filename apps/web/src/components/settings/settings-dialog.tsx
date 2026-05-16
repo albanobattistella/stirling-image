@@ -1172,9 +1172,9 @@ function PeopleSection() {
       )}
 
       {/* Users table */}
-      <div className="border border-border rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg">
         {/* Table header */}
-        <div className="grid grid-cols-[1fr_100px_120px_60px] gap-2 px-4 py-2.5 bg-muted/40 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <div className="grid grid-cols-[1fr_100px_120px_60px] gap-2 px-4 py-2.5 bg-muted/40 rounded-t-lg border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wide">
           <span>{t.settings.people.tableHeaderUser}</span>
           <span>{t.settings.people.tableHeaderRole}</span>
           <span>{t.settings.people.tableHeaderTeam}</span>
@@ -1183,14 +1183,14 @@ function PeopleSection() {
 
         {/* Table rows */}
         {filteredUsers.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground rounded-b-lg">
             {search ? t.settings.people.noSearchResults : t.settings.people.noUsersFound}
           </div>
         ) : (
           filteredUsers.map((u) => (
             <div
               key={u.id}
-              className="grid grid-cols-[1fr_100px_120px_60px] gap-2 items-center px-4 py-3 border-b border-border last:border-0 hover:bg-muted/20 transition-colors"
+              className="grid grid-cols-[1fr_100px_120px_60px] gap-2 items-center px-4 py-3 border-b border-border last:border-0 last:rounded-b-lg hover:bg-muted/20 transition-colors"
             >
               {/* User cell */}
               <div className="flex items-center gap-3 min-w-0">
@@ -1705,22 +1705,22 @@ function TeamsSection() {
         </form>
       )}
 
-      <div className="border border-border rounded-lg overflow-hidden">
-        <div className="grid grid-cols-[1fr_100px_60px] gap-2 px-4 py-2.5 bg-muted/40 border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      <div className="border border-border rounded-lg">
+        <div className="grid grid-cols-[1fr_100px_60px] gap-2 px-4 py-2.5 bg-muted/40 rounded-t-lg border-b border-border text-xs font-medium text-muted-foreground uppercase tracking-wide">
           <span>{t.settings.teams.tableHeaderTeamName}</span>
           <span>{t.settings.teams.totalMembers}</span>
           <span />
         </div>
 
         {teams.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground rounded-b-lg">
             {t.settings.teams.emptyState}
           </div>
         ) : (
           teams.map((tm) => (
             <div
               key={tm.id}
-              className="grid grid-cols-[1fr_100px_60px] gap-2 items-center px-4 py-3 border-b border-border last:border-0 hover:bg-muted/20 transition-colors"
+              className="grid grid-cols-[1fr_100px_60px] gap-2 items-center px-4 py-3 border-b border-border last:border-0 last:rounded-b-lg hover:bg-muted/20 transition-colors"
             >
               <div className="min-w-0">
                 {editingTeamId === tm.id ? (
