@@ -1687,8 +1687,8 @@ export const en = {
     connectionError: "Connection error",
     changingButton: "Changing...",
     changeButton: "Change password",
-    sidebarTitle: "Almost there",
-    sidebarDescription: "Set a strong password to secure your account, then you are good to go.",
+    sidebarTitle: "Hello from the otter side!",
+    sidebarDescription: "Set a strong password to secure your account, then you're good to go.",
   },
   automate: {
     title: "Automate",

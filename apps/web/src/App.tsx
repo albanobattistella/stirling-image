@@ -1,7 +1,7 @@
 import { APP_VERSION, en, shouldShowConsent } from "@snapotter/shared";
 import { Component, type ErrorInfo, lazy, type ReactNode, Suspense, useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import { ConnectionMonitor } from "./components/common/connection-monitor";
 import { KeyboardShortcutProvider } from "./components/common/keyboard-shortcut-provider";
 import { I18nProvider } from "./contexts/i18n-context";
@@ -185,6 +185,15 @@ export function App() {
   useEffect(() => {
     fetchAnalyticsConfig();
   }, [fetchAnalyticsConfig]);
+
+  useEffect(() => {
+    if (localStorage.getItem("snapotter-welcome") === "1") {
+      localStorage.removeItem("snapotter-welcome");
+      toast("Hello from the otter side! 🦦", {
+        duration: 5000,
+      });
+    }
+  }, []);
 
   useEffect(() => {
     if (
